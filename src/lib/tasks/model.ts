@@ -1,15 +1,25 @@
 export type Priority = "None" | "Low" | "Medium" | "High";
+export const MEETING_CATEGORIES = ["Sunday Service", "Healing Meeting", "Revival Meeting", "Special Meeting", "Woman's Meeting"];
+export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const MAX_BATCH_TASKS = 20;
+export function categoryOrder(names: string[]) {
+  return [...names].sort((a,b) => {
+    const first=MEETING_CATEGORIES.indexOf(a), second=MEETING_CATEGORIES.indexOf(b);
+    return (first < 0 ? 99 : first) - (second < 0 ? 99 : second) || a.localeCompare(b);
+  });
+}
 export type Task = {
   id: string; title: string; notes: string; completed: boolean; date: string;
   time: string; priority: Priority; category: string; reminder: string;
   notification: boolean; email: boolean; repeat: string;
-  createdAt: string; updatedAt: string;
+  createdAt: string; updatedAt: string; weekdays: number[];
 };
 export type Category = { id: string; name: string };
 export type TaskFields = {
   title: string; notes: string | null; status: "active" | "completed";
   due_date: string | null; due_time: string | null;
   priority: "none" | "low" | "medium" | "high"; category_id: string | null;
+  weekdays: number[];
 };
 export type TaskRow = TaskFields & {
   id: string; created_at: string; updated_at: string; completed_at: string | null;
@@ -20,12 +30,14 @@ export type TaskAction =
   | { action: "bootstrap" }
   | { action: "category"; name: string }
   | { action: "create"; fields: TaskFields }
+  | { action: "create_many"; fields: TaskFields[] }
+  | { action: "delete"; id: string; version: string }
   | { action: "update"; id: string; version: string; fields: TaskFields }
   | { action: "status"; id: string; version: string; status: "active" | "completed" };
 
 export function blankTask(): Task {
   return { id: "", title: "", notes: "", completed: false, date: "", time: "", priority: "None",
-    category: "", reminder: "Off", notification: false, email: false, repeat: "Off", createdAt: "", updatedAt: "" };
+    category: "", reminder: "Off", notification: false, email: false, repeat: "Off", createdAt: "", updatedAt: "", weekdays: [] };
 }
 export function mapTask(row: TaskRow, categories: Category[]): Task {
   const category = row.category_id ? categories.find(c => c.id === row.category_id) : null;
@@ -33,14 +45,14 @@ export function mapTask(row: TaskRow, categories: Category[]): Task {
   return { ...blankTask(), id: row.id, title: row.title, notes: row.notes ?? "", completed: row.status === "completed",
     date: row.due_date ?? "", time: row.due_time?.slice(0, 5) ?? "",
     priority: (row.priority[0].toUpperCase() + row.priority.slice(1)) as Priority,
-    category: category?.name ?? "", createdAt: row.created_at, updatedAt: row.updated_at };
+    category: category?.name ?? "", createdAt: row.created_at, updatedAt: row.updated_at, weekdays: [...row.weekdays] };
 }
 export function taskFields(task: Task, categories: Category[]): TaskFields {
   const category = task.category ? categories.find(c => c.name === task.category) : null;
   if (task.category && !category) throw new Error("That category is unavailable. Refresh and choose again.");
   return { title: task.title.trim(), notes: task.notes || null, status: task.completed ? "completed" : "active",
     due_date: task.date || null, due_time: task.time || null,
-    priority: task.priority.toLowerCase() as TaskFields["priority"], category_id: category?.id ?? null };
+    priority: task.priority.toLowerCase() as TaskFields["priority"], category_id: category?.id ?? null, weekdays: [...task.weekdays].sort((a,b)=>a-b) };
 }
 export function newestFirst(tasks: Task[]): Task[] {
   return [...tasks].sort((a,b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));

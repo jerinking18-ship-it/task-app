@@ -61,7 +61,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   async function mutate(input:TaskAction):Promise<Record<string,unknown>> {
     if(state.current.pending) throw new SaveError("Please wait for the current save.");
     if(expired) throw new SaveError("Sign in again before saving.",401);
-    if(input.action==="create" && uncertain) throw new SaveError("Refresh and review saved tasks before creating another task.");
+    if((input.action==="create" || input.action==="create_many") && uncertain) throw new SaveError("Refresh and review saved tasks before creating more tasks.");
     read.current?.abort(); sequence.current++; setLoading(false);
     state.current.pending=true; setPending(true); setError("");
     try {
@@ -76,9 +76,15 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
         throw new SaveError(typeof body.message==="string" ? body.message : "Unable to save. Please try again.",response.status,latest);
       }
       if(input.action === "create" || input.action === "update" || input.action === "status") decodeRow(body.task);
+      if(input.action === "create_many") {
+        if(!Array.isArray(body.tasks) || body.tasks.length !== input.fields.length) throw new SaveError("The save response was incomplete. Refresh before retrying.");
+        const rows=body.tasks.map(decodeRow);
+        if(new Set(rows.map(row=>row.id)).size !== rows.length) throw new SaveError("The save response was incomplete. Refresh before retrying.");
+      }
+      if(input.action === "delete" && body.deleted !== input.id) throw new SaveError("Deletion could not be confirmed. Refresh before trying again.");
       return body;
     } catch(error) {
-      if(input.action==="create" && (!(error instanceof SaveError) || error.status===0 || error.status>=500)) setUncertain(true);
+      if((input.action==="create" || input.action==="create_many") && (!(error instanceof SaveError) || error.status===0 || error.status>=500)) setUncertain(true);
       throw error instanceof SaveError ? error : new SaveError("We couldn’t confirm saving. Check your connection and refresh to review saved data before trying again.");
     } finally {state.current.pending=false; if(alive.current) setPending(false);}
   }
@@ -115,6 +121,19 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     setData(current=>current ? {...current,tasks:current.tasks.map(t=>t.id===row.id ? row : t)} : current);
     setDeferred(true); return mapped;
   }
+  async function saveMany(tasks:Task[], category:string) {
+    const fields=tasks.map(task=>({...taskFields({...task,category},data?.categories ?? []),status:"active" as const}));
+    const reply=await mutate({action:"create_many",fields});
+    const rows=(reply.tasks as unknown[]).map(decodeRow);
+    const mapped=rows.map(row=>mapTask(row,data?.categories ?? []));
+    setData(current=>current ? {...current,tasks:[...current.tasks,...rows]} : current);
+    setDeferred(true); return mapped;
+  }
+  async function remove(task:Task) {
+    await mutate({action:"delete",id:task.id,version:task.updatedAt});
+    setData(current=>current ? {...current,tasks:current.tasks.filter(row=>row.id!==task.id)} : current);
+    setDeferred(true);
+  }
   async function addCategory(name:string):Promise<string> {
     const reply=await mutate({action:"category",name}); const category=decodeCategory(reply.category);
     setData(current=>current ? {...current,categories:[...current.categories.filter(c=>c.id!==category.id),category]} : current);
@@ -125,5 +144,5 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   if(data) tasks=newestFirst(data.tasks.map(t=>mapTask(t,data.categories)));
   const categories:Category[]=data?.categories ?? [];
   return {tasks,categories,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && initialized,
-    loading,pending,error,expired,deferred,uncertain,refresh,setup,initialize,save,toggle,addCategory};
+    loading,pending,error,expired,deferred,uncertain,refresh,setup,initialize,save,toggle,saveMany,remove,addCategory};
 }

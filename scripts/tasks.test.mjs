@@ -13,19 +13,19 @@ function load(path,deps={}) {
   }}); return exports;
 }
 const model=load("../src/lib/tasks/model.ts");
-const validation=load("../src/lib/tasks/validation.ts");
-const repository=load("../src/lib/tasks/repository.ts",{"./validation":validation});
+const validation=load("../src/lib/tasks/validation.ts",{"./model":model});
+const repository=load("../src/lib/tasks/repository.ts",{"./validation":validation,"./model":model});
 const owner="00000000-0000-4000-8000-000000000001";
 const taskId="00000000-0000-4000-8000-000000000010";
 const catId="00000000-0000-4000-8000-000000000020";
 const version="2026-10-12T09:00:00.000000+00:00";
-const fields={title:"A task",notes:null,status:"active",due_date:null,due_time:null,priority:"none",category_id:null};
+const fields={title:"A task",notes:null,status:"active",due_date:null,due_time:null,priority:"none",category_id:null,weekdays:[]};
 const row={...fields,id:taskId,created_at:version,updated_at:version,completed_at:null};
 function fixture(respond) {
   const calls=[];
   const client={from(table){
     const ops=[]; const query={};
-    for(const method of ["select","eq","order","limit","gt","insert","update","single","maybeSingle"])
+    for(const method of ["select","eq","is","order","limit","gt","insert","update","single","maybeSingle"])
       query[method]=(...args)=>{ops.push([method,...args]);return query;};
     query.then=(resolve,reject)=>{
       const call={table,ops};calls.push(call);
@@ -169,7 +169,7 @@ test("starter initialization creates only missing categories and is idempotent",
     return {data:categories,error:null};
   });
   await f.repo.mutate({action:"bootstrap"});await f.repo.mutate({action:"bootstrap"});
-  assert.equal(inserts,2);assert.equal(categories.length,3);
+  assert.equal(inserts,5);assert.equal(categories.length,6);
   assert.equal(f.calls.some(c=>c.table==="tasks"),false);
 });
 
@@ -188,7 +188,7 @@ const request=(body,origin="http://127.0.0.1:3003",type="application/json")=>new
 test("API rejects origin, media type, oversized/malformed JSON and invalid writes before any query",async()=>{
   const f=routeFixture();
   for(const [req,status] of [[request({action:"bootstrap"},"https://example.org"),403],
-    [request({},undefined,"text/plain"),415],[request("x".repeat(32769)),413],
+    [request({},undefined,"text/plain"),415],[request("x".repeat(393217)),413],
     [request("{"),400],[request({action:"create",fields:{...fields,owner_id:owner}}),400]])
     assert.equal((await f.route.POST(req)).status,status);
   assert.equal(f.calls.length,0);
@@ -212,4 +212,83 @@ test("API unexpected failures never expose provider errors or private contents",
   });
   const response=await GET();assert.equal(response.status,503);
   assert.equal((await response.text()).includes('fixture-private-provider-details'),false);
+});
+
+
+test("weekdays round-trip as independent labels; invalid arrays cannot be saved",()=>{
+  for(const days of [[],[0],[0,2,6],[0,1,2,3,4,5,6]]) {
+    const input=validation.validateAction({action:"create",fields:{...fields,weekdays:days}});
+    assert.ok(input);
+    const mapped=model.mapTask(validation.decodeRow({...row,...input.fields}),[]);
+    assert.deepEqual([...mapped.weekdays],days);
+    assert.deepEqual([...model.taskFields(mapped,[]).weekdays],days);
+    assert.equal(mapped.date,"");assert.equal(mapped.repeat,"Off");
+  }
+  for(const weekdays of [null,undefined,"Sunday",[0,0],[-1],[7],[1.5],["1"],[[0]],[0,1,2,3,4,5,6,6]])
+    { assert.equal(validation.validateAction({action:"create",fields:{...fields,weekdays}}),null);
+      assert.throws(()=>validation.decodeRow({...row,weekdays})); }
+});
+
+test("bulk payload validates every independent task, bounds count, common category and active status",()=>{
+  const input=validation.validateAction({action:"create_many",fields:[{...fields,title:"  First  ",notes:"Independent note",weekdays:[0,3]}, {...fields,title:"Second",priority:"high"}]});
+  assert.equal(input.fields[0].title,"First");assert.equal(input.fields[1].notes,null);
+  assert.ok(validation.validateAction({action:"create_many",fields:Array.from({length:20},()=>fields)}));
+  for(const list of [[],Array.from({length:21},()=>fields),[fields,{...fields,title:" "}],[fields,{...fields,owner_id:owner}],[fields,{...fields,status:"completed"}],[fields,{...fields,category_id:catId}],[fields,{...fields,due_time:"09:00"}]])
+    assert.equal(validation.validateAction({action:"create_many",fields:list}),null);
+  assert.equal(validation.validateAction({action:"create_many",fields:[fields],owner_id:owner}),null);
+});
+
+test("bulk save uses one atomic array insert and returns all committed rows, without per-row retries",async()=>{
+  const drafts=[{...fields,title:"First",notes:"One"},{...fields,title:"Second",notes:"Two",weekdays:[1,4]}];
+  const rows=drafts.map((field,i)=>({...row,...field,id:i?catId:taskId}));
+  const f=fixture(call=>op(call,"insert")?{data:rows,error:null}:normal(call));
+  const result=await f.repo.mutate({action:"create_many",fields:drafts});
+  assert.equal(result.tasks.length,2);assert.equal(result.tasks[1].notes,"Two");
+  const inserts=f.calls.filter(call=>op(call,"insert"));assert.equal(inserts.length,1);
+  assert.equal(op(inserts[0],"insert")[1],drafts);
+  for(const response of [{data:[rows[0]],error:null},{data:null,error:{code:"23503"}}]) {
+    const bad=fixture(call=>op(call,"insert")?response:normal(call));
+    await assert.rejects(()=>bad.repo.mutate({action:"create_many",fields:drafts}));
+    assert.equal(bad.calls.filter(call=>op(call,"insert")).length,1);
+  }
+});
+
+test("delete marks the retained row and checks original owner/version; all task reads and writes exclude deleted rows",async()=>{
+  assert.ok(validation.validateAction({action:"delete",id:taskId,version}));
+  for(const extra of [{version:"invalid"},{owner_id:owner},{deleted_at:version}])
+    assert.equal(validation.validateAction({action:"delete",id:taskId,version,...extra}),null);
+  const f=fixture(call=>op(call,"update")?{data:row,error:null}:normal(call));
+  assert.equal((await f.repo.mutate({action:"delete",id:taskId,version})).deleted,taskId);
+  const write=f.calls.find(call=>op(call,"update"));
+  assert.deepEqual(Object.keys(op(write,"update")[1]),["deleted_at"]);
+  assert.ok(Number.isFinite(Date.parse(op(write,"update")[1].deleted_at)));
+  for(const [key,value] of [["id",taskId],["owner_id",owner],["updated_at",version]])
+    assert.ok(write.ops.some(o=>o[0]==="eq"&&o[1]===key&&o[2]===value));
+  assert.deepEqual(op(write,"is"),["is","deleted_at",null]);
+  const reads=fixture(normal);await reads.repo.read();
+  for(const call of reads.calls.filter(call=>call.table==="tasks"))assert.deepEqual(op(call,"is"),["is","deleted_at",null]);
+  for(const action of ["delete","update","status"]) {
+    const missing=fixture(call=>call.table==="tasks"?{data:null,error:null}:normal(call));
+    await assert.rejects(()=>missing.repo.mutate({action,id:taskId,version,fields,status:"active"}),error=>error.status===404);
+    for(const call of missing.calls.filter(call=>call.table==="tasks"))assert.deepEqual(op(call,"is"),["is","deleted_at",null]);
+    assert.equal(missing.calls.filter(call=>op(call,"update")).length,1);
+  }
+});
+
+test("stale delete preserves task and reports saved version for review",async()=>{
+  const f=fixture(call=>op(call,"update")?{data:null,error:null}:call.table==="tasks"?{data:{...row,title:"New saved title"},error:null}:normal(call));
+  await assert.rejects(()=>f.repo.mutate({action:"delete",id:taskId,version}),error=>error.status===409&&error.latest.title==="New saved title");
+  assert.equal(f.calls.filter(call=>op(call,"update")).length,1);
+});
+
+test("new task actions still require authenticated same-origin requests; meeting presets keep approved order",async()=>{
+  const anon=routeFixture(false);
+  for(const body of [{action:"create_many",fields:[fields]},{action:"delete",id:taskId,version}]) {
+    assert.equal((await anon.route.POST(request(body))).status,401);
+    const signedIn=routeFixture();assert.equal((await signedIn.route.POST(request(body,"https://example.org"))).status,403);
+    assert.equal(signedIn.calls.length,0);
+  }
+  assert.equal(anon.calls.length,0);
+  const ordered=model.categoryOrder(["Z custom",...model.MEETING_CATEGORIES].reverse());
+  assert.deepEqual([...ordered],[...model.MEETING_CATEGORIES,"Z custom"]);
 });

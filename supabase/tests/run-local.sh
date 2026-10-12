@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 docker image inspect postgres:16-alpine >/dev/null
 task_sql_container="$(docker run --pull=never --rm -d --network none \
+  --tmpfs /var/lib/postgresql/data \
   -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16-alpine)"
 trap 'docker rm -f "$task_sql_container" >/dev/null 2>&1 || true' EXIT
 for task_sql_attempt in {1..30}; do
@@ -24,4 +25,16 @@ for task_sql_file in \
   docker exec -i "$task_sql_container" psql -X -q -At -U postgres \
     -v ON_ERROR_STOP=1 < "$task_sql_file"
 done
+# Exercise the new migration on a separate fresh database with legacy fixtures.
+docker exec "$task_sql_container" createdb -U postgres meeting_feature_tests
+docker exec "$task_sql_container" mkdir -p /tmp/supabase/tests /tmp/supabase/migrations
+for task_sql_file in \
+  supabase/tests/meeting_task_features.sql \
+  supabase/migrations/202610120001_private_tasks_categories.sql \
+  supabase/migrations/202610120002_account_timezone.sql \
+  supabase/migrations/202610120003_task_weekdays_and_deletion.sql; do
+  docker cp "$task_sql_file" "$task_sql_container:/tmp/$task_sql_file"
+done
+docker exec -w /tmp "$task_sql_container" psql -X -q -At -U postgres \
+  -d meeting_feature_tests -f supabase/tests/meeting_task_features.sql
 echo 'Local SQL checks passed; disposable database will now be removed.'

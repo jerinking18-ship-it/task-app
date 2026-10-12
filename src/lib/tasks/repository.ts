@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Category, Dataset, TaskAction, TaskRow } from "./model";
+import { MEETING_CATEGORIES } from "./model";
 import { decodeCategory, decodeRow } from "./validation";
 
-const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,created_at,updated_at,completed_at";
+const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,created_at,updated_at,completed_at";
 export class TaskError extends Error {
   constructor(public status: number, message: string, public latest?: TaskRow, public categories?: Category[]) { super(message); }
 }
@@ -26,6 +27,7 @@ export class TaskRepository {
     for (let page=0; page<200; page++) {
       let query = this.client.from(table).select(table === "tasks" ? TASK_COLUMNS : "id,name")
         .eq("owner_id",this.owner).order("id",{ascending:true}).limit(500);
+      if (table === "tasks") query = query.is("deleted_at",null);
       if (cursor) query = query.gt("id",cursor);
       const {data,error} = await query; check(error);
       if (!Array.isArray(data)) throw new TaskError(503,"Saved data could not be loaded completely. Try refreshing.");
@@ -68,7 +70,7 @@ export class TaskRepository {
     }
     if (!await this.timezone()) throw new TaskError(409,"Confirm your account timezone before saving tasks.");
     if (input.action === "bootstrap") {
-      for (const name of ["Personal","Work","Shopping"]) await this.category(name);
+      for (const name of MEETING_CATEGORIES) await this.category(name);
       return {categories:await this.pages("categories",decodeCategory)};
     }
     if (input.action === "category") return {category:await this.category(input.name)};
@@ -76,14 +78,21 @@ export class TaskRepository {
       const {data,error} = await this.client.from("tasks").insert(input.fields).select(TASK_COLUMNS).single();
       check(error); return {task:decodeRow(data)};
     }
-    const values = input.action === "status" ? {status:input.status} : input.fields;
+    if (input.action === "create_many") {
+      // A single INSERT statement is atomic under PostgreSQL/RLS, including all category joins.
+      const {data,error} = await this.client.from("tasks").insert(input.fields).select(TASK_COLUMNS);
+      check(error);
+      if (!Array.isArray(data) || data.length !== input.fields.length) throw new TaskError(503,"We couldn’t confirm all tasks. Refresh and review saved data before trying again.");
+      return {tasks:data.map(decodeRow)};
+    }
+    const values = input.action === "delete" ? {deleted_at:new Date().toISOString()} : input.action === "status" ? {status:input.status} : input.fields;
     const {data,error} = await this.client.from("tasks").update(values).eq("id",input.id)
-      .eq("owner_id",this.owner).eq("updated_at",input.version).select(TASK_COLUMNS).maybeSingle();
+      .eq("owner_id",this.owner).eq("updated_at",input.version).is("deleted_at",null).select(TASK_COLUMNS).maybeSingle();
     check(error);
-    if (data) return {task:decodeRow(data)};
-    const current = await this.client.from("tasks").select(TASK_COLUMNS).eq("id",input.id).eq("owner_id",this.owner).maybeSingle();
+    if (data) return input.action === "delete" ? {deleted:decodeRow(data).id} : {task:decodeRow(data)};
+    const current = await this.client.from("tasks").select(TASK_COLUMNS).eq("id",input.id).eq("owner_id",this.owner).is("deleted_at",null).maybeSingle();
     check(current.error);
     if (!current.data) throw new TaskError(404,"This task is no longer available. Your draft has been kept.");
-    throw new TaskError(409,"This task changed elsewhere. Review the saved version before saving your draft.",decodeRow(current.data),await this.pages("categories",decodeCategory));
+    throw new TaskError(409,input.action === "delete" ? "This task changed elsewhere. Review the saved version before deleting it." : "This task changed elsewhere. Review the saved version before saving your draft.",decodeRow(current.data),await this.pages("categories",decodeCategory));
   }
 }
