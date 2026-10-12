@@ -19,7 +19,7 @@
 .field label { font-size:12px; font-weight:600; color:#26364b; }
 .field input { width:100%; min-width:0; min-height:49px; padding:13px 14px; border:1px solid #dfdfdc; border-radius:9px; background:#fff; color:#101c2d; font-size:14px; }
 .field input::placeholder { color:#727a85; }
-.field input:focus { border-color:#b6a077; }
+.field input:focus { outline:none; border-color:#71839b; }
 .field input[aria-invalid=true] { border-color:#b55f52; }
 .field input:disabled { background:#f7f6f3; }
 .labelRow { display:flex; flex-wrap:wrap; gap:6px; justify-content:space-between; align-items:baseline; }
