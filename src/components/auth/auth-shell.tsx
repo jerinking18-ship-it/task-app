@@ -8,10 +8,9 @@ export function CheckMark({ large = false }: { large?: boolean }) {
 
 export default function AuthShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return <div className={styles.shell}>
-    <a href="#auth-content" className={styles.skipLink}>Skip to sign-in form</a>
+    <a href="#auth-content" className={styles.skipLink}>Skip to form</a>
     <header className={styles.header}>
       <Link href="/" className={styles.brand}><CheckMark /><span>Task App<span className={styles.brandDot}>.</span></span></Link>
-      <Link href="/" className={styles.previewLink}>View task preview <span aria-hidden="true">↗</span></Link>
     </header>
     <main id="auth-content" className={styles.main}>
       <section className={styles.card} aria-labelledby="auth-title">
