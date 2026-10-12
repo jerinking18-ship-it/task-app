@@ -1204,7 +1204,7 @@
   }
   .accountBar:not(:has([role="status"],[role="alert"])) { position:absolute; top:24px; right:24px; padding:0; background:transparent; z-index:1; }
   .accountBar:not(:has([role="status"],[role="alert"])) + .header { padding-top:24px; }
-  .accountBar:not(:has([role="status"],[role="alert"])) + .header .heading { padding-right:88px; min-height:44px; }
+  .accountBar:not(:has([role="status"],[role="alert"])) + .header .heading { padding-right:84px; min-height:44px; }
   .header {
     background:var(--navy);
     color:white;
@@ -1213,25 +1213,35 @@
     min-height:168px
   }
   .heading {
-    align-items:flex-start
+    align-items:flex-start;
+    gap:12px
   }
+  .heading>div { min-width:0; padding-top:4px; }
   .mobileMenu {
     display:grid;
     place-items:center;
-    background:transparent;
-    border:0;
-    color:#c1c6ce;
-    padding:4px;
-    margin-top:3px
+    flex-shrink:0;
+    width:44px;
+    height:44px;
+    background:#1d2a3d;
+    border:1px solid #4d6580;
+    border-radius:10px;
+    color:white;
+    padding:0;
+    margin:0
   }
+  .mobileMenu:hover { background:#26374d; }
+  .mobileMenu:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
   .overline {
     display:none
   }
   .header h1 {
     font-size:29px;
     font-weight:500;
-    letter-spacing:-.7px
+    letter-spacing:-.7px;
+    overflow-wrap:anywhere
   }
+  .header .singleLineTitle { font-size:clamp(18px,calc(8vw - 8px),24px); white-space:nowrap; overflow-wrap:normal; }
   .date {
     color:#93a0b2;
     margin-top:8px;
@@ -1246,8 +1256,8 @@
     max-width:none;
     height:43px;
     border-radius:8px;
-    border-color:#3b485a;
-    background:#213045;
+    border-color:#4d6580;
+    background:#1d2a3d;
     color:#a9b1bd
   }
   .search input {
@@ -1522,6 +1532,12 @@
   .taskRow {
     transition:none
   }
+}
+
+@media(max-width:360px) {
+  .header { padding-left:20px; padding-right:20px; }
+  .accountBar:not(:has([role="status"],[role="alert"])) { right:20px; }
+  .header h1 { font-size:24px; }
 }
 
 /* Meeting categories and the shared single/bulk task controls. */
