@@ -1,5 +1,5 @@
-import TaskApp from "@/components/task-app";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <TaskApp today={new Date().toISOString().slice(0, 10)} />;
+  redirect("/account");
 }
