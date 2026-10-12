@@ -113,6 +113,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const activeCount = tasks.filter((task) => !task.completed).length;
   function openEditor(task: Task) {
     if(busy || (saved && !storage.ready)) return;
+    if(!saved && !task.id) {requestAction(()=>window.location.assign("/sign-in")); return;}
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     requestAction(()=>{setEditing({ ...task }); setDirty(false); setEditorVersion(v=>v+1); setMobileEditor(window.matchMedia("(max-width: 1100px)").matches);});
   }
@@ -152,6 +153,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     setMessage(task.completed ? "Task reopened in this preview" : "Task completed in this preview");
   }
   async function saveTask(task: Task) {
+    if(!saved && !task.id) {requestAction(()=>window.location.assign("/sign-in")); return;}
     if(saved) {
       const result=await storage.save(task); setHiddenSaved(!matches(result));
       finishEditor(); setMessage(task.id ? "Changes saved" : "Task created"); return;
