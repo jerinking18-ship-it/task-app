@@ -440,6 +440,18 @@
   padding:0 5px
 }
 
+.remainingTasks {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  color:#b33d35;
+  font-weight:600
+}
+
+.remainingTasks svg {
+  flex-shrink:0
+}
+
 .taskList {
   list-style:none;
   padding:0;

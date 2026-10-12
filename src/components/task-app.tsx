@@ -7,7 +7,7 @@ import { accountClock, blankTask, isOverdue, matchesTask, type Priority, type Ta
 import { SaveError, useSavedTasks } from "@/lib/tasks/use-saved-tasks";
 import AccountControls from "./auth/account-controls";
 type View = "All tasks" | "Today" | "Overdue" | "Completed";
-type IconName = "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "close" | "menu" | "filter" | "repeat" | "bell";
+type IconName = "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
@@ -23,6 +23,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     filter: <><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" fill="currentColor" /><circle cx="15" cy="17" r="2" fill="currentColor" /></>,
     repeat: <><path d="m17 3 4 4-4 4M21 7H7a4 4 0 0 0-4 4M7 21l-4-4 4-4M3 17h14a4 4 0 0 0 4-4" /></>,
     bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>,
+    warning: <><path d="m10.3 4-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4m0 4h.01" /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
@@ -80,6 +81,8 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const [queuedAction,setQueuedAction]=useState<(()=>void)|null>(null);
   const [writeError,setWriteError]=useState("");
   const [statusConflict,setStatusConflict]=useState<Task|null>(null);
+  const [reopenTask,setReopenTask]=useState<Task|null>(null);
+  const reopenFocus=useRef<HTMLElement|null>(null);
   const [hiddenSaved,setHiddenSaved]=useState(false);
   useEffect(()=>setHiddenSaved(false),[view,status,priority,category,search]);
   const signOutAnswer=useRef<((answer:boolean)=>void)|null>(null);
@@ -136,9 +139,17 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   function finishEditor() {setDirty(false); setEditing(null); setMobileEditor(false); restoreFocus();}
   function closeEditor() {requestAction(finishEditor);}
   function chooseView(next: View) { setView(next); resetFilters(); setMenuOpen(false); }
-  async function toggleTask(id: string) {
-    const task = tasks.find((item) => item.id === id);
-    if (!task || busy || (dirty && editing?.id===id)) return;
+  function cancelReopenTask() {
+    setReopenTask(null);
+    window.requestAnimationFrame(()=>{if(reopenFocus.current?.isConnected) reopenFocus.current.focus();});
+  }
+  async function toggleTask(id: string, confirmedReopen?: Task) {
+    const task = confirmedReopen ?? tasks.find((item) => item.id === id);
+    if (!task || busy || (saved && (!storage.ready || storage.expired)) || (dirty && editing?.id===id)) return;
+    if(task.completed && !confirmedReopen) {
+      reopenFocus.current=document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setReopenTask(task); return;
+    }
     if(saved) {
       setWriteError(""); setStatusConflict(null);
       try {
@@ -205,7 +216,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
           </>}
           {(!saved || storage.ready) && <>
           <div className={styles.toolbar}><div className={styles.tabs} aria-label="Task status">{["All", "Active", "Completed"].map((item) => <button key={item} className={status === item ? styles.tabActive : ""} onClick={() => setStatus(item)} aria-pressed={status === item}>{item}</button>)}</div><button className={`${styles.mobileFilter} ${filtersOpen ? styles.filterActive : ""}`} aria-label="Toggle priority and category filters" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><Icon name="filter" /></button><div className={`${styles.filters} ${filtersOpen ? styles.filtersVisible : ""}`}><label><span className={styles.srOnly}>Filter by priority</span><select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="Any">Priority</option>{["None", "Low", "Medium", "High"].map((item) => <option key={item}>{item}</option>)}</select></label><label><span className={styles.srOnly}>Filter by category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="Any">Category</option><option value="">Uncategorized</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label></div></div>
-          <div className={styles.listHeading}><span>{visibleTasks.length} {visibleTasks.length === 1 ? "task" : "tasks"}</span><span>{activeCount} left to do</span></div>
+          <div className={styles.listHeading}><span>{visibleTasks.length} {visibleTasks.length === 1 ? "task" : "tasks"}</span><span className={styles.remainingTasks}><Icon name="warning" size={14} />{activeCount} left to do</span></div>
           {visibleTasks.length ? <ul className={styles.taskList}>{visibleTasks.map((task) => <li key={task.id} className={`${styles.taskRow} ${editing?.id === task.id ? styles.selected : ""} ${task.completed ? styles.completed : ""}`}><label className={styles.taskCheck}><input type="checkbox" checked={task.completed} disabled={busy || (saved && storage.expired) || (dirty && editing?.id === task.id)} onChange={() => void toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`} /><span><Icon name="check" size={15} /></span></label><button className={styles.taskDetails} onClick={() => openEditor(task)} aria-label={`Edit ${task.title}`}><span className={styles.taskText}><span className={styles.taskTitle}>{task.title}</span><span className={styles.taskNote}>{task.notes || "No notes added"}</span></span><span className={styles.taskMeta}>{task.category && <span className={styles.categoryLabel}><span className={`${styles.dot} ${categoryClass(task.category)}`} />{task.category}</span>}{task.priority !== "None" && <span className={`${styles.badge} ${styles[task.priority.toLowerCase()]}`}>{task.priority}</span>}<span className={`${styles.dueDate} ${isOverdue(task,today,saved ? clock.time : "00:00:00") ? styles.overdue : ""}`}>{task.date ? <><Icon name="calendar" size={13} />{task.date === today ? "Today" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(`${task.date}T12:00:00`))}{task.time && <span className={styles.dueTime}>{new Intl.DateTimeFormat("en", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(new Date(`${task.date}T${task.time}Z`))}</span>}</> : "No due date"}</span>{task.repeat !== "Off" && <span title={`Repeats ${task.repeat.toLowerCase()}`}><Icon name="repeat" size={14} /></span>}</span><span className={styles.rowChevron}><Icon name="chevron" size={17} /></span></button></li>)}</ul> : <div className={styles.empty}><div className={styles.emptyIcon}><Icon name={filtersApplied ? "search" : "check"} size={29} /></div><h2>{filtersApplied ? "No tasks found" : view === "Overdue" ? "All caught up" : view === "Completed" ? "Small wins start here" : saved && !tasks.length ? "No tasks yet" : "A little room for something new"}</h2><p>{filtersApplied ? "Try another search or adjust your filters." : view === "Overdue" ? "You don’t have any overdue tasks. Enjoy the breathing room." : view === "Completed" ? "Your completed tasks will appear here." : "Add a task and take the first step."}</p><button className={styles.emptyAction} onClick={filtersApplied ? resetFilters : () => openEditor(blankTask())}>{filtersApplied ? "Clear filters" : "Add a task"}<Icon name={filtersApplied ? "close" : "plus"} size={16} /></button></div>}
           </>}
           <p className={styles.listFooter}><span className={styles.smallLine} />A clear space for everything on your mind.</p>
@@ -215,6 +226,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     </main>
     {mobileEditor && editing && <Modal label={editing.id ? "Edit task" : "Add task"} onClose={closeEditor} className={styles.editorDialog}>{editor}</Modal>}
     {queuedAction && <Modal label="Unsaved changes" onClose={keepEditing} className={styles.confirmDialog}><div className={styles.confirmContent}><p className={styles.editorEyebrow}>YOUR CHANGES MATTER</p><h2>Keep your changes?</h2><p>You have unsaved changes in this editor.</p><div className={styles.editorActions}><button className={styles.saveButton} data-autofocus="true" onClick={keepEditing}>Keep editing</button><button className={styles.cancelButton} onClick={discardChanges}>Discard changes</button></div></div></Modal>}
+    {reopenTask && <Modal label="Reopen this task?" onClose={cancelReopenTask} className={styles.confirmDialog}><div className={styles.confirmContent}><p className={styles.editorEyebrow}>TASK STATUS</p><h2>Reopen this task?</h2><p>This task will be marked as active again.</p><div className={styles.editorActions}><button className={styles.cancelButton} data-autofocus="true" onClick={cancelReopenTask}>Keep completed</button><button className={styles.saveButton} onClick={()=>{setReopenTask(null);void toggleTask(reopenTask.id,reopenTask);}}>Reopen task</button></div></div></Modal>}
     <div className={styles.toastRegion} role="status" aria-live="polite">{message && <div className={styles.toast}><Icon name="check" size={17} />{message}</div>}</div>
   </div>;
 }
