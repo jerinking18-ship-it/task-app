@@ -1485,3 +1485,75 @@
     transition:none
   }
 }
+
+/* Meeting categories and the shared single/bulk task controls. */
+.specialMeeting { background:#ae91bd; }
+.womansMeeting { background:#d79ca9; }
+.weekdayMeta { color:#82765e; font-size:10px; white-space:normal; }
+.headerActions { flex-wrap:wrap; justify-content:flex-end; }
+.headerActions .addButton { background:#fffdf8; border-color:#ded7c8; }
+.headerActions .bulkButton { background:var(--gold); border-color:#ccb17a; }
+.headerActions .addButton:hover { background:#f1e9d9; }
+.headerActions .bulkButton:hover { background:#cdb17a; }
+.daysField { margin:0; padding:0; border:0; min-width:0; }
+.daysField legend { padding:0; margin-bottom:9px; font-size:11px; color:#747981; }
+.dayButtons { display:flex; flex-wrap:wrap; gap:6px; }
+.dayButtons button { min-height:38px; padding:7px 10px; border:1px solid #e5dfd3; border-radius:7px; background:#fffdf9; color:#6e737b; font-size:10px; flex:1 0 auto; }
+.dayButtons button:hover { border-color:#bda16b; }
+.dayButtons .daySelected { border-color:#b99b61; background:#d4bc87; color:#302a1f; font-weight:600; }
+.deleteButton { display:flex; align-items:center; justify-content:center; gap:8px; min-height:42px; margin-top:5px; border:1px solid #d9a19c; border-radius:7px; background:transparent; color:#a93832; font-size:11px; }
+.deleteButton:hover { border-color:#ab3731; background:#fff9f8; }
+.deleteConfirm { flex:1; border:1px solid #ac342f; background:#ac342f; color:white; border-radius:7px; padding:10px; font-size:12px; }
+.confirmContent p { overflow-wrap:anywhere; }
+.bulkDialog { width:700px; border-radius:16px; }
+.bulkEditor { padding:28px; background:#fffdf9; border:1px solid #e7dfcf; border-radius:16px; }
+.bulkHeader { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:22px; }
+.bulkHeader h2 { margin:5px 0 6px; font-size:25px; letter-spacing:-.65px; font-weight:600; }
+.bulkHeader p { margin:0; font-size:12px; line-height:1.7; color:#84827c; }
+.bulkHeader .editorEyebrow { font-size:8px; }
+.bulkHeader .iconButton { font-size:24px; flex-shrink:0; }
+.bulkEditor form { display:flex; flex-direction:column; gap:16px; }
+.bulkCategory select { display:block; width:100%; min-height:42px; margin-top:6px; padding:8px 12px; color:#414958; background:#fbf9f4; border:1px solid #ded7ca; border-radius:7px; font-size:12px; }
+.bulkSectionHeading { display:flex; align-items:center; justify-content:space-between; }
+.bulkSectionHeading h3 { margin:3px 0 0; font-size:14px; font-weight:600; }
+.bulkSectionHeading>span { font-size:11px; color:#95918a; }
+.bulkRows { display:flex; flex-direction:column; gap:12px; }
+.bulkRow { min-width:0; padding:16px; border:1px solid #e5dfd4; border-radius:10px; background:white; display:flex; flex-direction:column; gap:12px; }
+.bulkTitleRow { display:flex; align-items:center; gap:10px; }
+.bulkTitleRow .field { flex:1; min-width:0; }
+.bulkTitleRow input { margin:0; font-size:13px; height:42px; }
+.bulkTitleRow .iconButton { font-size:23px; flex-shrink:0; }
+.taskNumber { display:grid; place-items:center; width:26px; height:26px; border:1px solid #e5dbc9; background:#faf6ec; color:#88754d; border-radius:50%; font-size:11px; flex-shrink:0; }
+.textButton,.detailsToggle { padding:0; border:0; background:transparent; color:#87744f; font-size:11px; text-align:left; min-height:32px; }
+.detailsToggle { display:flex; justify-content:space-between; align-items:center; width:100%; color:#626c79; border-top:1px solid #efebe3; padding-top:9px; }
+.detailsToggle span { font-size:18px; }
+.bulkDetails { display:flex; flex-direction:column; gap:12px; padding-top:2px; }
+.bulkDetails .editorHint { margin-top:-5px; }
+.bulkDetails .dayButtons { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
+.bulkDetails .dayButtons button { padding:8px 2px; }
+.applyDetails { align-self:flex-start; border:0; background:transparent; color:#8c6c36; padding:4px 0; min-height:32px; font-size:11px; text-decoration:underline; text-underline-offset:3px; }
+.addAnother { border:1px dashed #cbb88e; color:#8c6c36; background:#fcf9f1; border-radius:8px; min-height:42px; font-size:12px; }
+.bulkHint { margin:0; color:#969187; font-size:11px; line-height:1.6; }
+.bulkEditor .editorActions { border-top:1px solid #e9e2d5; padding-top:18px; }
+.goldSave { background:#d4bc87; color:#262c35; font-weight:600; }
+.goldSave:hover { background:#c6a66a; }
+.bulkEditor button:focus-visible,.daysField button:focus-visible,.deleteButton:focus-visible,.deleteConfirm:focus-visible { outline:2px solid #94733c; outline-offset:3px; }
+@media(max-width:1250px) and (min-width:761px) {
+  .header { align-items:flex-start; gap:18px; }
+  .headerActions { max-width:360px; }
+  .headerActions .search { width:100%; max-width:none; }
+}
+@media(max-width:760px) {
+  .headerActions .addButton { left:20px; right:auto; width:116px; padding:0 8px; font-size:12px; }
+  .headerActions .bulkButton { left:146px; right:20px; width:calc(100% - 166px); }
+  .bulkEditor { padding:20px 16px; }
+  .bulkHeader { margin-bottom:18px; }
+  .bulkHeader h2 { font-size:22px; }
+  .bulkRow { padding:12px; }
+  .bulkTitleRow { gap:7px; }
+  .bulkEditor input,.bulkEditor textarea,.bulkEditor select,.editor input,.editor textarea,.bulkEditor .dateFields .field input,.editor .dateFields .field input { font-size:16px; }
+  .bulkEditor .dateFields { grid-template-columns:1fr; gap:12px; }
+  .bulkDetails .dayButtons { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .dayButtons button { min-height:42px; font-size:11px; }
+  .bulkEditor .editorActions button { min-height:44px; }
+}
