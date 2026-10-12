@@ -52,6 +52,12 @@
 .accountControls button { background:#fffdf8; color:#26364b; border:1px solid #dedbd3; min-height:44px; padding:7px 12px; border-radius:7px; flex-shrink:0; }
 .accountControls [role="alert"] { flex-basis:100%; text-align:right; }
 .accountControls span { overflow-wrap:anywhere; }
+@media (max-width:760px) {
+  .accountControls button { display:inline-flex; align-items:center; justify-content:center; width:72px; min-height:44px; padding:7px 10px; border:1px solid #4d6580; border-radius:10px; background:#1d2a3d; color:#fff; line-height:1.25; }
+  .accountControls button:hover:not(:disabled) { background:#26374d; }
+  .accountControls button:focus-visible { outline:2px solid #d4bc87; outline-offset:3px; }
+  .accountControls button:disabled { opacity:.55; cursor:wait; }
+}
 @keyframes spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) { .spinner { animation:none; } .primary { transition:none; } }
 @media (max-width:600px) {
