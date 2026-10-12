@@ -4,7 +4,7 @@ import { mapTask, newestFirst, taskFields, type Category, type Dataset, type Tas
 import { decodeCategory, decodeDataset, decodeRow, isRecord } from "./validation";
 
 export class SaveError extends Error {
-  constructor(message:string, public status=0, public latest?:Task) { super(message); }
+  constructor(message:string, public status=0, public latest?:Task, public future?:Task[]) { super(message); }
 }
 export function useSavedTasks(enabled:boolean, dirty:boolean) {
   const [data,setData]=useState<Dataset|null>(null);
@@ -73,7 +73,8 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
         const categories=Array.isArray(body.categories) ? body.categories.map(decodeCategory) : state.current.data?.categories ?? [];
         if(Array.isArray(body.categories)) setData(current=>current ? {...current,categories} : current);
         const latest=body.latest ? mapTask(decodeRow(body.latest),categories) : undefined;
-        throw new SaveError(typeof body.message==="string" ? body.message : "Unable to save. Please try again.",response.status,latest);
+        const future=Array.isArray(body.future)?body.future.map(row=>mapTask(decodeRow(row),categories)):undefined;
+        throw new SaveError(typeof body.message==="string" ? body.message : "Unable to save. Please try again.",response.status,latest,future);
       }
       if(input.action === "create" || input.action === "update" || input.action === "status") decodeRow(body.task);
       if(input.action === "create_many") {
@@ -107,9 +108,9 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     void initialize().catch(e=>setError(e instanceof Error ? e.message : "Category setup failed. Please retry."));
     // No automatic retry after failure. The visible Retry setup action is explicit.
   },[enabled,data?.timezone,initialized]);
-  async function save(task:Task) {
+  async function save(task:Task,scope:"this"|"future"="this") {
     const fields=taskFields(task,data?.categories ?? []);
-    const reply=await mutate(task.id ? {action:"update",id:task.id,version:task.updatedAt,fields}
+    const reply=await mutate(task.id ? {action:"update",id:task.id,version:task.updatedAt,fields,scope,seriesVersion:task.seriesVersion || task.updatedAt}
       : {action:"create",fields:{...fields,status:"active"}});
     const row=decodeRow(reply.task); const mapped=mapTask(row,data?.categories ?? []);
     setData(current=>current ? {...current,tasks:[...current.tasks.filter(t=>t.id!==row.id),row]} : current);

@@ -10,7 +10,7 @@ function date(v: unknown) {
     && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0,10) === v;
 }
 export function validFields(v: unknown): v is TaskFields {
-  return isRecord(v) && keys(v, ["title","notes","status","due_date","due_time","priority","category_id","weekdays"])
+  return isRecord(v) && keys(v, ["title","notes","status","due_date","due_time","priority","category_id","weekdays","repeat_rule"])
     && typeof v.title === "string" && v.title.trim().length > 0 && v.title.trim().length <= 200
     && (v.notes === null || (typeof v.notes === "string" && v.notes.length <= 4000))
     && ["active","completed"].includes(v.status as string)
@@ -19,7 +19,10 @@ export function validFields(v: unknown): v is TaskFields {
     && (v.due_time === null || (typeof v.due_time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v.due_time) && v.due_date !== null))
     && (v.category_id === null || uuid(v.category_id))
     && Array.isArray(v.weekdays) && v.weekdays.length <= 7 && new Set(v.weekdays).size === v.weekdays.length
-    && v.weekdays.every(day => Number.isInteger(day) && day >= 0 && day <= 6);
+    && v.weekdays.every(day => Number.isInteger(day) && day >= 0 && day <= 6)
+    && (v.repeat_rule===undefined || ["off","daily","weekly","monthly"].includes(v.repeat_rule as string))
+    && (!v.repeat_rule || v.repeat_rule==="off" || v.due_date!==null)
+    && (v.repeat_rule!=="weekly" || (v.weekdays.length>0 && v.weekdays.includes(new Date(`${v.due_date}T12:00:00Z`).getUTCDay())));
 }
 export function validateAction(v: unknown): TaskAction | null {
   if (!isRecord(v)) return null;
@@ -38,8 +41,10 @@ export function validateAction(v: unknown): TaskAction | null {
     }
     case "delete": return keys(v,["action","id","version"]) && uuid(v.id) && timestamp(v.version)
       ? {action:"delete",id:v.id,version:v.version} : null;
-    case "update": return keys(v,["action","id","version","fields"]) && uuid(v.id) && timestamp(v.version) && validFields(v.fields)
-      ? { action:"update", id:v.id, version:v.version, fields:{...v.fields,title:v.fields.title.trim()} } : null;
+    case "update": return keys(v,["action","id","version","fields","scope","seriesVersion"]) && uuid(v.id) && timestamp(v.version) && validFields(v.fields)
+      && (v.scope===undefined || v.scope==="this" || v.scope==="future")
+      && (v.seriesVersion===undefined || timestamp(v.seriesVersion))
+      ? { action:"update", id:v.id, version:v.version, fields:{...v.fields,title:v.fields.title.trim()},scope:v.scope as "this"|"future"|undefined,seriesVersion:v.seriesVersion as string|undefined } : null;
     case "status": return keys(v,["action","id","version","status"]) && uuid(v.id) && timestamp(v.version) && ["active","completed"].includes(v.status as string)
       ? v as TaskAction : null;
     default: return null;
@@ -55,9 +60,16 @@ export function decodeRow(v: unknown): TaskRow {
   // PostgreSQL returns time with seconds; the first stage edits minute precision.
   const time = typeof v.due_time === "string" && /^([01]\d|2[0-3]):[0-5]\d:00(?:\.0+)?$/.test(v.due_time) ? v.due_time.slice(0,5) : v.due_time;
   const fields = { title:v.title, notes:v.notes, status:v.status, due_date:v.due_date,
-    due_time:time, priority:v.priority, category_id:v.category_id, weekdays:v.weekdays };
+    due_time:time, priority:v.priority, category_id:v.category_id, weekdays:v.weekdays,
+    ...(v.repeat_rule!==undefined ? {repeat_rule:v.repeat_rule} : {}) };
   if (!validFields(fields) || (v.status === "completed") !== (v.completed_at !== null)) throw new Error("Incomplete task response.");
-  return { ...fields, id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at };
+  if (!(v.series_id===undefined || v.series_id===null || uuid(v.series_id))
+    || !(v.series_version===undefined || timestamp(v.series_version))
+    || !(v.history_at===undefined || v.history_at===null || timestamp(v.history_at))
+    || !(v.repeat_anchor_day===undefined || v.repeat_anchor_day===null || (Number.isInteger(v.repeat_anchor_day) && Number(v.repeat_anchor_day)>=1 && Number(v.repeat_anchor_day)<=31))) throw new Error("Incomplete repeat response.");
+  if(v.repeat_rule && v.repeat_rule!=="off" && (!uuid(v.series_id) || (v.repeat_rule==="monthly" && !v.repeat_anchor_day))) throw new Error("Incomplete repeat response.");
+  return { ...fields, id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
+    series_id:v.series_id as string|null|undefined,history_at:v.history_at as string|null|undefined,repeat_anchor_day:v.repeat_anchor_day as number|null|undefined,series_version:v.series_version as string|undefined };
 }
 export function decodeDataset(v: unknown): Dataset {
   if (!isRecord(v) || !Array.isArray(v.tasks) || !Array.isArray(v.categories)
