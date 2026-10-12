@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { blankTask, repeatError, MAX_BATCH_TASKS, PRIORITIES, type Priority, type Task } from "@/lib/tasks/model";
-import TaskDays from "./task-days";
 import TaskRepeat from "./task-repeat";
 import styles from "./task-app.module.css";
 
@@ -80,9 +79,8 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
             <div className={styles.bulkDetails}>
               <div className={styles.dateFields}><label className={styles.field}><span>Due date<span className={styles.srOnly}> for task {index+1}</span></span><input id={`${id}-date-${row.key}`} type="date" value={row.task.date} onInput={event=>{update(row.key,"date",event.currentTarget.value);if(!event.currentTarget.value)update(row.key,"time","");}} onChange={event=>{update(row.key,"date",event.target.value);if(!event.target.value)update(row.key,"time","");}} /></label><label className={styles.field}><span>Time <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span></span><input type="time" value={row.task.time} onInput={event=>update(row.key,"time",event.currentTarget.value)} onChange={event=>update(row.key,"time",event.target.value)} /></label></div>
               <p className={styles.editorHint}>India time · Asia/Kolkata</p>
-              <TaskDays required={row.task.repeat==="Weekly"} value={row.task.weekdays} onChange={days=>update(row.key,"weekdays",days)} />
+              <TaskRepeat task={row.task} onChange={rule=>update(row.key,"repeat",rule)} onDaysChange={days=>update(row.key,"weekdays",days)} label={`Repeat for task ${index+1}`}/>
               <label className={styles.property}><span>Priority<span className={styles.srOnly}> for task {index+1}</span></span><select value={row.task.priority} onChange={event=>update(row.key,"priority",event.target.value as Priority)}>{PRIORITIES.map(item=><option key={item}>{item}</option>)}</select></label>
-              <TaskRepeat task={row.task} onChange={rule=>update(row.key,"repeat",rule)} label={`Repeat for task ${index+1}`}/>
               <button type="button" className={styles.applyDetails} onClick={()=>applyDetails(row.task)}>Apply these details to all tasks</button>
               <p className={styles.editorHint}>Applies date, time, days, priority and repeat to this batch and tasks added next. Keeps each task’s title and notes.</p>
             </div>
