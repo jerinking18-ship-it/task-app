@@ -348,8 +348,7 @@
 }
 
 .search:focus-within {
-  outline:2px solid #94733c;
-  outline-offset:2px
+  border-color:#71839b
 }
 
 .search input::placeholder {
@@ -781,6 +780,11 @@
 
 .field input::placeholder,.field textarea::placeholder {
   color:#aaa9a3
+}
+
+:is(.editorForm,.bulkEditor) :is(input:not([type="radio"]):not([type="checkbox"]),textarea,select):focus {
+  outline:none;
+  border-color:#71839b
 }
 
 .editorDivider {
