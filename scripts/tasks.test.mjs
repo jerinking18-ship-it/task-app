@@ -23,7 +23,7 @@ const fields={title:"A task",notes:null,status:"active",due_date:null,due_time:n
 const row={...fields,id:taskId,created_at:version,updated_at:version,completed_at:null};
 function fixture(respond) {
   const calls=[];
-  const client={from(table){
+  const client={rpc(name,args){const call={table:"rpc",ops:[["rpc",name,args]]};calls.push(call);return Promise.resolve().then(()=>respond(call,calls));},from(table){
     const ops=[]; const query={};
     for(const method of ["select","eq","is","order","limit","gt","insert","update","single","maybeSingle"])
       query[method]=(...args)=>{ops.push([method,...args]);return query;};
@@ -36,7 +36,7 @@ function fixture(respond) {
   return {repo:new repository.TaskRepository(client,owner),calls,client};
 }
 const op=(call,name)=>call.ops.find(o=>o[0]===name);
-const normal=call=>({data:call.table==="account_settings" ? {timezone:"Asia/Kolkata"} : [],error:null});
+const normal=call=>({data:call.table==="account_settings" ? {timezone:"Asia/Kolkata"} : call.table==="rpc" ? null : [],error:null});
 
 test("task payload validation rejects unsupported/owner/metadata writes, bad dates, missing fields, and completed creates",()=>{
   assert.equal(validation.validateAction({action:"create",fields:{...fields,title:"  hello  "}}).fields.title,"hello");
@@ -116,20 +116,21 @@ test("create returns committed row and sends only allowed fields",async()=>{
   await assert.rejects(()=>bad.repo.mutate({action:"create",fields}));
 });
 
-test("updates use owner/id/original version; complete writes status alone",async()=>{
+test("status uses the atomic owner-checked RPC with original task/version",async()=>{
   const done={...row,status:"completed",completed_at:version};
-  const f=fixture(call=>op(call,"update") ? {data:done,error:null} : normal(call));
+  const f=fixture(call=>op(call,"rpc") ? {data:done,error:null} : normal(call));
   await f.repo.mutate({action:"status",id:taskId,version,status:"completed"});
-  const call=f.calls.find(c=>op(c,"update"));
-  assert.deepEqual(Object.keys(op(call,"update")[1]),["status"]);
-  for(const [key,value] of [["owner_id",owner],["id",taskId],["updated_at",version]])
-    assert.ok(call.ops.some(o=>o[0]==="eq"&&o[1]===key&&o[2]===value));
+  const args=op(f.calls.find(c=>op(c,"rpc")),"rpc")[2];
+  assert.equal(args.task_id,taskId);assert.equal(args.expected_version,version);
+  assert.equal(args.operation,"status");assert.equal(args.new_status,"completed");
+  assert.equal(args.fields,null);assert.equal(args.edit_scope,"this");
+  assert.equal("owner_id" in args,false);
 });
 
 test("stale edit returns latest owned row as conflict, missing row returns 404, no automatic replay",async()=>{
-  const f=fixture(call=>op(call,"update") ? {data:null,error:null} : call.table==="tasks" ? {data:{...row,title:"Changed elsewhere"},error:null} : normal(call));
+  const f=fixture(call=>op(call,"rpc") ? {data:null,error:null} : call.table==="tasks" ? {data:{...row,title:"Changed elsewhere"},error:null} : normal(call));
   await assert.rejects(()=>f.repo.mutate({action:"update",id:taskId,version,fields}),e=>e.status===409 && e.latest.title==="Changed elsewhere");
-  assert.equal(f.calls.filter(c=>op(c,"update")).length,1);
+  assert.equal(f.calls.filter(c=>op(c,"rpc")).length,1);
   const missing=fixture(call=>call.table==="tasks" ? {data:null,error:null} : normal(call));
   await assert.rejects(()=>missing.repo.mutate({action:"update",id:taskId,version,fields}),e=>e.status===404);
 });
@@ -257,28 +258,25 @@ test("delete marks the retained row and checks original owner/version; all task 
   assert.ok(validation.validateAction({action:"delete",id:taskId,version}));
   for(const extra of [{version:"invalid"},{owner_id:owner},{deleted_at:version}])
     assert.equal(validation.validateAction({action:"delete",id:taskId,version,...extra}),null);
-  const f=fixture(call=>op(call,"update")?{data:row,error:null}:normal(call));
+  const f=fixture(call=>op(call,"rpc")?{data:row,error:null}:normal(call));
   assert.equal((await f.repo.mutate({action:"delete",id:taskId,version})).deleted,taskId);
-  const write=f.calls.find(call=>op(call,"update"));
-  assert.deepEqual(Object.keys(op(write,"update")[1]),["deleted_at"]);
-  assert.ok(Number.isFinite(Date.parse(op(write,"update")[1].deleted_at)));
-  for(const [key,value] of [["id",taskId],["owner_id",owner],["updated_at",version]])
-    assert.ok(write.ops.some(o=>o[0]==="eq"&&o[1]===key&&o[2]===value));
-  assert.deepEqual(op(write,"is"),["is","deleted_at",null]);
+  const args=op(f.calls.find(call=>op(call,"rpc")),"rpc")[2];
+  assert.equal(args.task_id,taskId);assert.equal(args.expected_version,version);
+  assert.equal(args.operation,"delete");assert.equal(args.fields,null);
   const reads=fixture(normal);await reads.repo.read();
   for(const call of reads.calls.filter(call=>call.table==="tasks"))assert.deepEqual(op(call,"is"),["is","deleted_at",null]);
   for(const action of ["delete","update","status"]) {
     const missing=fixture(call=>call.table==="tasks"?{data:null,error:null}:normal(call));
     await assert.rejects(()=>missing.repo.mutate({action,id:taskId,version,fields,status:"active"}),error=>error.status===404);
     for(const call of missing.calls.filter(call=>call.table==="tasks"))assert.deepEqual(op(call,"is"),["is","deleted_at",null]);
-    assert.equal(missing.calls.filter(call=>op(call,"update")).length,1);
+    assert.equal(missing.calls.filter(call=>op(call,"rpc")).length,1);
   }
 });
 
 test("stale delete preserves task and reports saved version for review",async()=>{
-  const f=fixture(call=>op(call,"update")?{data:null,error:null}:call.table==="tasks"?{data:{...row,title:"New saved title"},error:null}:normal(call));
+  const f=fixture(call=>op(call,"rpc")?{data:null,error:null}:call.table==="tasks"?{data:{...row,title:"New saved title"},error:null}:normal(call));
   await assert.rejects(()=>f.repo.mutate({action:"delete",id:taskId,version}),error=>error.status===409&&error.latest.title==="New saved title");
-  assert.equal(f.calls.filter(call=>op(call,"update")).length,1);
+  assert.equal(f.calls.filter(call=>op(call,"rpc")).length,1);
 });
 
 test("new task actions still require authenticated same-origin requests; meeting presets keep approved order",async()=>{
@@ -291,4 +289,24 @@ test("new task actions still require authenticated same-origin requests; meeting
   assert.equal(anon.calls.length,0);
   const ordered=model.categoryOrder(["Z custom",...model.MEETING_CATEGORIES].reverse());
   assert.deepEqual([...ordered],[...model.MEETING_CATEGORIES,"Z custom"]);
+});
+
+test("repeat validation requires dates and selected matching weekly days; managed metadata is denied",()=>{
+  const weekly={...fields,due_date:"2026-10-11",weekdays:[0,3],repeat_rule:"weekly"};
+  assert.ok(validation.validateAction({action:"create",fields:weekly}));
+  for(const extra of [{due_date:null},{weekdays:[]},{weekdays:[1]},{repeat_rule:"yearly"},{series_id:taskId},{history_at:version},{repeat_anchor_day:31}])
+    assert.equal(validation.validateAction({action:"create",fields:{...weekly,...extra}}),null);
+  assert.ok(validation.validateAction({action:"update",id:taskId,version,fields:weekly,scope:"future"}));
+  assert.equal(validation.validateAction({action:"update",id:taskId,version,fields:weekly,scope:"everyone"}),null);
+});
+
+test("History boundary hides only completed archived tasks and preserves active reopened occurrences",()=>{
+  const task={...model.blankTask(),completed:true,historyAt:"2026-10-18T04:30:00Z"};
+  const filters={view:"All tasks",status:"All",priority:"Any",category:"Any",search:""};
+  const before=new Date("2026-10-18T04:29:59Z"),due=new Date("2026-10-18T04:30:00Z");
+  assert.ok(model.matchesTask(task,filters,"2026-10-18","10:00:00",before));
+  assert.equal(model.matchesTask(task,filters,"2026-10-18","10:00:00",due),false);
+  assert.ok(model.matchesTask(task,{...filters,view:"History"},"2026-10-18","10:00:00",due));
+  assert.ok(model.matchesTask({...task,completed:false},filters,"2026-10-18","10:00:00",due));
+  assert.equal(model.inHistory({...task,historyAt:null},due),false);
 });
