@@ -6,7 +6,7 @@ export default function AccountControls({ passwordUpdated = false, beforeSignOut
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   return <div className={styles.accountControls}>
-    <span>{passwordUpdated ? "Password updated. You’re still signed in to this browser." : "Your private workspace"}</span>
+    {passwordUpdated && <span role="status">Password updated. You’re still signed in to this browser.</span>}
     <button disabled={pending || blocked} onClick={async () => {
       if(beforeSignOut && !await beforeSignOut()) return;
       setPending(true); setMessage("");

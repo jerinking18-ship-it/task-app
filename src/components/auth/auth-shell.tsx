@@ -6,16 +6,16 @@ export function CheckMark({ large = false }: { large?: boolean }) {
   return <span className={large ? styles.largeMark : styles.mark} aria-hidden="true"><svg width={large ? 28 : 21} height={large ? 28 : 21} viewBox="0 0 24 24" fill="none"><path d="m5 12 4.5 4.5L19 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></span>;
 }
 
-export default function AuthShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+export default function AuthShell({ title, description, children, eyebrow = "YOUR TASK APP" }: { title: string; description: string; children: ReactNode; eyebrow?: string }) {
   return <div className={styles.shell}>
     <a href="#auth-content" className={styles.skipLink}>Skip to form</a>
     <header className={styles.header}>
-      <Link href="/" className={styles.brand}><CheckMark /><span>Task App<span className={styles.brandDot}>.</span></span></Link>
+      <Link href="/" className={styles.brand}><CheckMark /><span>BGM Task App<span className={styles.brandDot}>.</span></span></Link>
     </header>
     <main id="auth-content" className={styles.main}>
       <section className={styles.card} aria-labelledby="auth-title">
         <div className={styles.cardAccent} />
-        <p className={styles.eyebrow}>YOUR TASK APP</p>
+        <p className={styles.eyebrow}>{eyebrow}</p>
         <h1 id="auth-title">{title}</h1>
         <p className={styles.description}>{description}</p>
         {children}
