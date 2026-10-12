@@ -5,9 +5,9 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 const require=createRequire(import.meta.url);
-function load(path,deps={}) {
+function load(path,deps={},globals={}) {
   const {outputText}=ts.transpileModule(readFileSync(new URL(path,import.meta.url),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});
-  const exports={}; vm.runInNewContext(outputText,{exports,Date,Intl,Set,URL,TextDecoder,Uint8Array,Promise,require(name){
+  const exports={}; vm.runInNewContext(outputText,{exports,Date,Intl,Set,URL,TextDecoder,Uint8Array,Promise,...globals,require(name){
     if(name in deps) return deps[name]; if(name==="next/server") return require(name);
     throw Error(`Unexpected dependency ${name}`);
   }}); return exports;
@@ -92,7 +92,7 @@ test("row mapping preserves dates/versions and rejects missing category joins or
   assert.equal(order[0].id,"b");
 });
 
-test("paged reads load beyond 500 rows, keep explicit owner filters, and never write",async()=>{
+test("paged reads release only the session owner's due repeats, load beyond 500 rows, and keep owner filters",async()=>{
   const rows=Array.from({length:501},(_,i)=>({...row,id:`00000000-0000-4000-8000-${String(i+1).padStart(12,"0")}`}));
   const f=fixture(call=>{
     if(call.table!=="tasks") return normal(call);
@@ -100,11 +100,56 @@ test("paged reads load beyond 500 rows, keep explicit owner filters, and never w
   });
   const data=await f.repo.read();assert.equal(data.tasks.length,501);
   for(const call of f.calls) {
+    if(call.table==="rpc") {assert.equal(op(call,"rpc")[1],"task_app_release_my_repeats");assert.equal(op(call,"rpc")[2],undefined);continue;}
     assert.ok(call.ops.some(o=>o[0]==="eq"&&o[1]==="owner_id"&&o[2]===owner));
     assert.equal(!!op(call,"insert"),false);assert.equal(!!op(call,"update"),false);
   }
   const broken=fixture(call=>call.table==="tasks" ? {data:null,error:{code:"network"}} : normal(call));
   await assert.rejects(()=>broken.repo.read());
+});
+
+test("midnight availability gates generated successors without hiding user-created future tasks",()=>{
+  const before=new Date("2026-10-13T18:29:59.999Z"), midnight=new Date("2026-10-13T18:30:00Z");
+  const fields={...row,due_date:"2026-10-14",due_time:"10:00:00",available_at:midnight.toISOString()};
+  const delayed=model.mapTask(validation.decodeRow(fields),[]);
+  const filters={view:"All tasks",status:"All",priority:"Any",category:"Any",search:""};
+  assert.equal(model.isAvailable(delayed,before),false);
+  assert.equal(model.matchesTask(delayed,filters,"2026-10-13","23:59:59",before),false);
+  assert.equal(model.matchesTask(delayed,filters,"2026-10-14","00:00:00",midnight),true);
+  assert.equal(model.isOverdue(delayed,"2026-10-14","00:00:00"),false);
+  assert.equal(model.isAvailable({...delayed,availableAt:null},before),true);
+  assert.throws(()=>validation.decodeRow({...fields,available_at:"not a date"}));
+  assert.equal(validation.validateAction({action:"create",fields:{...row,available_at:midnight.toISOString()}}),null);
+});
+
+test("failed midnight release aborts loading before a partial dataset can be returned",async()=>{
+  const f=fixture(call=>call.table==="rpc"?{data:null,error:{code:"XX000"}}:normal(call));
+  await assert.rejects(()=>f.repo.read(),error=>error.status===503);
+  assert.equal(f.calls.length,1);
+});
+
+test("an open app refreshes once at India midnight, preserves dirty drafts and cleans up its timer",async()=>{
+  for(const dirty of [false,true]) {
+    let clock=Date.parse("2026-10-12T18:29:59.500Z"), stateIndex=0, reads=0;
+    const effects=[],timers=new Map();let timerId=0;
+    class FixtureDate extends Date {constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}}
+    const react={useCallback:fn=>fn,useRef:value=>({current:value}),useEffect:fn=>effects.push(fn),
+      useState:value=>[stateIndex++===0?{timezone:"Asia/Kolkata",tasks:[],categories:[]}:stateIndex===6?true:value,()=>{}]};
+    const window={addEventListener(){},removeEventListener(){},setTimeout(fn,delay){timers.set(++timerId,{fn,delay});return timerId;},clearTimeout(id){timers.delete(id);}};
+    const document={visibilityState:"visible",addEventListener(){},removeEventListener(){}};
+    const hook=load("../src/lib/tasks/use-saved-tasks.ts",{"react":react,"./model":model,"./validation":validation},
+      {window,document,Date:FixtureDate,AbortController,AbortSignal,fetch:async()=>{reads++;return {ok:true,json:async()=>({timezone:"Asia/Kolkata",tasks:[],categories:[]})};}});
+    hook.useSavedTasks(true,dirty);
+    const cleanups=effects.map(effect=>effect());
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(timers.size,1);const entry=[...timers.entries()][0];
+    assert.equal(entry[1].delay,600);
+    timers.delete(entry[0]);clock+=600;entry[1].fn();
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(reads,dirty?0:2);
+    assert.equal(timers.size,1);assert.equal([...timers.values()][0].delay,86400000);
+    cleanups.forEach(cleanup=>cleanup?.());assert.equal(timers.size,0);
+  }
 });
 
 test("create returns committed row and sends only allowed fields",async()=>{

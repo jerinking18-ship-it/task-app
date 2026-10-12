@@ -16,7 +16,7 @@ export type Task = {
   id: string; title: string; notes: string; completed: boolean; date: string;
   time: string; priority: Priority; category: string; reminder: string;
   notification: boolean; email: boolean; repeat: Repeat;
-  seriesId: string | null; historyAt: string | null; repeatAnchor: number | null; seriesVersion:string;
+  seriesId: string | null; historyAt: string | null; availableAt: string | null; repeatAnchor: number | null; seriesVersion:string;
   createdAt: string; updatedAt: string; completedAt:string|null; weekdays: number[];
 };
 export type Category = { id: string; name: string };
@@ -29,7 +29,7 @@ export type TaskFields = {
 };
 export type TaskRow = TaskFields & {
   id: string; created_at: string; updated_at: string; completed_at: string | null;
-  series_id?: string | null; history_at?: string | null; repeat_anchor_day?: number | null; series_version?:string;
+  series_id?: string | null; history_at?: string | null; available_at?: string | null; repeat_anchor_day?: number | null; series_version?:string;
 };
 export type Dataset = { tasks: TaskRow[]; categories: Category[]; timezone: "Asia/Kolkata" | null };
 export type TaskAction =
@@ -44,7 +44,7 @@ export type TaskAction =
 
 export function blankTask(): Task {
   return { id: "", title: "", notes: "", completed: false, date: "", time: "", priority: "Medium",
-    category: "", reminder: "Off", notification: false, email: false, repeat: "Off", seriesId:null,historyAt:null,repeatAnchor:null,seriesVersion:"",createdAt: "", updatedAt: "",completedAt:null, weekdays: [] };
+    category: "", reminder: "Off", notification: false, email: false, repeat: "Off", seriesId:null,historyAt:null,availableAt:null,repeatAnchor:null,seriesVersion:"",createdAt: "", updatedAt: "",completedAt:null, weekdays: [] };
 }
 export function mapTask(row: TaskRow, categories: Category[]): Task {
   const category = row.category_id ? categories.find(c => c.id === row.category_id) : null;
@@ -54,7 +54,7 @@ export function mapTask(row: TaskRow, categories: Category[]): Task {
     priority: (row.priority[0].toUpperCase() + row.priority.slice(1)) as Priority,
     category: category?.name ?? "", createdAt: row.created_at, updatedAt: row.updated_at,completedAt:row.completed_at, weekdays: [...row.weekdays],
     repeat: REPEATS.find(rule=>rule.toLowerCase()===(row.repeat_rule ?? "off")) ?? "Off",
-    seriesId:row.series_id ?? null,historyAt:row.history_at ?? null,repeatAnchor:row.repeat_anchor_day ?? null,seriesVersion:row.series_version ?? row.updated_at };
+    seriesId:row.series_id ?? null,historyAt:row.history_at ?? null,availableAt:row.available_at ?? null,repeatAnchor:row.repeat_anchor_day ?? null,seriesVersion:row.series_version ?? row.updated_at };
 }
 export function taskFields(task: Task, categories: Category[]): TaskFields {
   const category = task.category ? categories.find(c => c.name === task.category) : null;
@@ -74,6 +74,9 @@ export function repeatError(task: Pick<Task,"repeat"|"date"|"weekdays">): string
 export function inHistory(task: Task, now: Date): boolean {
   return task.completed && !!task.historyAt && Date.parse(task.historyAt)<=now.getTime();
 }
+export function isAvailable(task: Task, now: Date): boolean {
+  return !task.availableAt || Date.parse(task.availableAt)<=now.getTime();
+}
 export function newestFirst(tasks: Task[]): Task[] {
   return [...tasks].sort((a,b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }
@@ -90,7 +93,7 @@ export function isOverdue(task: Task, date: string, time = "00:00:00") {
 export type Filters = { view: string; status: string; priority: string; category: string; search: string };
 export function matchesTask(task: Task, filters: Filters, date: string, time = "00:00:00", now = new Date()) {
   const query = filters.search.trim().toLowerCase();
-  return (filters.view === "History" ? inHistory(task,now) : !inHistory(task,now))
+  return isAvailable(task,now) && (filters.view === "History" ? inHistory(task,now) : !inHistory(task,now))
     && (!query || [task.title, task.notes, task.category].some(field => field.toLowerCase().includes(query)))
     && (filters.view !== "Today" || task.date === date)
     && (filters.view !== "Overdue" || isOverdue(task, date, time))

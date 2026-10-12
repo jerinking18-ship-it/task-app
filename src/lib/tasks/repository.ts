@@ -3,7 +3,7 @@ import type { Category, Dataset, TaskAction, TaskRow } from "./model";
 import { MEETING_CATEGORIES } from "./model";
 import { decodeCategory, decodeRow } from "./validation";
 
-const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,repeat_anchor_day,created_at,updated_at,completed_at";
+const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at";
 export class TaskError extends Error {
   constructor(public status: number, message: string, public latest?: TaskRow, public categories?: Category[], public future?:TaskRow[]) { super(message); }
 }
@@ -42,6 +42,9 @@ export class TaskRepository {
     throw new TaskError(503,"There are too many records to load in this version. No partial list is shown.");
   }
   async read(): Promise<Dataset> {
+    // Owner-scoped, server-clock catch-up also covers a delayed Cron run. Before
+    // midnight this is a no-op. Failed maintenance must never show a partial list.
+    const {error}=await this.client.rpc("task_app_release_my_repeats"); check(error);
     const [timezone,tasks,categories] = await Promise.all([this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory)]);
     const versions=new Map<string,string>();
     for(const task of tasks) if(task.series_id && (!versions.has(task.series_id) || task.updated_at>versions.get(task.series_id)!)) versions.set(task.series_id,task.updated_at);

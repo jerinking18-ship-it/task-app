@@ -36,7 +36,7 @@ export default function TaskRepeat({ task, onChange, onDaysChange, label = "Repe
     {task.repeat !== "Off" && <div className={styles.repeatSummary}>
       <RepeatIcon />
       <div><strong>{schedule}</strong><p>{start} · {time ? `${time} IST` : "India time"}</p>
-        <small>{task.repeat === "Monthly" ? "Shorter months use their last day. " : ""}Completing a task creates the next occurrence.</small>
+        <small>{task.repeat === "Monthly" ? "Shorter months use their last day. " : ""}After completion, the next task appears at midnight on its scheduled date (India time).</small>
       </div>
     </div>}
   </section>;

@@ -58,6 +58,18 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     window.addEventListener("focus",returned); document.addEventListener("visibilitychange",returned);
     return ()=>{window.removeEventListener("focus",returned); document.removeEventListener("visibilitychange",returned);};
   },[enabled,refresh]);
+  useEffect(()=>{
+    if(!enabled || data?.timezone!=="Asia/Kolkata") return;
+    let timer:number;
+    const schedule=()=>{
+      // One refresh per India date boundary, not a polling loop. The read RPC
+      // releases due schedules itself, so it need not race the background job.
+      const indiaOffset=19800000;
+      const nextMidnight=(Math.floor((Date.now()+indiaOffset)/86400000)+1)*86400000-indiaOffset;
+      timer=window.setTimeout(()=>{void refresh();schedule();},nextMidnight-Date.now()+100);
+    };
+    schedule(); return ()=>window.clearTimeout(timer);
+  },[enabled,data?.timezone,refresh]);
   async function mutate(input:TaskAction):Promise<Record<string,unknown>> {
     if(state.current.pending) throw new SaveError("Please wait for the current save.");
     if(expired) throw new SaveError("Sign in again before saving.",401);
