@@ -30,6 +30,24 @@ function authFailure(error: { status?: number; code?: string }, password = false
 export async function runAuthAction(input: AuthInput, deps: AuthDependencies): Promise<AuthResult> {
   const { auth } = deps;
   switch (input.action) {
+    case "signup": {
+      const { data, error } = await auth.signUp({ email: input.email!, password: input.password!, options: {
+        emailRedirectTo: `${deps.origin}/auth/callback`,
+      } });
+      const inbox: AuthResult = { status: 200, retryAfter: 60, message: "If this address can be registered, check your inbox for a confirmation link. Open it in this browser. If you already have an account, sign in instead." };
+      if (error) {
+        if (["user_already_exists", "email_exists"].includes(error.code ?? "")) return inbox;
+        if (error.code === "weak_password") return { status: 400, fields: { password: "Choose a stronger password that meets the account requirements." }, message: "Please choose a stronger password." };
+        if (error.status === 429) return authFailure(error);
+        return { status: error.status && error.status < 500 ? 400 : 503, message: "We couldn’t create the account right now. Please try again later, or sign in if you already have an account." };
+      }
+      if (data.session) {
+        if (!await verifiedIdentity(auth)) return { status: 401, message: "We couldn’t verify your account session. Please sign in to continue." };
+        deps.setRecoveryGrant("", 0);
+        return { status: 200, redirectTo: "/account" };
+      }
+      return inbox;
+    }
     case "password": {
       const { error } = await auth.signInWithPassword({ email: input.email!, password: input.password! });
       if (error) return authFailure(error, true);

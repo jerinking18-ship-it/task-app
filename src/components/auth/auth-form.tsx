@@ -7,7 +7,7 @@ import { CheckMark } from "./auth-shell";
 import styles from "./auth.module.css";
 
 export default function AuthForm({ mode = "signin", initialMessage = "", initialError = false }: {
-  mode?: "signin" | "forgot" | "reset"; initialMessage?: string; initialError?: boolean;
+  mode?: "signin" | "signup" | "forgot" | "reset"; initialMessage?: string; initialError?: boolean;
 }) {
   const [tab, setTab] = useState<"password" | "email-link">("password");
   const [email, setEmail] = useState("");
@@ -24,8 +24,9 @@ export default function AuthForm({ mode = "signin", initialMessage = "", initial
   const busy = useRef(false);
   const feedback = useRef<HTMLDivElement>(null);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const action: AuthAction = mode === "forgot" ? "recover" : mode === "reset" ? "reset" : tab;
-  const usesPassword = action === "password" || action === "reset";
+  const action: AuthAction = mode === "signup" ? "signup" : mode === "forgot" ? "recover" : mode === "reset" ? "reset" : tab;
+  const newPassword = mode === "signup" || mode === "reset";
+  const usesPassword = action === "password" || newPassword;
   const waiting = cooldown > 0 && cooldownFor === action;
 
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function AuthForm({ mode = "signin", initialMessage = "", initial
     }
   }
 
-  const submitLabel = action === "password" ? "Sign in" : action === "email-link" ? "Send sign-in link" : action === "recover" ? "Send reset link" : "Update password";
+  const submitLabel = action === "signup" ? "Create account" : action === "password" ? "Sign in" : action === "email-link" ? "Send sign-in link" : action === "recover" ? "Send reset link" : "Update password";
   return <>
     {mode === "signin" && <div className={styles.tabs} role="tablist" aria-label="Sign-in method">
       {(["password", "email-link"] as const).map((name, index) => <button key={name} ref={(element) => { tabs.current[index] = element; }}
@@ -94,7 +95,7 @@ export default function AuthForm({ mode = "signin", initialMessage = "", initial
         <div ref={feedback} tabIndex={-1} className={isError ? styles.error : styles.feedback} role={isError ? "alert" : "status"}>{message}</div>
         <p className={styles.sentEmail}>{email.trim()}</p>
         <button type="button" className={styles.primary} disabled={cooldown > 0} onClick={() => { setSent(false); setMessage(""); }}>
-          {cooldown > 0 ? `Request another link in ${cooldown}s` : "Request another link"}
+          {mode === "signup" ? cooldown > 0 ? `Try again in ${cooldown}s` : "Try again" : cooldown > 0 ? `Request another link in ${cooldown}s` : "Request another link"}
         </button>
         <button type="button" className={styles.textButton} onClick={() => { setSent(false); setMessage(""); }}>Use another email</button>
       </div> : <form onSubmit={submit} noValidate aria-busy={pending}>
@@ -112,17 +113,17 @@ export default function AuthForm({ mode = "signin", initialMessage = "", initial
             {mode === "signin" && <Link href="/auth/forgot-password">Forgot password?</Link>}
           </div>
           <div className={styles.passwordInput}>
-            <input id="password" name="password" type={visible ? "text" : "password"} autoComplete={mode === "reset" ? "new-password" : "current-password"}
-              value={password} disabled={pending} required maxLength={1024} placeholder={mode === "reset" ? "Choose a new password" : "Enter your password"}
+            <input id="password" name="password" type={visible ? "text" : "password"} autoComplete={newPassword ? "new-password" : "current-password"}
+              value={password} disabled={pending} required maxLength={1024} placeholder={newPassword ? "Choose a new password" : "Enter your password"}
               onChange={(event) => { setPassword(event.target.value); setFields((current) => ({ ...current, password: undefined })); }}
-              aria-invalid={!!fields.password} aria-describedby={fields.password ? "password-error" : mode === "reset" ? "password-hint" : undefined} />
+              aria-invalid={!!fields.password} aria-describedby={fields.password ? "password-error" : newPassword ? "password-hint" : undefined} />
             <button type="button" aria-label={visible ? "Hide password" : "Show password"} aria-pressed={visible} disabled={pending} onClick={() => setVisible(!visible)}>{visible ? "Hide" : "Show"}</button>
           </div>
           {fields.password && <p id="password-error" className={styles.fieldError}>{fields.password}</p>}
-          {mode === "reset" && <p id="password-hint" className={styles.hint}>At least 6 characters. Your account may require a stronger password.</p>}
+          {newPassword && <p id="password-hint" className={styles.hint}>{mode === "signup" ? "At least 8 characters." : "At least 6 characters. Your account may require a stronger password."}</p>}
         </div>}
-        {mode === "reset" && <div className={styles.field}>
-          <label htmlFor="confirmation">Confirm new password</label>
+        {newPassword && <div className={styles.field}>
+          <label htmlFor="confirmation">{mode === "signup" ? "Confirm password" : "Confirm new password"}</label>
           <input id="confirmation" name="confirmation" type={visible ? "text" : "password"} autoComplete="new-password" value={confirmation}
             disabled={pending} required maxLength={1024} placeholder="Enter your new password again"
             onChange={(event) => { setConfirmation(event.target.value); setFields((current) => ({ ...current, confirmation: undefined })); }}
@@ -130,11 +131,12 @@ export default function AuthForm({ mode = "signin", initialMessage = "", initial
           {fields.confirmation && <p id="confirmation-error" className={styles.fieldError}>{fields.confirmation}</p>}
         </div>}
         {action === "email-link" && <p className={styles.hint}>We’ll email you a one-time sign-in link. No password needed.</p>}
+        {action === "signup" && <p className={styles.hint}>Use an email you can access. Open confirmation links in this browser.</p>}
         <button className={styles.primary} type="submit" disabled={pending || waiting}>
-          {pending ? <><span className={styles.spinner} aria-hidden="true" />{action === "password" ? "Signing in…" : action === "reset" ? "Updating password…" : "Requesting link…"}</> : waiting ? `Try again in ${cooldown}s` : <>{submitLabel}<span aria-hidden="true">→</span></>}
+          {pending ? <><span className={styles.spinner} aria-hidden="true" />{action === "signup" ? "Creating account…" : action === "password" ? "Signing in…" : action === "reset" ? "Updating password…" : "Requesting link…"}</> : waiting ? `Try again in ${cooldown}s` : <>{submitLabel}<span aria-hidden="true">→</span></>}
         </button>
       </form>}
     </div>
-    {mode === "signin" ? <p className={styles.accountNote}>Sign in to an existing account.<br />New account registration is not available yet.</p> : <Link href="/sign-in" className={styles.backLink}><span aria-hidden="true">←</span> Back to sign in</Link>}
+    {mode === "signin" ? <p className={styles.accountNote}>New here? <Link href="/sign-up">Create account</Link></p> : mode === "signup" ? <p className={styles.accountNote}>Already have an account? <Link href="/sign-in">Sign in</Link></p> : <Link href="/sign-in" className={styles.backLink}><span aria-hidden="true">←</span> Back to sign in</Link>}
   </>;
 }

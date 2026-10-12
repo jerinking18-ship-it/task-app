@@ -37,6 +37,7 @@
 .error { color:#923c33; border:1px solid #edd3cd; background:#fbf1ed; }
 .feedback { color:#3a5c50; border:1px solid #dce9e1; background:#f3f8f4; }
 .accountNote { border-top:1px solid #efede8; margin:27px 0 0; padding-top:21px; text-align:center; color:#69717c; font-size:11px; line-height:1.8; }
+.accountNote a { color:#706044; font-weight:600; text-underline-offset:3px; }
 .backLink { display:flex; align-items:center; justify-content:center; gap:9px; margin:26px 0 0; color:#657080; text-decoration:none; font-size:12px; }
 .footer { display:flex; align-items:center; gap:7px; margin:22px 0 0; font-size:11px; color:#737b84; }
 .sent { text-align:center; padding-top:5px; }

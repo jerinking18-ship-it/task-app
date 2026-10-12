@@ -16,10 +16,10 @@ decisions and important progress in the original project's local codex.md and
 plans directory when available; do not copy their private history into this
 release folder. If those records are unavailable, ask where to keep them.
 
-This folder contains a reviewed source selection for a proposed private GitHub
-repository. Local copying and documentation preparation are approved. Git
-initialization, repository creation, uploads, Vercel access/configuration,
-Supabase changes and deployment require separate user approval.
+This folder contains reviewed source for the existing public GitHub repository
+and Vercel application. The user approved publishing Create account and replacing
+the public sample homepage with the protected account entry. Further source,
+hosting configuration, Supabase changes and real account tests require approval.
 
 Preserve the existing Next.js/React/TypeScript stack, Node 24.x declaration and
 lockfile. Read the installed Next.js guides before changing application code.
@@ -36,5 +36,6 @@ settings or separately approved hosting environment configuration.
 Do not rerun the existing applied migrations during deployment. Local SQL
 fixtures are for disposable local databases only. Database/data writes and
 real account or email tests require their own approval. Keep Reminder/Repeat
-disabled in saved mode until their implementation is approved. Subtasks and
-in-app signup are outside the current scope.
+disabled in saved mode until their implementation is approved. Subtasks remain
+outside scope. Signup is implemented; preserve email confirmation and do not
+claim general email delivery works until SMTP is configured and user-tested.
