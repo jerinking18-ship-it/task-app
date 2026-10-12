@@ -1,4 +1,4 @@
-# Task App
+# BGM Task App
 
 A responsive personal task app built with Next.js, React, TypeScript and Supabase.
 The interface uses navy, ivory and gold, with desktop and mobile layouts.
@@ -12,6 +12,8 @@ The interface uses navy, ivory and gold, with desktop and mobile layouts.
 - Combine views, status, category, priority and text search.
 - Empty, loading, error and no-match states.
 - Saved account data, draft protection and conflict review.
+- Daily, selected-weekday and monthly repeats in single and bulk entry.
+- History for previous completed repeats, with 30-day retention.
 
 `/` opens the protected account route; signed-out visitors reach `/sign-in`.
 `/account` requires sign-in and uses saved Supabase data. First-use setup asks
@@ -19,8 +21,7 @@ for India time (`Asia/Kolkata`), the currently supported account timezone.
 `/sign-up` supports email/password account creation with email confirmation.
 Production confirmation delivery still needs custom SMTP setup; the built-in
 Supabase sender has restricted recipients. Real signup/email delivery is untested.
-Reminder and Repeat are disabled Coming soon controls in saved mode.
-reminder delivery, recurrence, offline support and PWA installation are deferred.
+Reminders are not included. Offline support and PWA installation are deferred.
 
 ## Local setup
 
@@ -54,6 +55,14 @@ and were already applied through the dashboard. The third adds weekday labels
 and retained-record task deletion, and moves tasks from the former Personal,
 Work and Shopping presets to Uncategorized while preserving every task.
 The reviewed third migration has also been applied to the existing project.
+The fourth migration adds owner-checked recurrence, atomic successor creation and
+History metadata. Apply it only as part of the coordinated approved release: it
+replaces direct client updates with a version-checked mutation function.
+`supabase/operations/activate_history_cleanup.sql` is a separate approved action
+requiring Supabase Cron. It schedules only an hourly cleanup of completed tasks
+that have spent 30 full days in History. It never deletes active/upcoming tasks
+or series metadata and performs no immediate purge. Unscheduling the named job
+stops future runs; already deleted History cannot be restored through the app.
 Do not rerun applied migrations or apply them automatically during deployment.
 Their comments refer to planning records retained outside this release folder.
 Dashboard execution did not establish CLI migration history; reconcile that
@@ -97,7 +106,7 @@ Git deployments. Other deployment URLs may fail origin checks or redirect to
 the canonical origin.
 
 The original working project passed a Node 24 production build, TypeScript and
-40 local tests. This release copy has been checked for selected-file equality;
+42 local tests, plus offline recurrence/atomicity/concurrency/retention SQL suites. This release copy has been checked for selected-file equality;
 no dependencies were installed and no build/tests were executed in this folder.
 Hosted behavior, physical-device sync and real two-account isolation remain
 unverified. Local planning history, private screenshots, installed dependencies

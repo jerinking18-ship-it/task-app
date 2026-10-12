@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Task App",
+  title: "BGM Task App",
   description: "A personal task app for web and mobile.",
 };
 

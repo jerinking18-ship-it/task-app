@@ -3,9 +3,9 @@ import type { Category, Dataset, TaskAction, TaskRow } from "./model";
 import { MEETING_CATEGORIES } from "./model";
 import { decodeCategory, decodeRow } from "./validation";
 
-const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,created_at,updated_at,completed_at";
+const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,repeat_anchor_day,created_at,updated_at,completed_at";
 export class TaskError extends Error {
-  constructor(public status: number, message: string, public latest?: TaskRow, public categories?: Category[]) { super(message); }
+  constructor(public status: number, message: string, public latest?: TaskRow, public categories?: Category[], public future?:TaskRow[]) { super(message); }
 }
 function check(error: { code?: string } | null) {
   if (!error) return;
@@ -43,7 +43,9 @@ export class TaskRepository {
   }
   async read(): Promise<Dataset> {
     const [timezone,tasks,categories] = await Promise.all([this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory)]);
-    return {timezone,tasks,categories};
+    const versions=new Map<string,string>();
+    for(const task of tasks) if(task.series_id && (!versions.has(task.series_id) || task.updated_at>versions.get(task.series_id)!)) versions.set(task.series_id,task.updated_at);
+    return {timezone,tasks:tasks.map(task=>({...task,series_version:task.series_id?versions.get(task.series_id):task.updated_at})),categories};
   }
   private async category(name: string): Promise<Category> {
     // Re-read names instead of an UPDATE-based upsert; category UPDATE is forbidden.
@@ -85,14 +87,17 @@ export class TaskRepository {
       if (!Array.isArray(data) || data.length !== input.fields.length) throw new TaskError(503,"We couldn’t confirm all tasks. Refresh and review saved data before trying again.");
       return {tasks:data.map(decodeRow)};
     }
-    const values = input.action === "delete" ? {deleted_at:new Date().toISOString()} : input.action === "status" ? {status:input.status} : input.fields;
-    const {data,error} = await this.client.from("tasks").update(values).eq("id",input.id)
-      .eq("owner_id",this.owner).eq("updated_at",input.version).is("deleted_at",null).select(TASK_COLUMNS).maybeSingle();
+    const {data,error} = await this.client.rpc("task_app_mutate",{
+      task_id:input.id,expected_version:input.version,operation:input.action,
+      fields:input.action==="update"?input.fields:null,new_status:input.action==="status"?input.status:null,
+      edit_scope:input.action==="update"?(input.scope??"this"):"this",
+      expected_series_version:input.action==="update"?(input.seriesVersion??input.version):null
+    });
     check(error);
-    if (data) return input.action === "delete" ? {deleted:decodeRow(data).id} : {task:decodeRow(data)};
+    if (data && !data.conflict) return input.action === "delete" ? {deleted:decodeRow(data).id} : {task:decodeRow(data)};
     const current = await this.client.from("tasks").select(TASK_COLUMNS).eq("id",input.id).eq("owner_id",this.owner).is("deleted_at",null).maybeSingle();
     check(current.error);
     if (!current.data) throw new TaskError(404,"This task is no longer available. Your draft has been kept.");
-    throw new TaskError(409,input.action === "delete" ? "This task changed elsewhere. Review the saved version before deleting it." : "This task changed elsewhere. Review the saved version before saving your draft.",decodeRow(current.data),await this.pages("categories",decodeCategory));
+    throw new TaskError(409,input.action === "delete" ? "This task changed elsewhere. Review the saved version before deleting it." : "This task or a future occurrence changed elsewhere. Review saved tasks before saving your draft.",decodeRow({...current.data,...(data?.series_version?{series_version:data.series_version}:{})}),await this.pages("categories",decodeCategory),Array.isArray(data?.future)?data.future.map(decodeRow):undefined);
   }
 }

@@ -48,8 +48,9 @@
 .spinner { width:14px; height:14px; border:1.5px solid #101c2d40; border-top-color:#101c2d; border-radius:50%; animation:spin .7s linear infinite; }
 .skipLink { position:fixed; top:8px; left:8px; padding:10px; border-radius:6px; background:#fff; transform:translateY(-150%); z-index:20; }
 .skipLink:focus { transform:translateY(0); }
-.accountControls { display:flex; align-items:center; gap:15px; color:#5f6874; font-size:12px; }
-.accountControls button { background:transparent; color:#26364b; border:1px solid #dedbd3; min-height:36px; padding:7px 12px; border-radius:7px; }
+.accountControls { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:12px; color:#5f6874; font-size:12px; width:100%; }
+.accountControls button { background:#fffdf8; color:#26364b; border:1px solid #dedbd3; min-height:44px; padding:7px 12px; border-radius:7px; flex-shrink:0; }
+.accountControls [role="alert"] { flex-basis:100%; text-align:right; }
 .accountControls span { overflow-wrap:anywhere; }
 @keyframes spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) { .spinner { animation:none; } .primary { transition:none; } }

@@ -12,7 +12,7 @@ async function repository() {
   return new TaskRepository(client,identity.userId);
 }
 function failure(error: unknown) {
-  return error instanceof TaskError ? json({message:error.message,latest:error.latest,categories:error.categories},error.status)
+  return error instanceof TaskError ? json({message:error.message,latest:error.latest,categories:error.categories,future:error.future},error.status)
     : json({message:"We couldn’t confirm this request. Refresh to check saved data before trying again."},503);
 }
 export async function GET() {
