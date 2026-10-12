@@ -13,6 +13,8 @@ The interface uses navy, ivory and gold, with desktop and mobile layouts.
 - Empty, loading, error and no-match states.
 - Saved account data, draft protection and conflict review.
 - Daily, selected-weekday and monthly repeats in single and bulk entry.
+- Completed repeats wait until midnight India time on their next scheduled date;
+  the selected task time remains the deadline.
 - History for previous completed repeats, with 30-day retention.
 
 `/` opens the protected account route; signed-out visitors reach `/sign-in`.
@@ -63,7 +65,23 @@ requiring Supabase Cron. It schedules only an hourly cleanup of completed tasks
 that have spent 30 full days in History. It never deletes active/upcoming tasks
 or series metadata and performs no immediate purge. Unscheduling the named job
 stops future runs; already deleted History cannot be restored through the app.
-Do not rerun applied migrations or apply them automatically during deployment.
+The fifth migration replaces immediate successor creation with an internal pending
+schedule. A task is created only once its scheduled date starts in Asia/Kolkata;
+selected time is its deadline. Late completion skips dates whose midnight has
+already passed. The previous task enters History when its successor is released.
+Existing generated future heads keep their IDs/details and become visible at
+midnight; manually created future tasks remain visible.
+`supabase/operations/activate_midnight_repeats.sql` separately schedules the
+administrator-only worker every minute, using server date gating and safe retries.
+It targets midnight; normal background execution may be up to a minute later.
+Authenticated reads perform owner-scoped catch-up, and an open app refreshes at
+the India date boundary while preserving dirty drafts. Service outages can delay
+release; recovery creates one waiting occurrence instead of a backlog.
+Stopping a pending repeat uses This and future tasks with Repeat Off. This task
+only edits preserve its pending successor. The existing History cleanup remains
+unchanged; generated queue snapshots expire with their source History record.
+No real migration, maintenance or scheduler activation should occur without the
+coordinated release approval. Do not rerun applied migrations or apply them automatically during deployment.
 Their comments refer to planning records retained outside this release folder.
 Dashboard execution did not establish CLI migration history; reconcile that
 history before introducing a migration CLI workflow.
@@ -106,7 +124,7 @@ Git deployments. Other deployment URLs may fail origin checks or redirect to
 the canonical origin.
 
 The original working project passed a Node 24 production build, TypeScript and
-42 local tests, plus offline recurrence/atomicity/concurrency/retention SQL suites. This release copy has been checked for selected-file equality;
+45 local tests, plus offline recurrence/midnight/atomicity/concurrency/retention SQL suites. This release copy has been checked for selected-file equality;
 no dependencies were installed and no build/tests were executed in this folder.
 Hosted behavior, physical-device sync and real two-account isolation remain
 unverified. Local planning history, private screenshots, installed dependencies
