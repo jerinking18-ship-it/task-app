@@ -36,6 +36,7 @@
 .refreshButton { margin-left:auto; border:1px solid #d8ccb6; background:#fffaf0; color:#574529; border-radius:6px; padding:7px 13px; min-height:36px; }
 .inlineNotice,.inlineError { padding:14px 16px; border-radius:10px; margin:0 0 18px; font-size:12px; line-height:1.7; overflow-wrap:anywhere; }
 .inlineNotice { background:#f0e9d9; color:#665536; }
+.historyNotice { margin-top:20px; }
 .inlineError { background:#fbefeb; color:#944e3d; }
 .inlineError p { margin:0 0 8px; }
 .inlineNotice button,.inlineError button,.conflict button { padding:8px 12px; margin:6px 8px 0 0; border:1px solid #d4bc87; background:white; border-radius:6px; color:#574529; min-height:40px; }
