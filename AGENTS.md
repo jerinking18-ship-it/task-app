@@ -17,11 +17,12 @@ plans directory when available; do not copy their private history into this
 release folder. If those records are unavailable, ask where to keep them.
 
 This folder contains reviewed source for the existing public GitHub repository
-and Vercel application. The user approved publishing the meeting categories, weekdays, bulk task entry
-and retained-record Delete task changes to the existing Vercel application.
-The matching database migration must be applied once before this release.
-Preserve existing tasks; move only former Personal/Work/Shopping tasks to
-Uncategorized. Other changes and real account tests require approval.
+and Vercel application. The user approved publishing Repeat, History and BGM branding/header changes to
+the existing Vercel application. Apply only the reviewed fourth migration once
+and coordinate publication because client writes now use the protected RPC.
+Separately approved hourly cleanup permanently removes only completed records
+after 30 full days in History. Preserve active/next tasks, series, accounts,
+categories and settings. Other changes and real account tests require approval.
 
 Preserve the existing Next.js/React/TypeScript stack, Node 24.x declaration and
 lockfile. Read the installed Next.js guides before changing application code.
@@ -37,7 +38,6 @@ settings or separately approved hosting environment configuration.
 
 Do not rerun the existing applied migrations during deployment. Local SQL
 fixtures are for disposable local databases only. Database/data writes and
-real account or email tests require their own approval. Keep Reminder/Repeat
-disabled in saved mode until their implementation is approved. Subtasks remain
+real account or email tests require their own approval. Repeat is implemented; no reminders are included. Subtasks remain
 outside scope. Signup is implemented; preserve email confirmation and do not
 claim general email delivery works until SMTP is configured and user-tested.
