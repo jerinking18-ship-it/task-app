@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { blankTask, MAX_BATCH_TASKS, type Priority, type Task } from "@/lib/tasks/model";
+import { blankTask, MAX_BATCH_TASKS, PRIORITIES, type Priority, type Task } from "@/lib/tasks/model";
 import TaskDays from "./task-days";
 import styles from "./task-app.module.css";
 
@@ -13,6 +13,7 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
   const id=useId();
   const sequence=useRef(1);
   const submitting=useRef(false);
+  const appliedDetails=useRef<Pick<Task,"date"|"time"|"weekdays"|"priority">|null>(null);
   const [category,setCategory]=useState(initialCategory);
   const [rows,setRows]=useState<DraftRow[]>(()=>[{key:0,task:blankTask(),details:true,notesOpen:true}]);
   const [error,setError]=useState("");
@@ -26,13 +27,17 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
     setError("");setNotice("");
   }
   function applyDetails(source:Task) {
-    setRows(current=>current.map(row=>({...row,task:{...row.task,date:source.date,time:source.time,weekdays:[...source.weekdays],priority:source.priority}})));
-    setNotice("Date, time, days and priority applied to all tasks. Titles and notes kept.");
+    const details={date:source.date,time:source.time,weekdays:[...source.weekdays],priority:source.priority};
+    appliedDetails.current=details;
+    setRows(current=>current.map(row=>({...row,task:{...row.task,...details,weekdays:[...details.weekdays]}})));
+    setNotice("Details applied to all tasks, including tasks you add next in this batch. Titles and notes kept.");
   }
   function addRow() {
     if(rows.length>=MAX_BATCH_TASKS) return;
     const key=sequence.current++;
-    setRows(current=>[...current,{key,task:blankTask(),details:false,notesOpen:false}]);
+    const details=appliedDetails.current;
+    const task=details?{...blankTask(),...details,weekdays:[...details.weekdays]}:blankTask();
+    setRows(current=>[...current,{key,task,details:false,notesOpen:false}]);
     window.requestAnimationFrame(()=>document.getElementById(`${id}-title-${key}`)?.focus());
   }
   function removeRow(key:number) {
@@ -73,9 +78,9 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
               <div className={styles.dateFields}><label className={styles.field}><span>Due date<span className={styles.srOnly}> for task {index+1}</span></span><input id={`${id}-date-${row.key}`} type="date" value={row.task.date} onInput={event=>{update(row.key,"date",event.currentTarget.value);if(!event.currentTarget.value)update(row.key,"time","");}} onChange={event=>{update(row.key,"date",event.target.value);if(!event.target.value)update(row.key,"time","");}} /></label><label className={styles.field}><span>Time <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span></span><input type="time" value={row.task.time} onInput={event=>update(row.key,"time",event.currentTarget.value)} onChange={event=>update(row.key,"time",event.target.value)} /></label></div>
               <p className={styles.editorHint}>India time · Asia/Kolkata</p>
               <TaskDays value={row.task.weekdays} onChange={days=>update(row.key,"weekdays",days)} />
-              <label className={styles.property}><span>Priority<span className={styles.srOnly}> for task {index+1}</span></span><select value={row.task.priority} onChange={event=>update(row.key,"priority",event.target.value as Priority)}>{["None","Low","Medium","High"].map(item=><option key={item}>{item}</option>)}</select></label>
+              <label className={styles.property}><span>Priority<span className={styles.srOnly}> for task {index+1}</span></span><select value={row.task.priority} onChange={event=>update(row.key,"priority",event.target.value as Priority)}>{PRIORITIES.map(item=><option key={item}>{item}</option>)}</select></label>
               <button type="button" className={styles.applyDetails} onClick={()=>applyDetails(row.task)}>Apply these details to all tasks</button>
-              <p className={styles.editorHint}>Replaces date, time, days and priority. Keeps each task’s title and notes.</p>
+              <p className={styles.editorHint}>Applies date, time, days and priority to this batch and tasks added next. Keeps each task’s title and notes.</p>
             </div>
           </div>
         </section>)}</div>

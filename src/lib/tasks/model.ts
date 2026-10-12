@@ -1,4 +1,5 @@
 export type Priority = "None" | "Low" | "Medium" | "High";
+export const PRIORITIES = ["Low", "Medium", "High"] as const;
 export const MEETING_CATEGORIES = ["Sunday Service", "Healing Meeting", "Revival Meeting", "Special Meeting", "Woman's Meeting"];
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const MAX_BATCH_TASKS = 20;
@@ -36,7 +37,7 @@ export type TaskAction =
   | { action: "status"; id: string; version: string; status: "active" | "completed" };
 
 export function blankTask(): Task {
-  return { id: "", title: "", notes: "", completed: false, date: "", time: "", priority: "None",
+  return { id: "", title: "", notes: "", completed: false, date: "", time: "", priority: "Medium",
     category: "", reminder: "Off", notification: false, email: false, repeat: "Off", createdAt: "", updatedAt: "", weekdays: [] };
 }
 export function mapTask(row: TaskRow, categories: Category[]): Task {
