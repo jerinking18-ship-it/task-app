@@ -11,10 +11,13 @@ The interface uses navy, ivory and gold, with desktop and mobile layouts.
 - Empty, loading, error and no-match states.
 - Saved account data, draft protection and conflict review.
 
-`/` is an in-memory design preview; changes there reset on refresh.
+`/` opens the protected account route; signed-out visitors reach `/sign-in`.
 `/account` requires sign-in and uses saved Supabase data. First-use setup asks
 for India time (`Asia/Kolkata`), the currently supported account timezone.
-Reminder and Repeat are disabled Coming soon controls in saved mode. Signup,
+`/sign-up` supports email/password account creation with email confirmation.
+Production confirmation delivery still needs custom SMTP setup; the built-in
+Supabase sender has restricted recipients. Real signup/email delivery is untested.
+Reminder and Repeat are disabled Coming soon controls in saved mode.
 reminder delivery, recurrence, offline support and PWA installation are deferred.
 
 ## Local setup
@@ -40,7 +43,7 @@ npm run dev -- --hostname 127.0.0.1 --port 3003
 
 Configure Supabase Auth with the exact local Site URL and callback
 `http://127.0.0.1:3003/auth/callback` before testing authentication links.
-Use an existing Auth account; there is no in-app signup flow.
+Use an existing Auth account or `/sign-up` with a configured email sender.
 
 ## Database files
 
@@ -79,7 +82,7 @@ without network or published ports and removes it afterwards.
 
 ## Hosting preparation
 
-Vercel is the selected hosting target. Deployment is pending separate approval.
+The app is hosted on Vercel through the repository's main branch.
 Use the declared Node 24.x runtime and `npm run build`. Supply production
 variables separately, with a fresh server-only recovery secret, an exact stable
 HTTPS `APP_ORIGIN`, and reviewed exact Supabase Site URL/callback settings.
@@ -89,7 +92,7 @@ Git deployments. Other deployment URLs may fail origin checks or redirect to
 the canonical origin.
 
 The original working project passed a Node 24 production build, TypeScript and
-29 local tests. This release copy has been checked for selected-file equality;
+34 local tests. This release copy has been checked for selected-file equality;
 no dependencies were installed and no build/tests were executed in this folder.
 Hosted behavior, physical-device sync and real two-account isolation remain
 unverified. Local planning history, private screenshots, installed dependencies
