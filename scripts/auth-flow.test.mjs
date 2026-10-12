@@ -33,6 +33,7 @@ function fixture(overrides = {}) {
     async getClaims() { return { data: { claims: { sub: identity.userId, session_id: identity.sessionId } }, error: null }; },
     async getUser() { return { data: { user: { id: identity.userId } }, error: null }; },
     async signInWithPassword(input) { calls.push(["password", input]); return { error: null }; },
+    async signUp(input) { calls.push(["signup", input]); return { data: { user: { id: "fixture-user" }, session: null }, error: null }; },
     async signInWithOtp(input) { calls.push(["email-link", input]); return { error: null }; },
     async resetPasswordForEmail(email, options) { calls.push(["recover", email, options]); return { error: null }; },
     async updateUser(input) { calls.push(["update", input]); return { error: null }; },
@@ -50,10 +51,61 @@ test("validation trims only email, preserves passwords, and rejects unknown acti
   const valid = validation.validateAuthInput({ action: "password", email: " user@example.com ", password: " secret with spaces " });
   assert.equal(valid.input.email, "user@example.com");
   assert.equal(valid.input.password, " secret with spaces ");
-  assert.equal(validation.validateAuthInput({ action: "signup" }).input, undefined);
+  assert.equal(validation.validateAuthInput({ action: "unknown-action" }).input, undefined);
   assert.equal(validation.validateAuthInput({ action: "email-link", email: "bad email" }).fields.email, "Enter a valid email address.");
   const reset = validation.validateAuthInput({ action: "reset", password: "123", confirmation: "different" });
   assert.ok(reset.fields.password); assert.ok(reset.fields.confirmation);
+});
+
+test("signup validates email, eight-character password and matching confirmation without trimming passwords", () => {
+  const checked = validation.validateAuthInput({ action: "signup", email: " new@example.com ", password: " spaces stay ", confirmation: " spaces stay " });
+  assert.equal(checked.input.email, "new@example.com");
+  assert.equal(checked.input.password, " spaces stay ");
+  assert.equal(validation.validateAuthInput({ action: "signup", email: "invalid", password: "short", confirmation: "different" }).input, undefined);
+  const invalid = validation.validateAuthInput({ action: "signup", email: "invalid", password: "short", confirmation: "different" }).fields;
+  assert.ok(invalid.email); assert.ok(invalid.password); assert.ok(invalid.confirmation);
+  assert.equal(validation.validateAuthInput({ action: "signup", email: "new@example.com", password: "long-enough" }).input, undefined);
+});
+
+test("signup uses the canonical callback, does not treat a user object as a session, and hides account existence", async () => {
+  const f = fixture();
+  const input = { action: "signup", email: "new@example.com", password: "fixture-only" };
+  const reply = await flow.runAuthAction(input, f.deps);
+  assert.equal(f.calls.length, 1); assert.equal(f.calls[0][0], "signup");
+  assert.equal(f.calls[0][1].options.emailRedirectTo, `${f.deps.origin}/auth/callback`);
+  assert.equal(f.calls[0][1].password, input.password);
+  assert.equal(f.calls[0][1].options.data, undefined);
+  assert.equal(reply.status, 200); assert.equal(reply.redirectTo, undefined);
+  assert.equal(reply.session, undefined); assert.equal(reply.user, undefined);
+  for (const code of ["user_already_exists", "email_exists"]) {
+    const duplicate = fixture({ async signUp() { return { data: {}, error: { code, status: 422, message: "private account information" } }; } });
+    assert.equal(JSON.stringify(await flow.runAuthAction(input, duplicate.deps)), JSON.stringify(reply));
+  }
+});
+
+test("signup reports safe weak-password, disabled/provider and rate-limit failures", async () => {
+  const input = { action: "signup", email: "new@example.com", password: "fixture-only" };
+  for (const [code, status] of [["weak_password", 422], ["signup_disabled", 400], ["email_address_not_authorized", 400], ["provider_failure", 500], ["rate_limit", 429]]) {
+    const f = fixture({ async signUp() { return { data: {}, error: { code, status, message: "private-provider-detail" } }; } });
+    const reply = await flow.runAuthAction(input, f.deps);
+    assert.notEqual(reply.status, 200); assert.equal(reply.redirectTo, undefined);
+    assert.doesNotMatch(JSON.stringify(reply), /private-provider-detail/);
+    if (code === "weak_password") assert.ok(reply.fields.password);
+    if (status === 429) {assert.equal(reply.status, 429); assert.equal(reply.retryAfter, 60);}
+    if (status === 500) assert.equal(reply.status, 503);
+  }
+});
+
+test("immediate signup sessions require verified identity before account access", async () => {
+  const signUp = async () => ({ data: { user: { id: identity.userId }, session: { access_token: "fixture-token-never-return" } }, error: null });
+  const input = { action: "signup", email: "new@example.com", password: "fixture-only" };
+  const good = fixture({ signUp });
+  const reply = await flow.runAuthAction(input, good.deps);
+  assert.equal(reply.redirectTo, "/account"); assert.equal(good.cookies.at(-1).maxAge, 0);
+  assert.doesNotMatch(JSON.stringify(reply), /fixture-token/);
+  const mismatch = fixture({ signUp, async getUser() { return { data: { user: { id: "different-user" } }, error: null }; } });
+  const denied = await flow.runAuthAction(input, mismatch.deps);
+  assert.equal(denied.status, 401); assert.equal(denied.redirectTo, undefined);
 });
 
 test("email links explicitly disable signup and return no user/session data", async () => {
@@ -168,6 +220,20 @@ test("route success preserves no-store headers; exceptions never return private 
   server.authDependencies = async () => { throw new Error("fixture-secret-never-expose"); };
   const failed = await POST(request('{"action":"email-link","email":"user@example.com"}'));
   assert.equal(failed.status, 503); assert.doesNotMatch(await failed.text(), /fixture-secret/);
+});
+
+test("signup route rejects invalid and cross-origin creation before Auth and returns only a private safe reply", async () => {
+  const f = submitFixture();
+  const valid = JSON.stringify({ action: "signup", email: "new@example.com", password: "fixture-only", confirmation: "fixture-only" });
+  assert.equal((await f.POST(request(valid, "https://other.example"))).status, 403);
+  assert.equal((await f.POST(request(JSON.stringify({ action: "signup", email: "new@example.com", password: "fixture-only", confirmation: "different" })))).status, 400);
+  assert.equal(f.calls.length, 0);
+  const response = await f.POST(request(valid));
+  assert.equal(response.status, 200); assert.equal(response.headers.get("retry-after"), "60");
+  assert.match(response.headers.get("cache-control"), /no-store/);
+  const body = await response.json();
+  assert.equal(body.user, undefined); assert.equal(body.session, undefined);
+  assert.equal(f.calls.length, 1); assert.equal(f.calls[0][0], "signup");
 });
 
 test("callback ignores external destinations and caller-supplied recovery types", async () => {
