@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     for (;;) {
       const {done,value} = await reader.read(); if(done) break;
       length += value.byteLength;
-      if(length>32768) { await reader.cancel(); return json({message:"Save request is too large."},413); }
+      if(length>393216) { await reader.cancel(); return json({message:"Save request is too large."},413); }
       chunks.push(value);
     }
     const bytes = new Uint8Array(length); let offset=0;
