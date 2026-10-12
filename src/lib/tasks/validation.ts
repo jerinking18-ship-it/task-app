@@ -66,10 +66,11 @@ export function decodeRow(v: unknown): TaskRow {
   if (!(v.series_id===undefined || v.series_id===null || uuid(v.series_id))
     || !(v.series_version===undefined || timestamp(v.series_version))
     || !(v.history_at===undefined || v.history_at===null || timestamp(v.history_at))
+    || !(v.available_at===undefined || v.available_at===null || timestamp(v.available_at))
     || !(v.repeat_anchor_day===undefined || v.repeat_anchor_day===null || (Number.isInteger(v.repeat_anchor_day) && Number(v.repeat_anchor_day)>=1 && Number(v.repeat_anchor_day)<=31))) throw new Error("Incomplete repeat response.");
   if(v.repeat_rule && v.repeat_rule!=="off" && (!uuid(v.series_id) || (v.repeat_rule==="monthly" && !v.repeat_anchor_day))) throw new Error("Incomplete repeat response.");
   return { ...fields, id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
-    series_id:v.series_id as string|null|undefined,history_at:v.history_at as string|null|undefined,repeat_anchor_day:v.repeat_anchor_day as number|null|undefined,series_version:v.series_version as string|undefined };
+    series_id:v.series_id as string|null|undefined,history_at:v.history_at as string|null|undefined,available_at:v.available_at as string|null|undefined,repeat_anchor_day:v.repeat_anchor_day as number|null|undefined,series_version:v.series_version as string|undefined };
 }
 export function decodeDataset(v: unknown): Dataset {
   if (!isRecord(v) || !Array.isArray(v.tasks) || !Array.isArray(v.categories)
