@@ -17,9 +17,11 @@ plans directory when available; do not copy their private history into this
 release folder. If those records are unavailable, ask where to keep them.
 
 This folder contains reviewed source for the existing public GitHub repository
-and Vercel application. The user approved publishing Create account and replacing
-the public sample homepage with the protected account entry. Further source,
-hosting configuration, Supabase changes and real account tests require approval.
+and Vercel application. The user approved publishing the meeting categories, weekdays, bulk task entry
+and retained-record Delete task changes to the existing Vercel application.
+The matching database migration must be applied once before this release.
+Preserve existing tasks; move only former Personal/Work/Shopping tasks to
+Uncategorized. Other changes and real account tests require approval.
 
 Preserve the existing Next.js/React/TypeScript stack, Node 24.x declaration and
 lockfile. Read the installed Next.js guides before changing application code.

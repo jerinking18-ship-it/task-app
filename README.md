@@ -5,7 +5,9 @@ The interface uses navy, ivory and gold, with desktop and mobile layouts.
 
 ## Features
 
-- Create and edit tasks; complete or reopen them.
+- Create, edit and delete tasks; complete or reopen them with confirmation.
+- Add 1–20 tasks together, with individual notes and optional shared details.
+- Five meeting categories and optional weekday buttons; matching category lists.
 - Required title, optional notes, priority, category and due date/time.
 - Combine views, status, category, priority and text search.
 - Empty, loading, error and no-match states.
@@ -47,9 +49,12 @@ Use an existing Auth account or `/sign-up` with a configured email sender.
 
 ## Database files
 
-The two SQL migrations define private tasks, categories and account settings.
-They were already applied to the existing project through the dashboard.
-Do not rerun them there or apply them automatically during deployment.
+The first two SQL migrations define private tasks, categories and account settings
+and were already applied through the dashboard. The third adds weekday labels
+and retained-record task deletion, and moves tasks from the former Personal,
+Work and Shopping presets to Uncategorized while preserving every task.
+The reviewed third migration has also been applied to the existing project.
+Do not rerun applied migrations or apply them automatically during deployment.
 Their comments refer to planning records retained outside this release folder.
 Dashboard execution did not establish CLI migration history; reconcile that
 history before introducing a migration CLI workflow.
@@ -92,7 +97,7 @@ Git deployments. Other deployment URLs may fail origin checks or redirect to
 the canonical origin.
 
 The original working project passed a Node 24 production build, TypeScript and
-34 local tests. This release copy has been checked for selected-file equality;
+40 local tests. This release copy has been checked for selected-file equality;
 no dependencies were installed and no build/tests were executed in this folder.
 Hosted behavior, physical-device sync and real two-account isolation remain
 unverified. Local planning history, private screenshots, installed dependencies
