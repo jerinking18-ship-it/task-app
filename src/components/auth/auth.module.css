@@ -1,0 +1,66 @@
+.shell { min-height:100dvh; background:#f7f5f0; color:#101c2d; font-size:14px; line-height:1.5; }
+.header { max-width:1200px; margin:auto; padding:36px 48px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.brand { display:flex; align-items:center; gap:11px; font-size:23px; font-weight:600; letter-spacing:-.7px; text-decoration:none; color:#101c2d; }
+.brandDot { color:#9c7e44; }
+.mark, .largeMark { display:inline-grid; place-items:center; flex-shrink:0; width:36px; height:36px; border-radius:10px; background:#d4bc87; color:#101c2d; }
+.largeMark { width:58px; height:58px; border-radius:18px; margin-bottom:18px; }
+.previewLink { color:#526071; font-size:13px; text-decoration:none; display:flex; gap:8px; align-items:center; }
+.previewLink:hover, .backLink:hover, .labelRow a:hover { text-decoration:underline; }
+.main { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:calc(100dvh - 110px); padding:28px 24px 70px; }
+.card { position:relative; overflow:hidden; width:100%; max-width:460px; padding:39px 40px 30px; border:1px solid #e8e5de; border-radius:22px; background:#fff; box-shadow:0 12px 55px #101c2d08, 0 2px 8px #101c2d03; }
+.cardAccent { position:absolute; top:0; left:40px; right:40px; height:3px; background:#d4bc87; border-radius:0 0 3px 3px; }
+.eyebrow { margin:0 0 10px; color:#806841; font-size:10px; font-weight:700; letter-spacing:2px; }
+.card h1 { margin:0 0 11px; font-size:29px; font-weight:600; letter-spacing:-1.1px; line-height:1.25; }
+.description { margin:0 0 28px; color:#69717c; line-height:1.65; }
+.tabs { display:flex; padding:4px; gap:4px; background:#f5f4f1; border:1px solid #efede8; border-radius:11px; margin-bottom:28px; }
+.tabs button { flex:1; min-height:39px; border:0; border-radius:7px; background:transparent; color:#727781; font-size:13px; font-weight:600; }
+.tabs button[aria-selected=true] { background:#fff; color:#101c2d; box-shadow:0 1px 5px #101c2d0e; }
+.field { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
+.field label { font-size:12px; font-weight:600; color:#26364b; }
+.field input { width:100%; min-width:0; min-height:49px; padding:13px 14px; border:1px solid #dfdfdc; border-radius:9px; background:#fff; color:#101c2d; font-size:14px; }
+.field input::placeholder { color:#727a85; }
+.field input:focus { border-color:#b6a077; }
+.field input[aria-invalid=true] { border-color:#b55f52; }
+.field input:disabled { background:#f7f6f3; }
+.labelRow { display:flex; flex-wrap:wrap; gap:6px; justify-content:space-between; align-items:baseline; }
+.labelRow a { font-size:11px; color:#706044; text-decoration:none; }
+.passwordInput { position:relative; }
+.passwordInput input { padding-right:66px; }
+.passwordInput button { position:absolute; right:7px; top:5px; min-height:39px; padding:0 10px; color:#6d727c; background:transparent; border:0; border-radius:5px; font-size:11px; }
+.primary { width:100%; min-height:49px; border:1px solid #cfb67e; border-radius:9px; padding:13px 16px; display:flex; align-items:center; justify-content:center; gap:12px; margin-top:8px; color:#101c2d; background:#d4bc87; font-size:13px; font-weight:600; text-decoration:none; transition:background .15s; }
+.primary:hover:not(:disabled) { background:#dfc999; }
+.primary:disabled, .tabs button:disabled { cursor:default; opacity:.65; }
+.hint { color:#69717c; font-size:12px; line-height:1.65; margin:0 0 18px; }
+.field .hint { margin:0; font-size:11px; }
+.fieldError { margin:0; color:#9e4036; font-size:12px; }
+.error, .feedback { margin:0 0 22px; padding:12px 14px; border-radius:9px; font-size:12px; line-height:1.65; overflow-wrap:anywhere; }
+.error { color:#923c33; border:1px solid #edd3cd; background:#fbf1ed; }
+.feedback { color:#3a5c50; border:1px solid #dce9e1; background:#f3f8f4; }
+.accountNote { border-top:1px solid #efede8; margin:27px 0 0; padding-top:21px; text-align:center; color:#69717c; font-size:11px; line-height:1.8; }
+.backLink { display:flex; align-items:center; justify-content:center; gap:9px; margin:26px 0 0; color:#657080; text-decoration:none; font-size:12px; }
+.footer { display:flex; align-items:center; gap:7px; margin:22px 0 0; font-size:11px; color:#737b84; }
+.sent { text-align:center; padding-top:5px; }
+.sent h2 { font-size:23px; letter-spacing:-.5px; font-weight:600; margin:0 0 15px; }
+.sent .feedback { color:#69717c; background:transparent; border:0; padding:0; margin:0; }
+.sentEmail { overflow-wrap:anywhere; font-size:13px; color:#26364b; margin:12px 0 24px; }
+.textButton { color:#6d727c; background:transparent; border:0; border-radius:5px; padding:12px; min-height:44px; margin-top:6px; font-size:12px; }
+.spinner { width:14px; height:14px; border:1.5px solid #101c2d40; border-top-color:#101c2d; border-radius:50%; animation:spin .7s linear infinite; }
+.skipLink { position:fixed; top:8px; left:8px; padding:10px; border-radius:6px; background:#fff; transform:translateY(-150%); z-index:20; }
+.skipLink:focus { transform:translateY(0); }
+.accountControls { display:flex; align-items:center; gap:15px; color:#5f6874; font-size:12px; }
+.accountControls button { background:transparent; color:#26364b; border:1px solid #dedbd3; min-height:36px; padding:7px 12px; border-radius:7px; }
+.accountControls span { overflow-wrap:anywhere; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .spinner { animation:none; } .primary { transition:none; } }
+@media (max-width:600px) {
+  .header { padding:25px 24px; }
+  .brand { font-size:21px; gap:9px; }
+  .previewLink { font-size:11px; gap:5px; }
+  .main { min-height:calc(100dvh - 88px); padding:24px 20px 40px; justify-content:flex-start; }
+  .card { padding:32px 25px 25px; border-radius:17px; }
+  .cardAccent { left:25px; right:25px; }
+  .card h1 { font-size:27px; }
+  .field input { font-size:16px; }
+  .accountControls { flex-wrap:wrap; }
+}
+@media (max-width:360px) { .header { padding:22px 18px; } .previewLink { max-width:84px; text-align:right; line-height:1.4; } .main { padding:20px 14px 30px; } .card { padding:30px 20px 24px; } .card h1 { font-size:25px; } }
