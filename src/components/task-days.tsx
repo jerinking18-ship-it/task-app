@@ -3,9 +3,9 @@
 import { WEEKDAYS } from "@/lib/tasks/model";
 import styles from "./task-app.module.css";
 
-export default function TaskDays({value,onChange}:{value:number[];onChange:(days:number[])=>void}) {
+export default function TaskDays({value,onChange,required=false}:{value:number[];onChange:(days:number[])=>void;required?:boolean}) {
   return <fieldset className={styles.daysField}>
-    <legend>Days <span className={styles.optional}>optional</span></legend>
+    <legend>{required?"Repeat on":"Days"} <span className={required?styles.required:styles.optional}>{required?"*":"optional"}</span></legend>
     <div className={styles.dayButtons}>{WEEKDAYS.map((day,index)=><button
       key={day} type="button" aria-pressed={value.includes(index)}
       className={value.includes(index) ? styles.daySelected : ""}

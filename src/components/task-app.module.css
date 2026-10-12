@@ -1,4 +1,35 @@
-.accountBar { padding:0 0 20px; }
+.accountBar { display:flex; justify-content:flex-end; padding:0 0 20px; }
+.inlineEditor { position:static; margin:0; padding:0; width:auto; max-width:none; max-height:none; color:inherit; border:0; background:transparent; }
+.historyList { list-style:none; padding:0; margin:12px 0; display:flex; flex-direction:column; gap:12px; }
+.historyCard { display:flex; align-items:flex-start; gap:16px; padding:22px 18px; background:#fff; border:1px solid #dedfe3; border-radius:9px; min-width:0; }
+.historyCheck { border:0; width:40px; height:40px; flex-shrink:0; border-radius:50%; background:#bda16a; color:#fff; display:grid; place-items:center; }
+.historyDetails { border:0; padding:0; background:transparent; color:inherit; display:flex; align-items:center; flex:1; min-width:0; gap:20px; text-align:left; }
+.historyText { display:flex; flex-direction:column; flex:1; min-width:150px; gap:7px; }
+.historyText strong { font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+.historyText>span { font-size:12px; color:#7d8591; white-space:pre-wrap; overflow-wrap:anywhere; }
+.historyFacts { display:grid; grid-template-columns:repeat(4,minmax(76px,auto)) auto; gap:16px; font-size:12px; align-items:start; }
+.historyFacts>span { display:flex; flex-direction:column; gap:8px; }
+.historyFacts small { font-size:10px; color:#7d8591; }
+.historyFacts .categoryLabel { min-width:0; white-space:normal; max-width:130px; }
+.historyFacts .badge { align-self:flex-start; }
+.historyFacts .historyDeletion { flex-direction:row; color:#d52d3c; align-items:center; gap:7px; line-height:1.6; }
+.historyCheck:focus-visible,.historyDetails:focus-visible { outline:2px solid #94733c; outline-offset:4px; }
+.navigation .historySelected { color:var(--gold); }
+@media(max-width:1400px) { .historyDetails { flex-wrap:wrap; gap:18px; } .historyText { flex-basis:100%; } .historyFacts { width:100%; grid-template-columns:1.4fr .8fr 1fr 1fr 1fr; } }
+@media(max-width:760px) {
+  .workspace.historyWorkspace { padding-bottom:35px; }
+  .historyWorkspace .filters { display:flex; width:100%; }
+  .historyWorkspace .filters label { flex:1; }
+  .historyWorkspace .mobileFilter { display:none; }
+  .historyWorkspace .headerActions:after { display:none; }
+  .historyCard { padding:18px 14px; gap:12px; }
+  .historyCheck { width:34px; height:34px; }
+  .historyText { min-width:0; }
+  .historyFacts { grid-template-columns:1fr 1fr; gap:16px 12px; }
+  .historyFacts .historyDeletion { grid-column:1/-1; }
+  .historyFacts .historyDeletion br { display:none; }
+  .historyFacts .historyDeletion span { display:flex; gap:4px; }
+}
 .formFields { display:contents; }
 .app button:disabled,.dialog button:disabled { opacity:.55; cursor:wait; }
 .property select:disabled { opacity:.7; cursor:not-allowed; }
@@ -1155,7 +1186,9 @@
 }
 
 @media(max-width:760px) {
-  .accountBar { padding:14px 24px; background:var(--ivory); }
+  .accountBar { padding:14px 24px 0; background:var(--navy); }
+  .accountBar + .header { padding-top:16px; }
+  .accountBar [role="status"],.accountBar [role="alert"] { color:#f5f5f4; }
   .app {
     display:block
   }
@@ -1165,8 +1198,12 @@
   .workspace {
     width:100%;
     margin:0;
+    position:relative;
     padding:0 0 110px
   }
+  .accountBar:not(:has([role="status"],[role="alert"])) { position:absolute; top:24px; right:24px; padding:0; background:transparent; z-index:1; }
+  .accountBar:not(:has([role="status"],[role="alert"])) + .header { padding-top:24px; }
+  .accountBar:not(:has([role="status"],[role="alert"])) + .header .heading { padding-right:88px; min-height:44px; }
   .header {
     background:var(--navy);
     color:white;

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { blankTask, MAX_BATCH_TASKS, PRIORITIES, type Priority, type Task } from "@/lib/tasks/model";
+import { blankTask, repeatError, MAX_BATCH_TASKS, PRIORITIES, type Priority, type Task } from "@/lib/tasks/model";
 import TaskDays from "./task-days";
+import TaskRepeat from "./task-repeat";
 import styles from "./task-app.module.css";
 
 type DraftRow = { key: number; task: Task; details: boolean; notesOpen: boolean };
@@ -13,7 +14,7 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
   const id=useId();
   const sequence=useRef(1);
   const submitting=useRef(false);
-  const appliedDetails=useRef<Pick<Task,"date"|"time"|"weekdays"|"priority">|null>(null);
+  const appliedDetails=useRef<Pick<Task,"date"|"time"|"weekdays"|"priority"|"repeat">|null>(null);
   const [category,setCategory]=useState(initialCategory);
   const [rows,setRows]=useState<DraftRow[]>(()=>[{key:0,task:blankTask(),details:true,notesOpen:true}]);
   const [error,setError]=useState("");
@@ -27,7 +28,7 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
     setError("");setNotice("");
   }
   function applyDetails(source:Task) {
-    const details={date:source.date,time:source.time,weekdays:[...source.weekdays],priority:source.priority};
+    const details={date:source.date,time:source.time,weekdays:[...source.weekdays],priority:source.priority,repeat:source.repeat};
     appliedDetails.current=details;
     setRows(current=>current.map(row=>({...row,task:{...row.task,...details,weekdays:[...details.weekdays]}})));
     setNotice("Details applied to all tasks, including tasks you add next in this batch. Titles and notes kept.");
@@ -58,6 +59,8 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
       setRows(current=>current.map(row=>row.key===missingDate.key?{...row,details:true}:row));
       window.requestAnimationFrame(()=>document.getElementById(`${id}-date-${missingDate.key}`)?.focus());return;
     }
+    const invalidRepeat=rows.find(row=>repeatError(row.task));
+    if(invalidRepeat){setError(`Task ${rows.indexOf(invalidRepeat)+1}: ${repeatError(invalidRepeat.task)}`);setRows(current=>current.map(row=>row.key===invalidRepeat.key?{...row,details:true}:row));return;}
     submitting.current=true;setError("");
     try {await onSave(rows.map(row=>row.task),category);}
     catch(e) {setError(e instanceof Error?e.message:"Unable to save. Your tasks are still here.");}
@@ -77,10 +80,11 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
             <div className={styles.bulkDetails}>
               <div className={styles.dateFields}><label className={styles.field}><span>Due date<span className={styles.srOnly}> for task {index+1}</span></span><input id={`${id}-date-${row.key}`} type="date" value={row.task.date} onInput={event=>{update(row.key,"date",event.currentTarget.value);if(!event.currentTarget.value)update(row.key,"time","");}} onChange={event=>{update(row.key,"date",event.target.value);if(!event.target.value)update(row.key,"time","");}} /></label><label className={styles.field}><span>Time <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span></span><input type="time" value={row.task.time} onInput={event=>update(row.key,"time",event.currentTarget.value)} onChange={event=>update(row.key,"time",event.target.value)} /></label></div>
               <p className={styles.editorHint}>India time · Asia/Kolkata</p>
-              <TaskDays value={row.task.weekdays} onChange={days=>update(row.key,"weekdays",days)} />
+              <TaskDays required={row.task.repeat==="Weekly"} value={row.task.weekdays} onChange={days=>update(row.key,"weekdays",days)} />
               <label className={styles.property}><span>Priority<span className={styles.srOnly}> for task {index+1}</span></span><select value={row.task.priority} onChange={event=>update(row.key,"priority",event.target.value as Priority)}>{PRIORITIES.map(item=><option key={item}>{item}</option>)}</select></label>
+              <TaskRepeat task={row.task} onChange={rule=>update(row.key,"repeat",rule)} label={`Repeat for task ${index+1}`}/>
               <button type="button" className={styles.applyDetails} onClick={()=>applyDetails(row.task)}>Apply these details to all tasks</button>
-              <p className={styles.editorHint}>Applies date, time, days and priority to this batch and tasks added next. Keeps each task’s title and notes.</p>
+              <p className={styles.editorHint}>Applies date, time, days, priority and repeat to this batch and tasks added next. Keeps each task’s title and notes.</p>
             </div>
           </div>
         </section>)}</div>
