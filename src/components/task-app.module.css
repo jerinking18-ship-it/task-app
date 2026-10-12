@@ -1241,7 +1241,6 @@
     letter-spacing:-.7px;
     overflow-wrap:anywhere
   }
-  .header .singleLineTitle { font-size:clamp(18px,calc(8vw - 8px),24px); white-space:nowrap; overflow-wrap:normal; }
   .date {
     color:#93a0b2;
     margin-top:8px;
