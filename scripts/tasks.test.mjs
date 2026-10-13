@@ -249,8 +249,8 @@ test("starter initialization creates only missing categories and is idempotent",
   assert.equal(f.calls.some(c=>c.table==="tasks"),false);
 });
 
-function routeFixture(signedIn=true) {
-  const f=fixture(normal);
+function routeFixture(signedIn=true,respond=normal) {
+  const f=fixture(respond);
   const route=load("../src/app/api/tasks/route.ts",{
     "@/lib/supabase/server":{createClient:async()=>({...f.client,auth:{}})},
     "@/lib/auth/flow":{verifiedIdentity:async()=>signedIn ? {userId:owner} : null},
@@ -335,7 +335,7 @@ test("delete marks the retained row and checks original owner/version; all task 
   assert.ok(validation.validateAction({action:"delete",id:taskId,version}));
   for(const extra of [{version:"invalid"},{owner_id:owner},{deleted_at:version}])
     assert.equal(validation.validateAction({action:"delete",id:taskId,version,...extra}),null);
-  const f=fixture(call=>op(call,"rpc")?{data:row,error:null}:normal(call));
+  const f=fixture(call=>op(call,"rpc")?{data:{...row,deleted_at:version},error:null}:normal(call));
   assert.equal((await f.repo.mutate({action:"delete",id:taskId,version})).deleted,taskId);
   const args=op(f.calls.find(call=>op(call,"rpc")),"rpc")[2];
   assert.equal(args.task_id,taskId);assert.equal(args.expected_version,version);
@@ -386,4 +386,31 @@ test("History boundary hides only completed archived tasks and preserves active 
   assert.ok(model.matchesTask(task,{...filters,view:"History"},"2026-10-18","10:00:00",due));
   assert.ok(model.matchesTask({...task,completed:false},filters,"2026-10-18","10:00:00",due));
   assert.equal(model.inHistory({...task,historyAt:null},due),false);
+});
+
+
+test("successful Bin move with no remaining live series version returns200 instead of a false503",async()=>{
+  for(const repeat of [false,true]) {
+    const deletedRow={...row,deleted_at:version,series_version:null,
+      ...(repeat?{due_date:"2026-10-13",repeat_rule:"daily",series_id:catId}:{} )};
+    const f=routeFixture(true,call=>op(call,"rpc")?{data:deletedRow,error:null}:normal(call));
+    const response=await f.route.POST(request({action:"delete",id:taskId,version}));
+    assert.equal(response.status,200);
+    assert.equal((await response.json()).deleted,taskId);
+    assert.equal(f.calls.filter(call=>op(call,"rpc")).length,1);
+    assert.match(response.headers.get("cache-control"),/private, no-store/);
+  }
+});
+
+
+test("Bin acknowledgement rejects unconfirmed rows and keeps live task version validation strict",async()=>{
+  for(const extra of [{id:catId},{deleted_at:null},{deleted_at:"invalid"},{series_version:"invalid"},{status:"completed"}]) {
+    const f=routeFixture(true,call=>op(call,"rpc")?{data:{...row,deleted_at:version,series_version:null,...extra},error:null}:normal(call));
+    const response=await f.route.POST(request({action:"delete",id:taskId,version}));
+    assert.equal(response.status,503);
+    assert.equal(f.calls.filter(call=>op(call,"rpc")).length,1);
+  }
+  assert.throws(()=>validation.decodeRow({...row,series_version:null}));
+  const f=routeFixture(true,call=>op(call,"rpc")?{data:{...row,series_version:null},error:null}:normal(call));
+  assert.equal((await f.route.POST(request({action:"status",id:taskId,version,status:"active"}))).status,503);
 });
