@@ -1,8 +1,8 @@
 import { isRecord, timestamp, uuid } from "@/lib/tasks/validation";
 
 export const MEMBER_LIMIT = 10;
-export type Member = { id: string; name: string; createdAt: string; lastSeenAt: string };
-export type MemberState = { current: Member | null; members: Member[] };
+export type Member = { id: string; name: string; createdAt: string; lastSeenAt: string; activeUntil?: string | null };
+export type MemberState = { current: Member | null; members: Member[]; serverNow?: string };
 export type MemberChoice = { action: "create"; name: string } | { action: "select"; id: string };
 export type MemberAction = MemberChoice | { action: "rename"; name: string; previousName: string } | { action: "leave"; confirmed: true };
 
@@ -29,9 +29,10 @@ function decodeMember(value: unknown, format: "database" | "api"): Member {
   if (!isRecord(value)) throw new Error("Incomplete member response.");
   const createdAt = format === "database" ? value.created_at : value.createdAt;
   const lastSeenAt = format === "database" ? value.last_seen_at : value.lastSeenAt;
+  const activeUntil = (format === "database" ? value.active_until : value.activeUntil) ?? null;
   if (!uuid(value.id) || memberName(value.name) !== value.name
-    || !timestamp(createdAt) || !timestamp(lastSeenAt)) throw new Error("Incomplete member response.");
-  return { id: value.id, name: value.name as string, createdAt, lastSeenAt };
+    || !timestamp(createdAt) || !timestamp(lastSeenAt) || (activeUntil!==null&&!timestamp(activeUntil))) throw new Error("Incomplete member response.");
+  return { id: value.id, name: value.name as string, createdAt, lastSeenAt, activeUntil };
 }
 function decodeState(value: unknown, format: "database" | "api"): MemberState {
   if (!isRecord(value) || !Array.isArray(value.members) || value.members.length > MEMBER_LIMIT) throw new Error("Incomplete members response.");
@@ -39,7 +40,12 @@ function decodeState(value: unknown, format: "database" | "api"): MemberState {
   if (new Set(members.map(member => member.id)).size !== members.length) throw new Error("Incomplete members response.");
   const current = value.current === null ? null : decodeMember(value.current, format);
   if (current && !members.some(member => member.id === current.id && member.name === current.name)) throw new Error("Incomplete members response.");
-  return { current, members };
+  const serverNow = format === "database" ? value.server_now : value.serverNow;
+  if(serverNow!==undefined&&!timestamp(serverNow))throw new Error("Incomplete member response.");
+  return { current, members, ...(serverNow===undefined?{}:{serverNow}) };
+}
+export function memberActive(member:Member,now=new Date()):boolean {
+  return !!member.activeUntil && Date.parse(member.activeUntil)>now.getTime();
 }
 // Supabase RPCs return database column names; our API returns the normalized model.
 export function decodeMembers(value: unknown): MemberState {
