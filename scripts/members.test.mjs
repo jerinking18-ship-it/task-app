@@ -185,3 +185,47 @@ test("a committed profile leave remains successful if browser cookie cleanup fai
   assert.equal(response.status,200); assert.equal((await response.json()).left,true);
   assert.equal(f.calls.filter(call=>call.name==="task_app_leave_member").length,1);
 });
+
+
+test("browser decodes actual member GET, create, select and rename API responses", async () => {
+  for (const data of [{ current: null, members: [] }, { current: null, members: [member] }, state]) {
+    const response = await fixture({ data }).route.GET();
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    const decoded = model.decodeMemberResponse(body);
+    assert.equal(decoded.members.length, data.members.length);
+    assert.equal(decoded.current?.id ?? null, data.current?.id ?? null);
+    if (decoded.members.length) {
+      assert.equal(decoded.members[0].createdAt, stamp);
+      assert.equal(decoded.members[0].lastSeenAt, stamp);
+    }
+  }
+  for (const action of [{ action: "create", name: "Grace" }, { action: "select", id },
+    { action: "rename", name: "Grace Mary", previousName: "Grace" }]) {
+    const savedMember = { ...member, name: action.action === "rename" ? "Grace Mary" : "Grace",
+      created_at: "2026-10-13T12:55:00.123456+05:30", last_seen_at: "2026-10-13T07:25:00.654321+00:00" };
+    const response = await fixture({ data: { members: [savedMember], current: savedMember } }).route.POST(request(action));
+    assert.equal(response.status, 200);
+    const decoded = model.decodeMemberResponse(await response.json());
+    assert.equal(decoded.current.id, id);
+    assert.equal(decoded.current.name, savedMember.name);
+    assert.equal(decoded.current.createdAt, savedMember.created_at);
+    assert.equal(decoded.current.lastSeenAt, savedMember.last_seen_at);
+  }
+});
+test("API decoder rejects malformed members without accepting database payloads as API data", () => {
+  const normalized = JSON.parse(JSON.stringify(model.decodeMembers(state)));
+  assert.equal(model.decodeMemberResponse(normalized).current.name, "Grace");
+  assert.throws(() => model.decodeMemberResponse(state));
+  assert.throws(() => model.decodeMembers(normalized));
+  for (const data of [{}, { ...normalized, current: undefined },
+    { ...normalized, members: [normalized.current, normalized.current] },
+    { ...normalized, members: [] }, { ...normalized, members: Array(11).fill(normalized.current) },
+    { ...normalized, current: { ...normalized.current, name: "Other" } },
+    { ...normalized, members: [{ ...normalized.current, createdAt: "invalid" }] },
+    { ...normalized, members: [{ ...normalized.current, lastSeenAt: undefined }] },
+    { ...normalized, members: [{ ...normalized.current, id: "invalid" }] },
+    { ...normalized, members: [{ ...normalized.current, name: " Bad " }] }]) {
+    assert.throws(() => model.decodeMemberResponse(data));
+  }
+});
