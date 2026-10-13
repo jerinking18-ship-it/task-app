@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, type FormEvent } from "react";
-import { decodeMembers, MEMBER_LIMIT, memberName, type MemberAction, type MemberState } from "@/lib/members/model";
+import { decodeMemberResponse, MEMBER_LIMIT, memberName, type MemberAction, type MemberState } from "@/lib/members/model";
 import { isRecord } from "@/lib/tasks/validation";
 import AccountControls from "@/components/auth/account-controls";
 import auth from "@/components/auth/auth.module.css";
@@ -28,7 +28,7 @@ export default function MemberForm({ initialState }: { initialState: MemberState
       if (response.status === 401) setExpired(true);
       throw new Error(isRecord(body) && typeof body.message === "string" ? body.message : "Unable to load members.");
     }
-    const next = decodeMembers(body); setState(next);
+    const next = decodeMemberResponse(body); setState(next);
     if (next.current) window.location.assign("/account");
     if (next.members.length >= MEMBER_LIMIT) setMode("select");
     return next;
@@ -54,7 +54,7 @@ export default function MemberForm({ initialState }: { initialState: MemberState
         if (response.status === 409) await refresh();
         throw new Error(isRecord(body) && typeof body.message === "string" ? body.message : "Unable to confirm your name.");
       }
-      if (!decodeMembers(body).current) throw new Error("Refresh to confirm your name before trying again.");
+      if (!decodeMemberResponse(body).current) throw new Error("Refresh to confirm your name before trying again.");
       window.location.assign("/account");
     } catch (error) { showError(error instanceof Error ? error.message : "We couldn’t confirm your name. Refresh before trying again."); }
     finally { busy.current = false; setPending(false); }

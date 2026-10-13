@@ -25,18 +25,28 @@ export function memberAction(value: unknown): MemberAction | null {
   return value.action === "select" && uuid(value.id) && Object.keys(value).every(key => ["action", "id"].includes(key))
     ? { action: "select", id: value.id } : null;
 }
-function decodeMember(value: unknown): Member {
-  if (!isRecord(value) || !uuid(value.id) || memberName(value.name) !== value.name
-    || !timestamp(value.created_at) || !timestamp(value.last_seen_at)) throw new Error("Incomplete member response.");
-  return { id: value.id, name: value.name as string, createdAt: value.created_at, lastSeenAt: value.last_seen_at };
+function decodeMember(value: unknown, format: "database" | "api"): Member {
+  if (!isRecord(value)) throw new Error("Incomplete member response.");
+  const createdAt = format === "database" ? value.created_at : value.createdAt;
+  const lastSeenAt = format === "database" ? value.last_seen_at : value.lastSeenAt;
+  if (!uuid(value.id) || memberName(value.name) !== value.name
+    || !timestamp(createdAt) || !timestamp(lastSeenAt)) throw new Error("Incomplete member response.");
+  return { id: value.id, name: value.name as string, createdAt, lastSeenAt };
 }
-export function decodeMembers(value: unknown): MemberState {
+function decodeState(value: unknown, format: "database" | "api"): MemberState {
   if (!isRecord(value) || !Array.isArray(value.members) || value.members.length > MEMBER_LIMIT) throw new Error("Incomplete members response.");
-  const members = value.members.map(decodeMember);
+  const members = value.members.map(member => decodeMember(member, format));
   if (new Set(members.map(member => member.id)).size !== members.length) throw new Error("Incomplete members response.");
-  const current = value.current === null ? null : decodeMember(value.current);
+  const current = value.current === null ? null : decodeMember(value.current, format);
   if (current && !members.some(member => member.id === current.id && member.name === current.name)) throw new Error("Incomplete members response.");
   return { current, members };
+}
+// Supabase RPCs return database column names; our API returns the normalized model.
+export function decodeMembers(value: unknown): MemberState {
+  return decodeState(value, "database");
+}
+export function decodeMemberResponse(value: unknown): MemberState {
+  return decodeState(value, "api");
 }
 export function memberSeen(value: string, now = new Date()): string {
   const date = new Date(value);

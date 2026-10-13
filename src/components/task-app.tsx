@@ -10,7 +10,7 @@ import BulkTaskEditor from "./bulk-task-editor";
 import TaskRepeat from "./task-repeat";
 import UsersPanel from "./members/users-panel";
 import ProfilePanel from "./members/profile-panel";
-import { decodeMembers, type MemberState } from "@/lib/members/model";
+import { decodeMemberResponse, type MemberState } from "@/lib/members/model";
 type View = "All tasks" | "Today" | "Overdue" | "Completed" | "History" | "Users" | "My profile";
 type IconName = "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning" | "trash" | "history" | "active" | "users";
 
@@ -154,7 +154,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
       const body = await response.json();
       if (response.status === 401) { navigateAfterSignOut("/sign-in"); return; }
       if (!response.ok) throw new Error(typeof body?.message === "string" ? body.message : "Unable to load account members.");
-      const next = decodeMembers(body);
+      const next = decodeMemberResponse(body);
       if (!next.current) throw new Error("Choose your name again to continue. Sign out, then sign in again.");
       if (!controller.signal.aborted) setMembers(next);
     } catch (error) {
