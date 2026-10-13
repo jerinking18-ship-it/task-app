@@ -256,6 +256,7 @@ function routeFixture(signedIn=true) {
     "@/lib/auth/flow":{verifiedIdentity:async()=>signedIn ? {userId:owner} : null},
     "@/lib/auth/server":{authOrigin:()=>"http://127.0.0.1:3003",AUTH_HEADERS:{"Cache-Control":"private, no-store, max-age=0"}},
     "@/lib/tasks/repository":repository,"@/lib/tasks/validation":validation,
+    "@/lib/members/server":{readMembers:async()=>({current:{id:"fixture-member"}}),MemberError:class extends Error{}},
   });return {...f,route};
 }
 const request=(body,origin="http://127.0.0.1:3003",type="application/json")=>new Request("http://127.0.0.1:3003/api/tasks",{
@@ -285,6 +286,7 @@ test("API unexpected failures never expose provider errors or private contents",
     "@/lib/auth/flow":{verifiedIdentity:async()=>null},
     "@/lib/auth/server":{authOrigin:()=>"http://127.0.0.1:3003",AUTH_HEADERS:{"Cache-Control":"private, no-store"}},
     "@/lib/tasks/repository":repository,"@/lib/tasks/validation":validation,
+    "@/lib/members/server":{readMembers:async()=>({current:null}),MemberError:class extends Error{}},
   });
   const response=await GET();assert.equal(response.status,503);
   assert.equal((await response.text()).includes('fixture-private-provider-details'),false);

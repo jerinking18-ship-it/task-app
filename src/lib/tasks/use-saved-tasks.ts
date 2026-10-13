@@ -15,6 +15,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   const [initialized,setInitialized]=useState(false);
   const [deferred,setDeferred]=useState(false);
   const [uncertain,setUncertain]=useState(false);
+  const [needsMember,setNeedsMember]=useState(false);
   const state=useRef({dirty,pending:false,data}); state.current.dirty=dirty; state.current.data=data;
   const read=useRef<AbortController|null>(null); const sequence=useRef(0); const alive=useRef(true);
   const refresh=useCallback(async () => {
@@ -25,11 +26,11 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     try {
       const response=await fetch("/api/tasks",{cache:"no-store",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});
       const body:unknown=await response.json();
-      if(!response.ok) { if(response.status===401) setExpired(true); throw new Error(isRecord(body) && typeof body.message==="string" ? body.message : "Unable to load saved tasks."); }
+      if(!response.ok) { if(response.status===401) setExpired(true); if(response.status===403) setNeedsMember(true); throw new Error(isRecord(body) && typeof body.message==="string" ? body.message : "Unable to load saved tasks."); }
       const next=decodeDataset(body);
       // Validate category joins before accepting a complete dataset.
       next.tasks.forEach(row=>mapTask(row,next.categories));
-      if(alive.current && revision===sequence.current) { setData(next); setUncertain(false); }
+      if(alive.current && revision===sequence.current) { setData(next); setUncertain(false); setNeedsMember(false); }
     } catch(error) {
       if(alive.current && revision===sequence.current && !controller.signal.aborted)
         setError(error instanceof Error ? error.message : "Unable to connect. Try refreshing.");
@@ -82,6 +83,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
       if(!isRecord(body)) throw new SaveError("The save response was incomplete. Refresh before retrying.");
       if(!response.ok) {
         if(response.status===401) setExpired(true);
+        if(response.status===403) setNeedsMember(true);
         const categories=Array.isArray(body.categories) ? body.categories.map(decodeCategory) : state.current.data?.categories ?? [];
         if(Array.isArray(body.categories)) setData(current=>current ? {...current,categories} : current);
         const latest=body.latest ? mapTask(decodeRow(body.latest),categories) : undefined;
@@ -157,5 +159,5 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   if(data) tasks=newestFirst(data.tasks.map(t=>mapTask(t,data.categories)));
   const categories:Category[]=data?.categories ?? [];
   return {tasks,categories,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && initialized,
-    loading,pending,error,expired,deferred,uncertain,refresh,setup,initialize,save,toggle,saveMany,remove,addCategory};
+    loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,toggle,saveMany,remove,addCategory};
 }

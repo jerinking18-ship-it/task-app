@@ -4,14 +4,24 @@ import { verifiedIdentity } from "@/lib/auth/flow";
 import { authOrigin, AUTH_HEADERS } from "@/lib/auth/server";
 import { TaskError, TaskRepository } from "@/lib/tasks/repository";
 import { validateAction } from "@/lib/tasks/validation";
+import { MemberError, readMembers } from "@/lib/members/server";
 
 function json(body: unknown, status=200) { return NextResponse.json(body,{status,headers:AUTH_HEADERS}); }
 async function repository() {
   const client = await createClient(); const identity = await verifiedIdentity(client.auth);
   if (!identity) throw new TaskError(401,"Your session has ended. Sign in again to continue.");
+  try {
+    if (!(await readMembers(client)).current) throw new TaskError(403,"Choose your name before saving or viewing tasks.");
+  } catch (error) {
+    if (error instanceof MemberError && error.status === 401) {
+      try { await client.auth.signOut({ scope: "local" }); } catch { /* Fail closed even if cookie cleanup fails. */ }
+    }
+    throw error;
+  }
   return new TaskRepository(client,identity.userId);
 }
 function failure(error: unknown) {
+  if (error instanceof MemberError) return json({message:error.message},error.status);
   return error instanceof TaskError ? json({message:error.message,latest:error.latest,categories:error.categories,future:error.future},error.status)
     : json({message:"We couldn’t confirm this request. Refresh to check saved data before trying again."},503);
 }

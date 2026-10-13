@@ -245,3 +245,12 @@ test("callback ignores external destinations and caller-supplied recovery types"
   const invalid = await GET(new Request(`${f.deps.origin}/auth/callback?error=provider-private-error&next=https://other.example`));
   assert.equal(invalid.headers.get("location"), `${f.deps.origin}/sign-in?error=link`);
 });
+
+test("profile email comes only from the verified current Auth user", async () => {
+  const f=fixture({getUser:async()=>({data:{user:{id:identity.userId,email:"team@example.com"}},error:null})});
+  const verified=await flow.verifiedIdentity(f.deps.auth);
+  assert.equal(verified.email,"team@example.com");
+  assert.equal(verified.userId,identity.userId);
+  const missing=await flow.verifiedIdentity(fixture().deps.auth);
+  assert.equal(missing.email,null);
+});

@@ -18,7 +18,7 @@ export async function verifiedIdentity(auth: AuthApi) {
   if (claimsError || !claims || typeof claims.sub !== "string" || typeof claims.session_id !== "string") return null;
   const { data, error } = await auth.getUser();
   if (error || !data.user || data.user.id !== claims.sub) return null;
-  return { userId: claims.sub, sessionId: claims.session_id };
+  return { userId: claims.sub, sessionId: claims.session_id, email: data.user.email ?? null };
 }
 
 function authFailure(error: { status?: number; code?: string }, password = false): AuthResult {

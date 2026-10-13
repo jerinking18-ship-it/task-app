@@ -1,4 +1,39 @@
 .accountBar { display:flex; justify-content:flex-end; padding:0 0 20px; }
+.memberNavigation { border-top:1px solid #ffffff18; padding-top:12px; margin-top:12px; }
+.sidebarFooter strong { font-weight:500; overflow-wrap:anywhere; }
+.sidebarFooter>div { min-width:0; }
+.completedBy { display:block; margin:0; color:#1b304b; font-size:11px; font-weight:400; line-height:1.6; overflow-wrap:anywhere; }
+.completedBy strong { font-weight:600; }
+.completionBlock { display:flex; flex-direction:column; gap:7px; flex-basis:100%; min-width:0; }
+.completionBlock .completionTime { flex-basis:auto; margin-top:0; }
+.historyFacts .completedBy { margin:0; font-size:11px; }
+.workspace.usersWorkspace { padding-bottom:36px; }
+.sidebarFooter { position:relative; }
+.profileLink { position:absolute; inset:24px 0 0; padding:0; border:0; background:transparent; border-radius:6px; cursor:pointer; }
+.profileLink:focus-visible { outline:2px solid var(--gold); outline-offset:4px; }
+.workspace.profileWorkspace { padding:0 0 32px; position:relative; background:#f7f5f0; }
+.profileWorkspace .accountBar { position:absolute; top:32px; right:32px; padding:0; z-index:1; background:transparent; max-width:45%; }
+.profileWorkspace .accountBar button { border:1px solid #4d6580; background:#1d2a3d; color:white; min-height:44px; border-radius:9px; }
+.profileWorkspace .accountBar [role=status],.profileWorkspace .accountBar [role=alert] { color:white; }
+.profileWorkspace .header { display:block; background:var(--navy); color:white; padding:32px 32px 64px; min-height:180px; }
+.profileWorkspace .heading { padding-right:110px; }
+.profileWorkspace .overline { display:none; }
+.profileWorkspace .date { color:#93a0b2; font-size:13px; margin-top:9px; }
+@media(max-width:760px) {
+  .profileWorkspace .header { min-height:150px; padding:24px 16px 52px; }
+  .profileWorkspace .header h1 { font-size:26px; white-space:nowrap; }
+  .profileWorkspace .accountBar,.profileWorkspace .accountBar:not(:has([role=status],[role=alert])) { top:24px; right:16px; }
+  .profileWorkspace .accountBar + .header { padding-top:24px; }
+  .profileWorkspace .accountBar + .header .heading { padding-right:80px; }
+  .profileWorkspace .date { font-size:11px; }
+}
+@media(max-width:360px) {
+  .profileWorkspace .header h1 { font-size:21px; }
+  .profileWorkspace .heading { gap:10px; }
+  .profileWorkspace .date { font-size:10px; }
+}
+@media(max-width:760px) { .usersWorkspace .header { min-height:130px; margin-bottom:0; } .usersWorkspace .date { max-width:100%; } }
+@media(max-width:760px) { .completionBlock { margin-top:12px; } }
 .inlineEditor { position:static; margin:0; padding:0; width:auto; max-width:none; max-height:none; color:inherit; border:0; background:transparent; }
 .historyList { list-style:none; padding:0; margin:12px 0; display:flex; flex-direction:column; gap:12px; }
 .historyCard { display:flex; align-items:flex-start; gap:16px; padding:22px 18px; background:#fff; border:1px solid #dedfe3; border-radius:9px; min-width:0; }
@@ -267,8 +302,9 @@
 .footerMark {
   display:grid;
   place-items:center;
-  width:25px;
-  height:25px;
+  width:32px;
+  height:32px;
+  font-size:14px;
   border:1px solid #4e4e46;
   color:var(--gold);
   border-radius:50%;
@@ -460,6 +496,12 @@
   font-size:11px;
   color:#727678;
   max-width:145px
+}
+
+.filters select:focus,.filters select:focus-visible {
+  outline:none;
+  box-shadow:none;
+  border-color:#71839b
 }
 
 .listHeading {
