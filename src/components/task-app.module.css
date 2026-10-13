@@ -1758,3 +1758,34 @@
 @media(max-width:760px) {
   .repeatSection .dayButtons { grid-template-columns:repeat(4,minmax(0,1fr)); }
 }
+
+/* Bin is opened from the action bar, without changing navigation items. */
+.binButton{position:relative;display:grid;place-items:center;flex-shrink:0;width:44px;height:44px;padding:0;border:1px solid #d99da0;border-radius:9px;background:#fffdf8;color:#c83d43;cursor:pointer}.binButton:hover{background:#fff3f2;border-color:#c83d43}.binButton:disabled{opacity:.5;cursor:not-allowed}.binButton:focus-visible,.binBack:focus-visible{outline:2px solid #71839b;outline-offset:3px}.binCount{position:absolute;right:-5px;top:-7px;min-width:17px;height:17px;padding:0 4px;display:grid;place-items:center;background:#c83d43;color:white;border-radius:10px;font-size:9px;border:2px solid #f7f5f0}.binDropActive{border:2px dashed #c83d43;background:#ffe9e7;transform:scale(1.1)}.dragSource{opacity:.4}.dragGhost{position:fixed;z-index:1000;pointer-events:none;transform:translate(12px,-50%);display:flex;align-items:center;gap:10px;padding:14px 18px;background:#fffdf8;border:1px solid #d7dce0;border-radius:9px;box-shadow:0 12px 30px #101c2d26;color:#26374d;max-width:min(320px,75vw);font-size:13px}.dragGhost span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dragGhost svg{flex-shrink:0;color:#c83d43}.dragHint{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:1001;pointer-events:none;padding:10px 16px;border-radius:8px;background:#101c2d;color:white;font-size:11px;max-width:85vw;text-align:center}.binBack{border:0;background:transparent;color:#718097;display:flex;align-items:center;gap:8px;padding:0 0 12px;cursor:pointer;font-size:12px}.binWorkspace .heading{display:block}.binWorkspace .mobileMenu{display:none}.binWorkspace .headerActions:after{display:none}.binWorkspace .header{margin-bottom:0}.binWorkspace{padding-bottom:20px}
+@media(max-width:760px){.headerActions .addButton{left:16px;width:96px;font-size:11px}.headerActions .bulkButton{left:120px;right:70px;width:calc(100% - 190px);font-size:11px;padding:0 5px;gap:4px}.headerActions .binButton{position:fixed;right:16px;bottom:max(19px,env(safe-area-inset-bottom));width:44px;height:48px;z-index:8}.binCount{right:-4px;top:-6px}.taskRow{gap:8px}.binWorkspace .heading{display:flex;align-items:flex-start;gap:12px;padding-right:84px}.binWorkspace .heading>div{padding-top:4px}.binBack{background:#1d2a3d;border:1px solid #4d6580;color:white;display:grid;place-items:center;width:44px;height:44px;flex-shrink:0;border-radius:10px;font-size:23px;padding:0}.binBack span{display:none}.binWorkspace .header h1{font-size:27px}.binWorkspace .headerActions{margin-top:22px}.binWorkspace .header{padding-bottom:30px;min-height:180px}.binWorkspace .date{font-size:10px}.dragHint{bottom:85px;font-size:10px}.dragGhost{font-size:12px;padding:12px;transform:translate(-50%,-125%)}.historyCard{position:relative}.historyCard>.historyCheck{margin-left:0}}
+@media(max-width:360px){.headerActions .addButton{left:12px;width:88px}.headerActions .bulkButton{left:108px;right:64px;width:calc(100% - 172px);font-size:10px}.headerActions .binButton{right:12px}.headerActions .bulkButton svg{width:14px}.binWorkspace .heading{padding-right:76px}}
+
+.binTitleIcon{color:#c83d43;display:inline-flex;vertical-align:middle;margin-right:9px}
+
+.binWorkspace h1{outline:none}.binBack:disabled{opacity:.5;cursor:not-allowed}@media(max-width:760px){.historyWorkspace{padding-bottom:92px}}
+
+/* Hold task content to drag; completion remains a separate action. */
+.taskDetails,.historyDetails{touch-action:auto;-webkit-touch-callout:none;user-select:none;cursor:pointer}
+.taskDetails[data-task-held=true],.historyDetails[data-task-held=true]{cursor:grabbing}
+.taskRow:has(.taskDetails[data-task-held=true]),.historyCard:hover,.historyCard:has(.historyDetails[data-task-held=true]){background:#efede7}
+@media(max-width:760px){.taskRow:has(.taskDetails[data-task-held=true]){background:#eeeadf}}
+.gestureHelp{font-size:11px;color:#89919a;margin:16px 0 6px}
+.taskActionsDialog{width:min(370px,calc(100vw - 32px));padding:20px;border:1px solid #e5dfd3;border-radius:20px;background:#fffdf8;box-shadow:0 22px 80px #101c2d30}
+.taskActionsTitle{padding:3px 6px 14px}.taskActionsTitle>span{font-size:10px;letter-spacing:1.5px;color:#8d8062;text-transform:uppercase}.taskActionsTitle h2{font-size:18px;line-height:1.4;font-weight:600;margin:8px 0;overflow-wrap:anywhere;color:#20364e}.taskActionsTitle p{font-size:11px;line-height:1.7;color:#7c8790;margin:0}
+.taskActionsDialog>button{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;min-height:48px;border:0;border-radius:10px;background:transparent;color:#263c55;text-align:left;cursor:pointer;font-size:13px}.taskActionsDialog>button:hover{background:#edf1f5}.taskActionsDialog>button:focus-visible{outline:2px solid #71839b;outline-offset:0;background:#edf1f5}.taskActionsDialog>.taskActionsRed{color:#bb4048}.taskActionsDialog>.taskActionsRed:hover{background:#fcf0ed}.taskActionsDialog>.taskActionsCancel{margin-top:9px;justify-content:center;border:1px solid #e5e0d5;color:#7a838d}
+.headerActions .binDragReady{position:fixed;right:28px;bottom:28px;width:64px;height:64px;z-index:1002;box-shadow:0 8px 30px #c83d4326;background:#fff5f3;border:2px dashed #c83d43}
+@media(max-width:760px){.headerActions .binDragReady{right:16px;bottom:max(19px,env(safe-area-inset-bottom));width:52px;height:52px}}
+
+@media(max-width:760px){.gestureHelp{font-size:10px}.taskActionsDialog{margin:auto 0 14px;border-radius:22px;padding:20px}.taskActionsDialog>button{min-height:50px}}
+
+/* Keep the Bin available at the bottom on every task list, even after scrolling. */
+.headerActions .binButton{position:fixed;right:28px;bottom:28px;z-index:8;width:48px;height:48px;box-shadow:0 5px 18px #101c2d10}
+.headerActions .binDragReady{width:64px;height:64px;z-index:1002;background:#fff5f3;border:2px dashed #c83d43;box-shadow:0 8px 30px #c83d4326}
+@media(max-width:760px){.headerActions .binButton{right:16px;bottom:max(19px,env(safe-area-inset-bottom));width:44px;height:48px}.headerActions .binDragReady{width:52px;height:52px}}
+@media(max-width:360px){.headerActions .binButton{right:12px}}
+
+.workspace.taskWorkspace{padding-bottom:100px}
