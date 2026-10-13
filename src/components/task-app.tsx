@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import styles from "./task-app.module.css";
 import { accountClock, completionAge, inHistory, isAvailable, repeatError, blankTask, categoryOrder, MEETING_CATEGORIES, PRIORITIES, WEEKDAYS, isOverdue, matchesTask, type EditScope, type Priority, type Task } from "@/lib/tasks/model";
@@ -8,11 +8,15 @@ import { SaveError, useSavedTasks } from "@/lib/tasks/use-saved-tasks";
 import AccountControls from "./auth/account-controls";
 import BulkTaskEditor from "./bulk-task-editor";
 import TaskRepeat from "./task-repeat";
-type View = "All tasks" | "Today" | "Overdue" | "Completed" | "History";
-type IconName = "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning" | "trash" | "history" | "active";
+import UsersPanel from "./members/users-panel";
+import ProfilePanel from "./members/profile-panel";
+import { decodeMembers, type MemberState } from "@/lib/members/model";
+type View = "All tasks" | "Today" | "Overdue" | "Completed" | "History" | "Users" | "My profile";
+type IconName = "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning" | "trash" | "history" | "active" | "users";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
+    users: <><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2"/></>,
     active: <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></>,
     history: <><path d="M3 5v5h5M3 10a9 9 0 1 1 1 8"/><path d="M12 7v5l3 2"/></>,
     check: <path d="m5 12 4 4L19 6" />,
@@ -46,6 +50,9 @@ function CompletionTime({value}:{value:string|null}) {
   const weekday=new Intl.DateTimeFormat("en-US",{...options,weekday:"short"}).format(date);
   return <time className={styles.completionTime} dateTime={value}><Icon name="clock" size={13}/><span>Completed on {day} · {time} · {weekday}</span></time>;
 }
+function CompletedBy({name}:{name:string|null}) {
+  return name ? <span className={styles.completedBy}>Completed by <strong>{name}</strong></span> : null;
+}
 function CompletionAge({value,now}:{value:string|null;now:Date}) {
   const age=completionAge(value,now);
   return age ? <span className={styles.dueDate} aria-label={`Completed ${age.toLowerCase()}`}><Icon name="clock" size={13}/>{age}</span> : null;
@@ -63,7 +70,7 @@ function HistoryCard({task,onOpen,onReopen,disabled}:{task:Task;onOpen:()=>void;
       <span className={styles.historyFacts}>
         <span><small>Category</small><span className={styles.categoryLabel}><span className={`${styles.dot} ${categoryClass(task.category)}`}/>{task.category || "Uncategorized"}</span></span>
         <span><small>Priority</small><span className={`${styles.badge} ${task.priority!=="None"?styles[task.priority.toLowerCase()]:""}`}>{task.priority}</span></span>
-        <span><small>Completed</small>{historyDate(task.completedAt)}</span>
+        <span><small>Completed</small>{historyDate(task.completedAt)}<CompletedBy name={task.completedByName}/></span>
         <span><small>In history</small>{historyDate(task.historyAt)}</span>
         <span className={styles.historyDeletion}><Icon name="clock" size={16}/><span>Deletes <br/>{historyDate(task.historyAt,30)}</span></span>
       </span>
@@ -118,9 +125,11 @@ function ResponsiveEditor({children,mobile,label,onClose}:{children:ReactNode;mo
     onCancel={event=>{event.preventDefault();onClose();}} onClick={event=>{if(mobile && event.target===event.currentTarget)onClose();}}>{children}</dialog>;
 }
 
-export default function TaskApp({ today: initialToday, accountControls, saved = false, passwordUpdated = false }: { today: string; accountControls?: ReactNode; saved?: boolean; passwordUpdated?: boolean }) {
+export default function TaskApp({ today: initialToday, accountControls, saved = false, passwordUpdated = false, initialMembers = null, accountEmail = null }: { today: string; accountControls?: ReactNode; saved?: boolean; passwordUpdated?: boolean; initialMembers?: MemberState | null; accountEmail?: string | null }) {
   const [dirty,setDirty]=useState(false);
+  const endingSession=useRef(false);
   const storage=useSavedTasks(saved,dirty);
+  useEffect(() => { if (saved && storage.expired) navigateAfterSignOut("/sign-in"); }, [saved, storage.expired]);
   const [previewTasks, setTasks] = useState(() => saved ? [] : sampleTasks(initialToday));
   const [previewCategories, setCategories] = useState(MEETING_CATEGORIES);
   const categories=categoryOrder(saved ? storage.categories.map(c=>c.name) : previewCategories);
@@ -131,6 +140,34 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const today=saved ? clock.date : initialToday;
   const [view, setView] = useState<View>("All tasks");
   const [status, setStatus] = useState("Active");
+  const [members, setMembers] = useState(initialMembers);
+  const [accountPending, setAccountPending] = useState(false);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState("");
+  const membersRead = useRef<AbortController | null>(null);
+  const refreshMembers = useCallback(async () => {
+    if (!saved || dirty || accountPending) return;
+    membersRead.current?.abort(); const controller = new AbortController(); membersRead.current = controller;
+    setMembersLoading(true); setMembersError("");
+    try {
+      const response = await fetch("/api/members", { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
+      const body = await response.json();
+      if (response.status === 401) { navigateAfterSignOut("/sign-in"); return; }
+      if (!response.ok) throw new Error(typeof body?.message === "string" ? body.message : "Unable to load account members.");
+      const next = decodeMembers(body);
+      if (!next.current) throw new Error("Choose your name again to continue. Sign out, then sign in again.");
+      if (!controller.signal.aborted) setMembers(next);
+    } catch (error) {
+      if (!controller.signal.aborted) setMembersError(error instanceof Error ? error.message : "Unable to connect. Please refresh.");
+    } finally { if (!controller.signal.aborted) setMembersLoading(false); }
+  }, [saved, dirty, accountPending]);
+  useEffect(() => {
+    if (view !== "Users" && view !== "My profile") return;
+    void refreshMembers();
+    const returned = () => { if (document.visibilityState === "visible") void refreshMembers(); };
+    window.addEventListener("focus", returned);
+    return () => { window.removeEventListener("focus", returned); membersRead.current?.abort(); };
+  }, [view, refreshMembers]);
   const [priority, setPriority] = useState("Any");
   const [category, setCategory] = useState("Any");
   const [search, setSearch] = useState("");
@@ -152,10 +189,10 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [message, setMessage] = useState("");
   const returnFocus = useRef<HTMLElement | null>(null);
-  const busy=saved && storage.pending;
+  const busy=(saved && storage.pending) || accountPending;
   useEffect(()=>{
     if(!dirty && !busy) return;
-    const warn=(event:BeforeUnloadEvent)=>{event.preventDefault(); event.returnValue="";};
+    const warn=(event:BeforeUnloadEvent)=>{if(endingSession.current)return; event.preventDefault(); event.returnValue="";};
     window.addEventListener("beforeunload",warn); return ()=>window.removeEventListener("beforeunload",warn);
   },[dirty,busy]);
   useEffect(()=>{
@@ -197,13 +234,14 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     if(busy) return;
     if(dirty) setQueuedAction(()=>action); else action();
   }
-  function keepEditing() {setQueuedAction(null); signOutAnswer.current?.(false); signOutAnswer.current=null;}
+  function keepEditing() {setQueuedAction(null); if(view === "My profile") setMenuOpen(false); signOutAnswer.current?.(false); signOutAnswer.current=null;}
   function discardChanges() {const action=queuedAction; setQueuedAction(null); setDirty(false); action?.();}
   function beforeSignOut():Promise<boolean> {
     if(busy) return Promise.resolve(false);
     if(!dirty) return Promise.resolve(true);
     return new Promise(resolve=>{signOutAnswer.current=resolve; setQueuedAction(()=>()=>{setEditing(null);setBulkCategory(null); resolve(true); signOutAnswer.current=null;});});
   }
+  function navigateAfterSignOut(url:string) { endingSession.current=true; window.location.assign(url); }
   function finishEditor() {setDirty(false); setEditing(null); setMobileEditor(false); restoreFocus();}
   function closeEditor() {requestAction(finishEditor);}
   function newTask() {openEditor({...blankTask(),category:category==="Any"?"":category});}
@@ -240,7 +278,11 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
       if(e instanceof SaveError && e.latest)setDeleteConflict(e.latest);
     }
   }
-  function chooseView(next: View) { setView(next); resetFilters(); setStatus(next === "Completed" ? "Completed" : next === "History" ? "All" : "Active"); setMenuOpen(false); }
+  function chooseView(next: View) {
+    if (next === "My profile" && view === next) { setMenuOpen(false); return; }
+    const change = () => { if (next === "Users" || next === "My profile" || view === "My profile") { finishEditor(); setBulkCategory(null); } setView(next); resetFilters(); setStatus(next === "Completed" ? "Completed" : next === "History" ? "All" : "Active"); setMenuOpen(false); };
+    if (next === "Users" || next === "My profile" || view === "My profile" || busy) requestAction(change); else change();
+  }
   function chooseStatus(next:string) {
     if((view==="Completed" && next!=="Completed") || (view==="Overdue" && next!=="Active" && next!=="Overdue")) setView("All tasks");
     setStatus(next);
@@ -293,8 +335,9 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     return <>
       <div className={styles.brand}><span className={styles.brandMark}><Icon name="check" size={23} /></span><span>BGM Task<span className={styles.brandDot}>.</span></span>{mobile && <button className={styles.menuClose} aria-label="Close navigation" onClick={() => setMenuOpen(false)}><Icon name="close" /></button>}</div>
       <nav aria-label="Task views" className={styles.navigation}>{navItems.map((item) => <button key={item.view} className={`${styles.navItem} ${view === item.view ? styles.navActive : ""} ${view==="History" && item.view==="History"?styles.historySelected:""}`} onClick={() => chooseView(item.view)} aria-current={view === item.view ? "page" : undefined}><Icon name={item.icon} /><span>{item.view}</span>{navigationCounts[item.view] !== undefined && <span className={styles.navCount}>{saved && !storage.hasData ? "…" : navigationCounts[item.view]}</span>}</button>)}</nav>
-      <div className={styles.categorySection}><p className={styles.eyebrow}>Categories</p><nav aria-label="Categories">{categories.map((name) => <button key={name} className={`${styles.categoryNav} ${category === name ? styles.categoryActive : ""}`} onClick={() => { resetFilters(); setStatus("Active"); setCategory(name); setView("All tasks"); setMenuOpen(false); }} aria-pressed={category === name}><span className={`${styles.dot} ${categoryClass(name)}`} />{name}<span className={styles.categoryCount}>{tasks.filter((task) => task.category === name && !inHistory(task,now)).length}</span></button>)}</nav></div>
-      <div className={styles.sidebarFooter}><span className={styles.footerMark}><Icon name="check" size={16} /></span><div>A little more clarity.<span>One task at a time.</span></div></div>
+      {(saved || members) && <nav aria-label="Account" className={styles.memberNavigation}><button className={`${styles.navItem} ${view === "Users" ? styles.navActive : ""}`} aria-current={view === "Users" ? "page" : undefined} onClick={() => chooseView("Users")}><Icon name="users"/><span>Users</span><span className={styles.navCount}>{members ? `${members.members.length}/10` : "…"}</span></button></nav>}
+      <div className={styles.categorySection}><p className={styles.eyebrow}>Categories</p><nav aria-label="Categories">{categories.map((name) => <button key={name} className={`${styles.categoryNav} ${category === name ? styles.categoryActive : ""}`} onClick={() => { const change=()=>{ if(view === "My profile") finishEditor(); resetFilters(); setStatus("Active"); setCategory(name); setView("All tasks"); setMenuOpen(false); }; if(view === "My profile" || busy) requestAction(change); else change(); }} aria-pressed={category === name}><span className={`${styles.dot} ${categoryClass(name)}`} />{name}<span className={styles.categoryCount}>{tasks.filter((task) => task.category === name && !inHistory(task,now)).length}</span></button>)}</nav></div>
+      <div className={styles.sidebarFooter}>{members?.current && <button type="button" className={styles.profileLink} aria-label={`Open My profile for ${members.current.name}`} aria-current={view === "My profile" ? "page" : undefined} onClick={() => chooseView("My profile")}/>}<span className={styles.footerMark}>{members?.current ? Array.from(members.current.name)[0]?.toLocaleUpperCase() : <Icon name="check" size={16} />}</span><div>{members?.current ? <><strong>{members.current.name}</strong><span>Your member profile</span></> : <>A little more clarity.<span>One task at a time.</span></>}</div></div>
     </>;
   }
   const editor = editing && <TaskEditor key={`${editing.id || "new"}-${editorVersion}`} task={editing} categories={categories} onSave={saveTask} onClose={closeEditor} onCategory={addCategory} onDirty={setDirty} saved={saved} pending={busy} uncertain={storage.uncertain} onLatest={openEditor} onDelete={askDelete} />;
@@ -302,31 +345,31 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     <a className={styles.skipLink} href="#task-content">Skip to tasks</a>
     <aside className={styles.sidebar}>{sidebar()}</aside>
     {menuOpen && <Modal label="Navigation" onClose={() => setMenuOpen(false)} className={styles.menuDialog}><div className={styles.drawer}>{sidebar(true)}</div></Modal>}
-    <main id="task-content" className={`${styles.workspace} ${view==="History"?styles.historyWorkspace:""}`}>
-      {(saved || accountControls) && <div className={styles.accountBar}>{saved ? <AccountControls passwordUpdated={passwordUpdated} beforeSignOut={beforeSignOut} blocked={busy} /> : accountControls}</div>}
+    <main id="task-content" className={`${styles.workspace} ${view==="History"?styles.historyWorkspace:view==="Users"?styles.usersWorkspace:view==="My profile"?styles.profileWorkspace:""}`}>
+      {(saved || accountControls) && <div className={styles.accountBar}>{saved ? <AccountControls passwordUpdated={passwordUpdated} beforeSignOut={beforeSignOut} blocked={busy} onPendingChange={setAccountPending} onSignedOut={navigateAfterSignOut} /> : accountControls}</div>}
       <header className={styles.header}>
-        <div className={styles.heading}><button className={styles.mobileMenu} aria-label="Open navigation" onClick={() => setMenuOpen(true)}><Icon name="menu" size={23} /></button><div><p className={styles.overline}>YOUR SPACE, YOUR PACE</p><h1>{category !== "Any" ? (view === "All tasks" ? category || "Uncategorized" : `${view} · ${category || "Uncategorized"}`) : view === "All tasks" ? "My tasks" : view}</h1><p className={styles.date}>{view==="History"?"Previous completed repeating tasks":new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date(`${today}T12:00:00`))}</p></div></div>
-        <div className={styles.headerActions}><label className={styles.search}><Icon name="search" size={19} /><span className={styles.srOnly}>{view==="History"?"Search history":"Search tasks"}</span><input type="search" placeholder={view==="History"?"Search history…":"Search your tasks…"} value={search} onChange={(event) => setSearch(event.target.value)} /></label>{view!=="History" && <><button className={styles.addButton} disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={newTask}><Icon name="plus" size={19} />Add task</button><button className={`${styles.addButton} ${styles.bulkButton}`} disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={openBulk}><Icon name="plus" size={19} />Add multiple tasks</button></>}</div>
+        <div className={styles.heading}><button className={styles.mobileMenu} aria-label="Open navigation" onClick={() => setMenuOpen(true)}><Icon name="menu" size={23} /></button><div><p className={styles.overline}>YOUR SPACE, YOUR PACE</p><h1>{category !== "Any" ? (view === "All tasks" ? category || "Uncategorized" : `${view} · ${category || "Uncategorized"}`) : view === "All tasks" ? "My tasks" : view}</h1><p className={styles.date}>{view==="History"?"Previous completed repeating tasks":view==="Users"?"Members sharing this account":view==="My profile"?"Your profile and shared account":new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date(`${today}T12:00:00`))}</p></div></div>
+        {view!=="Users" && view!=="My profile" && <div className={styles.headerActions}><label className={styles.search}><Icon name="search" size={19} /><span className={styles.srOnly}>{view==="History"?"Search history":"Search tasks"}</span><input type="search" placeholder={view==="History"?"Search history…":"Search your tasks…"} value={search} onChange={(event) => setSearch(event.target.value)} /></label>{view!=="History" && <><button className={styles.addButton} disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={newTask}><Icon name="plus" size={19} />Add task</button><button className={`${styles.addButton} ${styles.bulkButton}`} disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={openBulk}><Icon name="plus" size={19} />Add multiple tasks</button></>}</div>}
       </header>
-      {saved ? <div className={styles.previewNotice}><span className={styles.previewDot} />My saved tasks<span className={styles.noticeDivider}>·</span><span>{storage.timezone ? "India time · Mumbai" : storage.hasData ? "Account setup" : storage.loading ? "Loading account…" : "Account unavailable"}</span><button className={styles.refreshButton} disabled={storage.loading || busy} onClick={()=>void storage.refresh()}>{storage.loading ? "Refreshing…" : "Refresh"}</button></div> : <div className={styles.previewNotice}><span className={styles.previewDot} />Design preview<span className={styles.noticeDivider}>·</span><span>Sample tasks. Changes reset on refresh.</span><Link href="/sign-in" className={styles.signInLink}>Sign in <span aria-hidden="true">↗</span></Link></div>}
-      <div className={`${styles.content} ${editing ? styles.withEditor : ""}`}>
+      {view!=="Users" && view!=="My profile" && (saved ? <div className={styles.previewNotice}><span className={styles.previewDot} />My saved tasks<span className={styles.noticeDivider}>·</span><span>{storage.timezone ? "India time · Mumbai" : storage.hasData ? "Account setup" : storage.loading ? "Loading account…" : "Account unavailable"}</span><button className={styles.refreshButton} disabled={storage.loading || busy} onClick={()=>void storage.refresh()}>{storage.loading ? "Refreshing…" : "Refresh"}</button></div> : <div className={styles.previewNotice}><span className={styles.previewDot} />Design preview<span className={styles.noticeDivider}>·</span><span>Sample tasks. Changes reset on refresh.</span><Link href="/sign-in" className={styles.signInLink}>Sign in <span aria-hidden="true">↗</span></Link></div>)}
+      {view==="My profile" ? <ProfilePanel state={members} email={accountEmail} loading={membersLoading} error={membersError} disabled={busy} now={now} onRefresh={()=>void refreshMembers()} onUsers={()=>chooseView("Users")} onSaved={setMembers} onDirty={setDirty} onPending={setAccountPending} beforeSignOut={beforeSignOut} onSignedOut={navigateAfterSignOut}/> : view==="Users" ? <UsersPanel state={members} loading={membersLoading} error={membersError} onRefresh={()=>void refreshMembers()} now={now}/> : <div className={`${styles.content} ${editing ? styles.withEditor : ""}`}>
         <section className={styles.taskSection} aria-label="Tasks">
           {saved && <>
             {storage.deferred && <p className={styles.inlineNotice} role="status">Refresh queued. Finish editing or saving to load updates.</p>}
             {storage.loading && !storage.hasData && <div className={styles.empty} role="status"><div className={styles.emptyIcon}><Icon name="clock" size={29}/></div><h2>Loading your space…</h2><p>Getting your saved tasks ready.</p></div>}
-            {(storage.error || writeError) && <div className={styles.inlineError} role="alert"><p>{writeError || storage.error}</p>{storage.expired ? <Link href="/sign-in" onClick={event=>{if(dirty){event.preventDefault();requestAction(()=>window.location.assign('/sign-in'));}}}>Sign in again</Link> : <button onClick={()=>void storage.refresh()} disabled={busy || storage.loading}>Refresh saved data</button>}{statusConflict && <button onClick={()=>openEditor(statusConflict)}>Review saved task</button>}</div>}
+            {(storage.error || writeError) && <div className={styles.inlineError} role="alert"><p>{writeError || storage.error}</p>{storage.needsMember ? <Link href="/account/member" onClick={event=>{if(dirty){event.preventDefault();requestAction(()=>window.location.assign("/account/member"));}}}>Choose your name</Link> : storage.expired ? <Link href="/sign-in" onClick={event=>{if(dirty){event.preventDefault();requestAction(()=>window.location.assign('/sign-in'));}}}>Sign in again</Link> : <button onClick={()=>void storage.refresh()} disabled={busy || storage.loading}>Refresh saved data</button>}{statusConflict && <button onClick={()=>openEditor(statusConflict)}>Review saved task</button>}</div>}
             {storage.hasData && !storage.timezone && !storage.expired && <div className={styles.empty}><div className={styles.emptyIcon}><Icon name="clock" size={29}/></div><h2>A home for your time</h2><p>Use India time (Mumbai · IST) so deadlines stay consistent on every device. This version supports India time.</p><button className={styles.emptyAction} disabled={busy} onClick={()=>void setupAccount()}>{busy ? "Setting up…" : "Use India time"}</button></div>}
             {!!storage.timezone && !storage.ready && <div className={styles.empty} role="status"><h2>Preparing your categories</h2><p>Your five meeting categories are being prepared. Your task list starts empty.</p><button className={styles.emptyAction} disabled={busy} onClick={()=>void retrySetup()}>{busy ? "Preparing…" : "Retry category setup"}</button></div>}
           </>}
           {(!saved || storage.ready) && <>
           <div className={styles.toolbar}>{view!=="History" && <div className={styles.tabs} aria-label="Task status">{["Active", "Completed", "Overdue", "All"].map((item) => <button key={item} className={status === item ? styles.tabActive : ""} onClick={() => chooseStatus(item)} aria-pressed={status === item}>{item}</button>)}</div>}<button className={`${styles.mobileFilter} ${filtersOpen ? styles.filterActive : ""}`} aria-label="Toggle priority and category filters" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><Icon name="filter" /></button><div className={`${styles.filters} ${filtersOpen ? styles.filtersVisible : ""}`}><label><span className={styles.srOnly}>Filter by priority</span><select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="Any">Priority</option>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className={styles.srOnly}>Filter by category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="Any">Category</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label></div></div>
           {view==="History" && <p className={`${styles.inlineNotice} ${styles.historyNotice}`}>Completed repeats move here when the next task appears at midnight (India time). History is automatically deleted after 30 days.</p>}<div className={styles.listHeading}><span>{visibleTasks.length} {visibleTasks.length === 1 ? "task" : "tasks"}</span>{view!=="History" && <span className={styles.remainingTasks}><Icon name="warning" size={14} />{activeCount} left to do!</span>}</div>
-          {visibleTasks.length ? view==="History" ? <ul className={styles.historyList}>{visibleTasks.map(task=><HistoryCard key={task.id} task={task} onOpen={()=>openEditor(task)} onReopen={()=>void toggleTask(task.id)} disabled={busy || (saved && storage.expired) || (dirty && editing?.id===task.id)}/>)}</ul> : <ul className={styles.taskList}>{visibleTasks.map((task) => <li key={task.id} className={`${styles.taskRow} ${editing?.id === task.id ? styles.selected : ""} ${task.completed ? styles.completed : ""}`}><label className={styles.taskCheck}><input type="checkbox" checked={task.completed} disabled={busy || (saved && storage.expired) || (dirty && editing?.id === task.id)} onChange={() => void toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`} /><span><Icon name="check" size={15} /></span></label><button className={`${styles.taskDetails} ${task.completed && task.completedAt ? styles.taskDetailsWithCompletion : ""}`} onClick={() => openEditor(task)} aria-label={`Edit ${task.title}`}><span className={styles.taskText}><span className={styles.taskHeading}><span className={styles.taskTitle}>{task.title}</span><TaskStatus task={task} today={today} time={saved ? clock.time : "00:00:00"}/></span><span className={styles.taskNote}>{task.notes || "No notes added"}</span></span><span className={styles.taskMeta}>{task.category && <span className={styles.categoryLabel}><span className={`${styles.dot} ${categoryClass(task.category)}`} />{task.category}</span>}{task.priority !== "None" && <span className={`${styles.badge} ${styles[task.priority.toLowerCase()]}`}>{task.priority}</span>}{task.completed ? <CompletionAge value={task.completedAt} now={now}/> : <span className={`${styles.dueDate} ${isOverdue(task,today,saved ? clock.time : "00:00:00") ? styles.overdue : ""}`}>{task.date ? <><Icon name="calendar" size={13} />{task.date === today ? "Today" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(`${task.date}T12:00:00`))}{task.time && <span className={styles.dueTime}>{new Intl.DateTimeFormat("en", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(new Date(`${task.date}T${task.time}Z`))}</span>}</> : "No due date"}</span>}{task.weekdays.length>0 && <span className={styles.weekdayMeta}>{task.weekdays.map(day=>WEEKDAYS[day].slice(0,3)).join(" · ")}</span>}{task.repeat !== "Off" && <span title={`Repeats ${task.repeat.toLowerCase()}`}><Icon name="repeat" size={14} /></span>}</span>{task.completed && (status==="Completed" || status==="All") && <CompletionTime value={task.completedAt}/>}<span className={styles.rowChevron}><Icon name="chevron" size={17} /></span></button></li>)}</ul> : <div className={styles.empty}><div className={styles.emptyIcon}><Icon name={filteredEmpty ? "search" : "check"} size={29} /></div><h2>{view==="History" && !filtersApplied ? "No task history yet" : overdueEmpty ? "All caught up" : activeEmpty ? (tasks.length ? "No active tasks" : "No tasks yet") : categoryEmpty ? `No tasks in ${category || "Uncategorized"} yet` : filtersApplied ? "No tasks found" : view === "Overdue" ? "All caught up" : view === "Completed" ? "Small wins start here" : saved && !tasks.length ? "No tasks yet" : "A little room for something new"}</h2><p>{view==="History" && !filtersApplied ? "Previous completed occurrences will appear here when their next task appears at midnight (India time)." : overdueEmpty ? "You don’t have any overdue tasks in this view." : activeEmpty ? (tasks.length ? "You’re all caught up. Add a task or select All to review completed tasks." : "Add a task and take the first step.") : categoryEmpty ? "Add your first task to this category." : filtersApplied ? "Try another search or adjust your filters." : view === "Overdue" ? "You don’t have any overdue tasks. Enjoy the breathing room." : view === "Completed" ? "Your completed tasks will appear here." : "Add a task and take the first step."}</p>{(view!=="History" || filteredEmpty) && <button className={styles.emptyAction} onClick={filteredEmpty ? resetFilters : newTask}>{filteredEmpty ? "Clear filters" : "Add a task"}<Icon name={filteredEmpty ? "close" : "plus"} size={16} /></button>}</div>}
+          {visibleTasks.length ? view==="History" ? <ul className={styles.historyList}>{visibleTasks.map(task=><HistoryCard key={task.id} task={task} onOpen={()=>openEditor(task)} onReopen={()=>void toggleTask(task.id)} disabled={busy || (saved && storage.expired) || (dirty && editing?.id===task.id)}/>)}</ul> : <ul className={styles.taskList}>{visibleTasks.map((task) => <li key={task.id} className={`${styles.taskRow} ${editing?.id === task.id ? styles.selected : ""} ${task.completed ? styles.completed : ""}`}><label className={styles.taskCheck}><input type="checkbox" checked={task.completed} disabled={busy || (saved && storage.expired) || (dirty && editing?.id === task.id)} onChange={() => void toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`} /><span><Icon name="check" size={15} /></span></label><button className={`${styles.taskDetails} ${task.completed && task.completedAt ? styles.taskDetailsWithCompletion : ""}`} onClick={() => openEditor(task)} aria-label={`Edit ${task.title}`}><span className={styles.taskText}><span className={styles.taskHeading}><span className={styles.taskTitle}>{task.title}</span><TaskStatus task={task} today={today} time={saved ? clock.time : "00:00:00"}/></span><span className={styles.taskNote}>{task.notes || "No notes added"}</span></span><span className={styles.taskMeta}>{task.category && <span className={styles.categoryLabel}><span className={`${styles.dot} ${categoryClass(task.category)}`} />{task.category}</span>}{task.priority !== "None" && <span className={`${styles.badge} ${styles[task.priority.toLowerCase()]}`}>{task.priority}</span>}{task.completed ? <CompletionAge value={task.completedAt} now={now}/> : <span className={`${styles.dueDate} ${isOverdue(task,today,saved ? clock.time : "00:00:00") ? styles.overdue : ""}`}>{task.date ? <><Icon name="calendar" size={13} />{task.date === today ? "Today" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(`${task.date}T12:00:00`))}{task.time && <span className={styles.dueTime}>{new Intl.DateTimeFormat("en", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(new Date(`${task.date}T${task.time}Z`))}</span>}</> : "No due date"}</span>}{task.weekdays.length>0 && <span className={styles.weekdayMeta}>{task.weekdays.map(day=>WEEKDAYS[day].slice(0,3)).join(" · ")}</span>}{task.repeat !== "Off" && <span title={`Repeats ${task.repeat.toLowerCase()}`}><Icon name="repeat" size={14} /></span>}</span>{task.completed && (status==="Completed" || status==="All") && <span className={styles.completionBlock}><CompletedBy name={task.completedByName}/><CompletionTime value={task.completedAt}/></span>}<span className={styles.rowChevron}><Icon name="chevron" size={17} /></span></button></li>)}</ul> : <div className={styles.empty}><div className={styles.emptyIcon}><Icon name={filteredEmpty ? "search" : "check"} size={29} /></div><h2>{view==="History" && !filtersApplied ? "No task history yet" : overdueEmpty ? "All caught up" : activeEmpty ? (tasks.length ? "No active tasks" : "No tasks yet") : categoryEmpty ? `No tasks in ${category || "Uncategorized"} yet` : filtersApplied ? "No tasks found" : view === "Overdue" ? "All caught up" : view === "Completed" ? "Small wins start here" : saved && !tasks.length ? "No tasks yet" : "A little room for something new"}</h2><p>{view==="History" && !filtersApplied ? "Previous completed occurrences will appear here when their next task appears at midnight (India time)." : overdueEmpty ? "You don’t have any overdue tasks in this view." : activeEmpty ? (tasks.length ? "You’re all caught up. Add a task or select All to review completed tasks." : "Add a task and take the first step.") : categoryEmpty ? "Add your first task to this category." : filtersApplied ? "Try another search or adjust your filters." : view === "Overdue" ? "You don’t have any overdue tasks. Enjoy the breathing room." : view === "Completed" ? "Your completed tasks will appear here." : "Add a task and take the first step."}</p>{(view!=="History" || filteredEmpty) && <button className={styles.emptyAction} onClick={filteredEmpty ? resetFilters : newTask}>{filteredEmpty ? "Clear filters" : "Add a task"}<Icon name={filteredEmpty ? "close" : "plus"} size={16} /></button>}</div>}
           </>}
           <p className={styles.listFooter}><span className={styles.smallLine} />A clear space for everything on your mind.</p>
         </section>
         {editing && <ResponsiveEditor mobile={mobileEditor} label={editing.id?"Edit task":"Add task"} onClose={closeEditor}>{editor}</ResponsiveEditor>}
-      </div>
+      </div>}
     </main>
     {bulkCategory!==null && <Modal label="Add multiple tasks" onClose={()=>requestAction(finishBulk)} className={styles.bulkDialog}><BulkTaskEditor categories={categories} initialCategory={bulkCategory} onSave={saveMany} onClose={()=>requestAction(finishBulk)} onDirty={setDirty} pending={busy} uncertain={storage.uncertain}/></Modal>}
     {deleteTask && <Modal label="Delete this task?" onClose={cancelDelete} className={styles.confirmDialog}><div className={styles.confirmContent}><p className={styles.editorEyebrow}>DELETE TASK</p><h2>Delete this task?</h2><p>“{deleteTask.title}” will be removed from your task list.</p>{deleteTask.seriesId && <p>Other occurrences stay unchanged. Deleting a pending repeating task stops it from creating another occurrence.</p>}{deleteError&&<p className={styles.error} role="alert">{deleteError}</p>}{deleteConflict&&<button type="button" className={styles.cancelButton} onClick={()=>{setDeleteTask(null);openEditor(deleteConflict);}}>Review saved task</button>}<div className={styles.editorActions}><button className={styles.cancelButton} disabled={busy} data-autofocus="true" onClick={cancelDelete}>Cancel</button><button className={styles.deleteConfirm} disabled={busy || !!deleteConflict} onClick={()=>void confirmDelete()}>{busy?"Deleting…":"Delete task"}</button></div></div></Modal>}
