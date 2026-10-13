@@ -14,6 +14,7 @@ function load(path,deps={},globals={}) {
 }
 const model=load("../src/lib/tasks/model.ts");
 const validation=load("../src/lib/tasks/validation.ts",{"./model":model});
+const completed=load("../src/lib/tasks/completed.ts",{"./validation":validation});
 const repository=load("../src/lib/tasks/repository.ts",{"./validation":validation,"./model":model});
 const owner="00000000-0000-4000-8000-000000000001";
 const taskId="00000000-0000-4000-8000-000000000010";
@@ -167,7 +168,7 @@ test("an open app refreshes once at India midnight, preserves dirty drafts and c
       useState:value=>[stateIndex++===0?{timezone:"Asia/Kolkata",tasks:[],categories:[]}:stateIndex===6?true:value,()=>{}]};
     const window={addEventListener(){},removeEventListener(){},setTimeout(fn,delay){timers.set(++timerId,{fn,delay});return timerId;},clearTimeout(id){timers.delete(id);}};
     const document={visibilityState:"visible",addEventListener(){},removeEventListener(){}};
-    const hook=load("../src/lib/tasks/use-saved-tasks.ts",{"react":react,"./model":model,"./validation":validation},
+    const hook=load("../src/lib/tasks/use-saved-tasks.ts",{"react":react,"./model":model,"./validation":validation,"./completed":completed},
       {window,document,Date:FixtureDate,AbortController,AbortSignal,fetch:async()=>{reads++;return {ok:true,json:async()=>({timezone:"Asia/Kolkata",tasks:[],categories:[]})};}});
     hook.useSavedTasks(true,dirty);
     const cleanups=effects.map(effect=>effect());

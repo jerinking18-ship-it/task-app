@@ -18,5 +18,5 @@ export default async function Account({ searchParams }: PageProps<"/account">) {
   }
   if (!members?.current) redirect("/account/member");
   const query = await searchParams;
-  return <TaskApp saved today={new Date().toISOString().slice(0, 10)} initialMembers={members} accountEmail={identity.email} passwordUpdated={query.password === "updated"} />;
+  return <TaskApp saved accountId={identity.userId} today={new Date().toISOString().slice(0, 10)} initialMembers={members} accountEmail={identity.email} passwordUpdated={query.password === "updated"} />;
 }

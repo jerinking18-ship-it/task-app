@@ -12,10 +12,10 @@ export function useBin(enabled: boolean, blocked: boolean) {
   const [needsMember,setNeedsMember]=useState(false);
   const state=useRef({blocked,pending:false}); state.current.blocked=blocked;
   const read=useRef<AbortController|null>(null); const sequence=useRef(0); const alive=useRef(true);
-  const refresh=useCallback(async()=>{
+  const refresh=useCallback(async(background=false)=>{
     if(!enabled || state.current.blocked || state.current.pending) return;
     read.current?.abort(); const controller=new AbortController(); read.current=controller;
-    const seq=++sequence.current; setLoading(true);setError("");
+    const seq=++sequence.current; if(!background)setLoading(true);setError("");
     try {
       const response=await fetch('/api/bin',{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});
       const body:unknown=await response.json();

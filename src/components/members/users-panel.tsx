@@ -1,5 +1,5 @@
 "use client";
-import { MEMBER_LIMIT, memberSeen, type MemberState } from "@/lib/members/model";
+import { MEMBER_LIMIT, memberSeen, memberActive, type MemberState } from "@/lib/members/model";
 import styles from "./members.module.css";
 
 export default function UsersPanel({ state, loading, error, onRefresh, now }: {
@@ -14,7 +14,7 @@ export default function UsersPanel({ state, loading, error, onRefresh, now }: {
     {!state && loading && <p role="status">Loading account members…</p>}
     {state && <ul className={styles.usersList}>{members.map(member => <li key={member.id}>
       <span className={`${styles.avatar} ${state.current?.id === member.id ? styles.yourAvatar : ""}`} aria-hidden="true">{Array.from(member.name)[0]?.toLocaleUpperCase()}</span>
-      <div className={styles.userDetails}><div className={styles.userName}><span>{member.name}</span>{state.current?.id === member.id && <span className={styles.you}>You</span>}</div><time dateTime={member.lastSeenAt}>{memberSeen(member.lastSeenAt, now)}</time></div>
+      <div className={styles.userDetails}><div className={styles.userName}><span>{member.name}</span>{state.current?.id === member.id && <span className={styles.you}>You</span>}</div>{memberActive(member,now)?<span className={styles.activeNow}><span aria-hidden="true"/>Active now</span>:<time dateTime={member.lastSeenAt}>{memberSeen(member.lastSeenAt, now)}</time>}</div>
     </li>)}</ul>}
     {state?.members.length === 0 && <p>No members yet. Add your name when you sign in.</p>}
     <p className={styles.usersNote}>Names appear on completed tasks.</p>

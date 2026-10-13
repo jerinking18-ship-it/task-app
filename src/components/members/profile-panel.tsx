@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import AccountControls from "@/components/auth/account-controls";
-import { decodeMemberResponse, MEMBER_LIMIT, memberName, memberSeen, type MemberState } from "@/lib/members/model";
+import { decodeMemberResponse, MEMBER_LIMIT, memberName, memberSeen, memberActive, type MemberState } from "@/lib/members/model";
 import { isRecord } from "@/lib/tasks/validation";
 import styles from "./profile.module.css";
 
@@ -103,7 +103,7 @@ export default function ProfilePanel({ state, email, loading, error, disabled, n
       </section>
       <section className={styles.card} aria-label="Profile activity"><h2>Activity</h2>
         <div className={`${styles.detail} ${styles.activityDetail}`}><ProfileIcon><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6M17 2v6M3 11h18"/></ProfileIcon><div><span>Member since</span><time dateTime={member.createdAt}>{joined}</time></div></div>
-        <div className={`${styles.detail} ${styles.activityDetail}`}><ProfileIcon><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></ProfileIcon><div><span>Last seen</span><time dateTime={member.lastSeenAt}>{seen} IST</time></div></div>
+        <div className={`${styles.detail} ${styles.activityDetail}`}><ProfileIcon><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></ProfileIcon><div><span>{memberActive(member,now)?"Status":"Last seen"}</span>{memberActive(member,now)?<p className={styles.activeNow}>● Active now</p>:<time dateTime={member.lastSeenAt}>{seen} IST</time>}</div></div>
       </section>
     </div>
     <div className={styles.signOutRow}><AccountControls label="Sign out this device" beforeSignOut={beforeSignOut} blocked={blocked} onPendingChange={onPending} onSignedOut={onSignedOut}/>{chevron}</div>

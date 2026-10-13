@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mapTask, newestFirst, taskFields, type Category, type Dataset, type Task, type TaskAction } from "./model";
 import { decodeCategory, decodeDataset, decodeRow, isRecord } from "./validation";
+import { decodeCompletedPurge, decodeCompletedSnapshot, type CompletedSnapshot } from "./completed";
 
 export class SaveError extends Error {
   constructor(message:string, public status=0, public latest?:Task, public future?:Task[]) { super(message); }
@@ -18,11 +19,11 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   const [needsMember,setNeedsMember]=useState(false);
   const state=useRef({dirty,pending:false,data}); state.current.dirty=dirty; state.current.data=data;
   const read=useRef<AbortController|null>(null); const sequence=useRef(0); const alive=useRef(true);
-  const refresh=useCallback(async () => {
+  const refresh=useCallback(async (background=false) => {
     if(!enabled) return;
     if(state.current.dirty || state.current.pending) { setDeferred(true); return; }
     read.current?.abort(); const controller=new AbortController(); read.current=controller;
-    const revision=++sequence.current; setLoading(true); setError(""); setDeferred(false);
+    const revision=++sequence.current; if(!background)setLoading(true); setError(""); setDeferred(false);
     try {
       const response=await fetch("/api/tasks",{cache:"no-store",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});
       const body:unknown=await response.json();
@@ -149,6 +150,19 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     setData(current=>current ? {...current,tasks:current.tasks.filter(row=>row.id!==task.id)} : current);
     setDeferred(true);
   }
+  async function completedRequest(snapshot?:CompletedSnapshot) {
+    if(state.current.pending || state.current.dirty || expired) throw new SaveError("Finish editing or sign in again before continuing.");
+    read.current?.abort();sequence.current++;setLoading(false);
+    state.current.pending=true;setPending(true);setError("");
+    try {
+      const response=await fetch("/api/completed",snapshot?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...snapshot,confirmed:true}),signal:AbortSignal.timeout(20000)}:{cache:"no-store",signal:AbortSignal.timeout(15000)});
+      const body:unknown=await response.json();
+      if(!response.ok){if(response.status===401)setExpired(true);if(response.status===403)setNeedsMember(true);throw new SaveError(isRecord(body)&&typeof body.message==="string"?body.message:"Unable to confirm completed tasks. Close and refresh before trying again.",response.status);}
+      if(snapshot){decodeCompletedPurge(body,snapshot);setDeferred(true);return snapshot;}
+      return decodeCompletedSnapshot(body);
+    } catch(reason){throw reason instanceof SaveError?reason:new SaveError("We couldn’t confirm this request. Close and refresh before trying again.");}
+    finally{state.current.pending=false;if(alive.current)setPending(false);}
+  }
   async function addCategory(name:string):Promise<string> {
     const reply=await mutate({action:"category",name}); const category=decodeCategory(reply.category);
     setData(current=>current ? {...current,categories:[...current.categories.filter(c=>c.id!==category.id),category]} : current);
@@ -159,5 +173,6 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   if(data) tasks=newestFirst(data.tasks.map(t=>mapTask(t,data.categories)));
   const categories:Category[]=data?.categories ?? [];
   return {tasks,categories,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && initialized,
-    loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,toggle,saveMany,remove,addCategory};
+    loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,toggle,saveMany,remove,addCategory,
+    reviewCompleted:()=>completedRequest(),purgeCompleted:(snapshot:CompletedSnapshot)=>completedRequest(snapshot)};
 }
