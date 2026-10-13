@@ -47,6 +47,13 @@ export function blankTask(): Task {
   return { id: "", title: "", notes: "", completed: false, date: "", time: "", priority: "Medium",
     category: "", reminder: "Off", notification: false, email: false, repeat: "Off", seriesId:null,historyAt:null,availableAt:null,repeatAnchor:null,seriesVersion:"",createdAt: "", updatedAt: "",completedAt:null,completedById:null,completedByName:null, weekdays: [] };
 }
+export function categoryWeekdays(category: string): number[] {
+  const day: Record<string, number> = {"Sunday Service":0,"Healing Meeting":3,"Revival Meeting":5,"Woman's Meeting":4};
+  return Object.prototype.hasOwnProperty.call(day,category) ? [day[category]] : [];
+}
+export function newTaskDraft(category = ""): Task {
+  return {...blankTask(),category,time:"23:50",repeat:"Weekly",weekdays:categoryWeekdays(category)};
+}
 export function mapTask(row: TaskRow, categories: Category[]): Task {
   const category = row.category_id ? categories.find(c => c.id === row.category_id) : null;
   if (row.category_id && !category) throw new Error("Category data is incomplete. Refresh your tasks.");
