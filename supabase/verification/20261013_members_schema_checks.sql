@@ -1,0 +1,20 @@
+-- Read-only catalog checks; no task/profile/session data or credentials returned.
+select
+  to_regclass('public.account_members') is not null as member_table,
+  to_regclass('public.account_member_sessions') is not null as session_table,
+  (select relrowsecurity from pg_class where oid='public.account_members'::regclass) as member_rls,
+  (select relrowsecurity from pg_class where oid='public.account_member_sessions'::regclass) as session_rls,
+  has_table_privilege('authenticated','public.account_members','select') as own_member_read,
+  not has_table_privilege('anon','public.account_members','select') as no_anon_member_read,
+  not has_table_privilege('authenticated','public.account_members','insert') as no_direct_member_create,
+  not has_table_privilege('authenticated','public.account_member_sessions','select') as no_direct_session_read,
+  not has_table_privilege('authenticated','public.account_member_sessions','insert') as no_direct_session_bind,
+  has_function_privilege('authenticated','public.task_app_choose_member(uuid,text)','execute') as member_choice_rpc,
+  has_function_privilege('authenticated','public.task_app_member_state()','execute') as member_state_rpc,
+  not has_function_privilege('anon','public.task_app_choose_member(uuid,text)','execute') as no_anon_choice,
+  not has_function_privilege('authenticated','public.task_app_current_member()','execute') as private_identity_helper,
+  not has_column_privilege('authenticated','public.tasks','completed_by_name','insert') as no_name_spoof_insert,
+  not has_column_privilege('authenticated','public.tasks','completed_by_member_id','update') as no_member_spoof_update,
+  exists(select 1 from pg_trigger where tgrelid='public.tasks'::regclass and tgname='tasks_completion_member' and not tgisinternal) as attribution_trigger,
+  exists(select 1 from pg_constraint where conrelid='public.tasks'::regclass and conname='tasks_completion_member_owner') as same_owner_member_fk,
+  exists(select 1 from pg_constraint where conrelid='public.tasks'::regclass and conname='tasks_completion_member_pair') as attribution_pair_constraint;
