@@ -3,16 +3,17 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import styles from "./task-app.module.css";
-import { accountClock, inHistory, isAvailable, repeatError, blankTask, categoryOrder, MEETING_CATEGORIES, PRIORITIES, WEEKDAYS, isOverdue, matchesTask, type EditScope, type Priority, type Task } from "@/lib/tasks/model";
+import { accountClock, completionAge, inHistory, isAvailable, repeatError, blankTask, categoryOrder, MEETING_CATEGORIES, PRIORITIES, WEEKDAYS, isOverdue, matchesTask, type EditScope, type Priority, type Task } from "@/lib/tasks/model";
 import { SaveError, useSavedTasks } from "@/lib/tasks/use-saved-tasks";
 import AccountControls from "./auth/account-controls";
 import BulkTaskEditor from "./bulk-task-editor";
 import TaskRepeat from "./task-repeat";
 type View = "All tasks" | "Today" | "Overdue" | "Completed" | "History";
-type IconName = "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning" | "trash" | "history";
+type IconName = "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning" | "trash" | "history" | "active";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
+    active: <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></>,
     history: <><path d="M3 5v5h5M3 10a9 9 0 1 1 1 8"/><path d="M12 7v5l3 2"/></>,
     check: <path d="m5 12 4 4L19 6" />,
     plus: <path d="M12 5v14M5 12h14" />,
@@ -34,6 +35,25 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 
 function historyDate(value: string | null, offset=0) {
   return value ? new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",day:"numeric",month:"short",year:"numeric"}).format(new Date(Date.parse(value)+offset*86400000)) : "—";
+}
+function CompletionTime({value}:{value:string|null}) {
+  if(!value) return null;
+  const date=new Date(value);
+  if(!Number.isFinite(date.getTime())) return null;
+  const options={timeZone:"Asia/Kolkata"};
+  const day=new Intl.DateTimeFormat("en-US",{...options,month:"short",day:"numeric"}).format(date);
+  const time=new Intl.DateTimeFormat("en-US",{...options,hour:"numeric",minute:"2-digit",hour12:true}).format(date);
+  const weekday=new Intl.DateTimeFormat("en-US",{...options,weekday:"short"}).format(date);
+  return <time className={styles.completionTime} dateTime={value}><Icon name="clock" size={13}/><span>Completed on {day} · {time} · {weekday}</span></time>;
+}
+function CompletionAge({value,now}:{value:string|null;now:Date}) {
+  const age=completionAge(value,now);
+  return age ? <span className={styles.dueDate} aria-label={`Completed ${age.toLowerCase()}`}><Icon name="clock" size={13}/>{age}</span> : null;
+}
+function TaskStatus({task,today,time}:{task:Task;today:string;time:string}) {
+  if(task.completed) return null;
+  const overdue=isOverdue(task,today,time);
+  return <span className={`${styles.taskStatus} ${overdue?styles.overdueStatus:styles.activeStatus}`}><Icon name={overdue?"warning":"active"} size={13}/>{overdue?"Overdue!":"Active"}</span>;
 }
 function HistoryCard({task,onOpen,onReopen,disabled}:{task:Task;onOpen:()=>void;onReopen:()=>void;disabled:boolean}) {
   return <li className={styles.historyCard}>
@@ -126,8 +146,6 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const [statusConflict,setStatusConflict]=useState<Task|null>(null);
   const [reopenTask,setReopenTask]=useState<Task|null>(null);
   const reopenFocus=useRef<HTMLElement|null>(null);
-  const [hiddenSaved,setHiddenSaved]=useState(false);
-  useEffect(()=>setHiddenSaved(false),[view,status,priority,category,search]);
   const signOutAnswer=useRef<((answer:boolean)=>void)|null>(null);
   const [mobileEditor, setMobileEditor] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -151,14 +169,13 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     return () => window.clearTimeout(timeout);
   }, [message]);
   const currentFilters={view,status,priority,category,search};
-  const matching=useRef({filters:currentFilters,date:today,time:saved ? clock.time : "00:00:00"});
-  matching.current={filters:currentFilters,date:today,time:saved ? clock.time : "00:00:00"};
-  const matches=(task:Task)=>matchesTask(task,matching.current.filters,matching.current.date,matching.current.time,now);
+  const matches=(task:Task)=>matchesTask(task,currentFilters,today,saved ? clock.time : "00:00:00",now);
   const visibleTasks=tasks.filter(matches);
   const filtersApplied = search !== "" || priority !== "Any" || category !== "Any" || status !== "All";
   const categoryEmpty = category!=="Any" && view==="All tasks" && !search && priority==="Any" && status==="All";
   const activeEmpty = view==="All tasks" && status==="Active" && !search && priority==="Any" && category==="Any";
-  const filteredEmpty = filtersApplied && !categoryEmpty && !activeEmpty;
+  const overdueEmpty = (status==="Overdue" || view==="Overdue") && !search && priority==="Any" && category==="Any";
+  const filteredEmpty = filtersApplied && !categoryEmpty && !activeEmpty && !overdueEmpty;
   const activeCount = tasks.filter((task) => !task.completed).length;
   const navigationCounts: Partial<Record<View, number>> = {
     "All tasks": tasks.filter(task => !inHistory(task, now)).length,
@@ -199,7 +216,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   function finishBulk() {setDirty(false);setBulkCategory(null);restoreFocus();}
   async function saveMany(drafts:Task[],chosenCategory:string) {
     const results=await storage.saveMany(drafts,chosenCategory);
-    setHiddenSaved(results.some(task=>!matches(task)));finishBulk();setMessage(`${results.length} ${results.length===1?"task":"tasks"} created`);
+    finishBulk();setMessage(`${results.length} ${results.length===1?"task":"tasks"} created`);
   }
   function askDelete(task:Task) {
     if(busy) return;
@@ -217,13 +234,17 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     try {
       if(saved) await storage.remove(deleteTask);
       else setTasks(current=>current.filter(task=>task.id!==deleteTask.id));
-      setDeleteTask(null);finishEditor();setHiddenSaved(false);setMessage("Task deleted");
+      setDeleteTask(null);finishEditor();setMessage("Task deleted");
     } catch(e) {
       setDeleteError(e instanceof Error?e.message:"Unable to delete. Your task is still here.");
       if(e instanceof SaveError && e.latest)setDeleteConflict(e.latest);
     }
   }
   function chooseView(next: View) { setView(next); resetFilters(); setStatus(next === "Completed" ? "Completed" : next === "History" ? "All" : "Active"); setMenuOpen(false); }
+  function chooseStatus(next:string) {
+    if((view==="Completed" && next!=="Completed") || (view==="Overdue" && next!=="Active" && next!=="Overdue")) setView("All tasks");
+    setStatus(next);
+  }
   function cancelReopenTask() {
     setReopenTask(null);
     window.requestAnimationFrame(()=>{if(reopenFocus.current?.isConnected) reopenFocus.current.focus();});
@@ -240,7 +261,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
       try {
         const result=await storage.toggle(task);
         if(editing?.id===id) {setEditing(result);setEditorVersion(v=>v+1);}
-        setHiddenSaved(!matches(result)); setMessage(result.completed ? "Task completed" : "Task reopened");
+        setMessage(result.completed ? "Task completed" : "Task reopened");
       } catch(error) {setWriteError(error instanceof Error ? error.message : "Unable to save status."); if(error instanceof SaveError && error.latest) setStatusConflict(error.latest);}
       return;
     }
@@ -251,7 +272,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   async function saveTask(task: Task, scope:EditScope="this") {
     if(!saved && !task.id) {requestAction(()=>window.location.assign("/sign-in")); return;}
     if(saved) {
-      const result=await storage.save(task,scope); setHiddenSaved(!matches(result));
+      await storage.save(task,scope);
       finishEditor(); setMessage(task.id ? "Changes saved" : "Task created"); return;
     }
     const previewSaved = { ...task, id: task.id || crypto.randomUUID(), title: task.title.trim(), notes: task.notes.trim() };
@@ -262,7 +283,6 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     setMessage(task.id ? "Changes saved in this preview" : "Task added in this preview");
   }
   function resetFilters() { setSearch(""); setPriority("Any"); setCategory("Any"); setStatus("All"); }
-  function viewAll() {setView("All tasks");resetFilters();setHiddenSaved(false);}
   async function addCategory(name:string) {
     if(saved) return storage.addCategory(name);
     setCategories(current=>[...current,name]); return name;
@@ -297,12 +317,11 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
             {(storage.error || writeError) && <div className={styles.inlineError} role="alert"><p>{writeError || storage.error}</p>{storage.expired ? <Link href="/sign-in" onClick={event=>{if(dirty){event.preventDefault();requestAction(()=>window.location.assign('/sign-in'));}}}>Sign in again</Link> : <button onClick={()=>void storage.refresh()} disabled={busy || storage.loading}>Refresh saved data</button>}{statusConflict && <button onClick={()=>openEditor(statusConflict)}>Review saved task</button>}</div>}
             {storage.hasData && !storage.timezone && !storage.expired && <div className={styles.empty}><div className={styles.emptyIcon}><Icon name="clock" size={29}/></div><h2>A home for your time</h2><p>Use India time (Mumbai · IST) so deadlines stay consistent on every device. This version supports India time.</p><button className={styles.emptyAction} disabled={busy} onClick={()=>void setupAccount()}>{busy ? "Setting up…" : "Use India time"}</button></div>}
             {!!storage.timezone && !storage.ready && <div className={styles.empty} role="status"><h2>Preparing your categories</h2><p>Your five meeting categories are being prepared. Your task list starts empty.</p><button className={styles.emptyAction} disabled={busy} onClick={()=>void retrySetup()}>{busy ? "Preparing…" : "Retry category setup"}</button></div>}
-            {hiddenSaved && <div className={styles.inlineNotice} role="status">Saved successfully. One or more tasks are hidden by your current view or filters.<button onClick={viewAll}>View all tasks</button></div>}
           </>}
           {(!saved || storage.ready) && <>
-          <div className={styles.toolbar}>{view!=="History" && <div className={styles.tabs} aria-label="Task status">{["Active", "Completed", "All"].map((item) => <button key={item} className={status === item ? styles.tabActive : ""} onClick={() => setStatus(item)} aria-pressed={status === item}>{item}</button>)}</div>}<button className={`${styles.mobileFilter} ${filtersOpen ? styles.filterActive : ""}`} aria-label="Toggle priority and category filters" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><Icon name="filter" /></button><div className={`${styles.filters} ${filtersOpen ? styles.filtersVisible : ""}`}><label><span className={styles.srOnly}>Filter by priority</span><select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="Any">Priority</option>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className={styles.srOnly}>Filter by category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="Any">Category</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label></div></div>
-          {view==="History" && <p className={`${styles.inlineNotice} ${styles.historyNotice}`}>Completed repeats move here when the next task appears at midnight (India time). History is automatically deleted after 30 days.</p>}<div className={styles.listHeading}><span>{visibleTasks.length} {visibleTasks.length === 1 ? "task" : "tasks"}</span>{view!=="History" && <span className={styles.remainingTasks}><Icon name="warning" size={14} />{activeCount} left to do</span>}</div>
-          {visibleTasks.length ? view==="History" ? <ul className={styles.historyList}>{visibleTasks.map(task=><HistoryCard key={task.id} task={task} onOpen={()=>openEditor(task)} onReopen={()=>void toggleTask(task.id)} disabled={busy || (saved && storage.expired) || (dirty && editing?.id===task.id)}/>)}</ul> : <ul className={styles.taskList}>{visibleTasks.map((task) => <li key={task.id} className={`${styles.taskRow} ${editing?.id === task.id ? styles.selected : ""} ${task.completed ? styles.completed : ""}`}><label className={styles.taskCheck}><input type="checkbox" checked={task.completed} disabled={busy || (saved && storage.expired) || (dirty && editing?.id === task.id)} onChange={() => void toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`} /><span><Icon name="check" size={15} /></span></label><button className={styles.taskDetails} onClick={() => openEditor(task)} aria-label={`Edit ${task.title}`}><span className={styles.taskText}><span className={styles.taskTitle}>{task.title}</span><span className={styles.taskNote}>{task.notes || "No notes added"}</span></span><span className={styles.taskMeta}>{task.category && <span className={styles.categoryLabel}><span className={`${styles.dot} ${categoryClass(task.category)}`} />{task.category}</span>}{task.priority !== "None" && <span className={`${styles.badge} ${styles[task.priority.toLowerCase()]}`}>{task.priority}</span>}<span className={`${styles.dueDate} ${isOverdue(task,today,saved ? clock.time : "00:00:00") ? styles.overdue : ""}`}>{task.date ? <><Icon name="calendar" size={13} />{task.date === today ? "Today" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(`${task.date}T12:00:00`))}{task.time && <span className={styles.dueTime}>{new Intl.DateTimeFormat("en", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(new Date(`${task.date}T${task.time}Z`))}</span>}</> : "No due date"}</span>{task.weekdays.length>0 && <span className={styles.weekdayMeta}>{task.weekdays.map(day=>WEEKDAYS[day].slice(0,3)).join(" · ")}</span>}{task.repeat !== "Off" && <span title={`Repeats ${task.repeat.toLowerCase()}`}><Icon name="repeat" size={14} /></span>}</span><span className={styles.rowChevron}><Icon name="chevron" size={17} /></span></button></li>)}</ul> : <div className={styles.empty}><div className={styles.emptyIcon}><Icon name={filteredEmpty ? "search" : "check"} size={29} /></div><h2>{view==="History" && !filtersApplied ? "No task history yet" : activeEmpty ? (tasks.length ? "No active tasks" : "No tasks yet") : categoryEmpty ? `No tasks in ${category || "Uncategorized"} yet` : filtersApplied ? "No tasks found" : view === "Overdue" ? "All caught up" : view === "Completed" ? "Small wins start here" : saved && !tasks.length ? "No tasks yet" : "A little room for something new"}</h2><p>{view==="History" && !filtersApplied ? "Previous completed occurrences will appear here when their next task appears at midnight (India time)." : activeEmpty ? (tasks.length ? "You’re all caught up. Add a task or select All to review completed tasks." : "Add a task and take the first step.") : categoryEmpty ? "Add your first task to this category." : filtersApplied ? "Try another search or adjust your filters." : view === "Overdue" ? "You don’t have any overdue tasks. Enjoy the breathing room." : view === "Completed" ? "Your completed tasks will appear here." : "Add a task and take the first step."}</p>{(view!=="History" || filteredEmpty) && <button className={styles.emptyAction} onClick={filteredEmpty ? resetFilters : newTask}>{filteredEmpty ? "Clear filters" : "Add a task"}<Icon name={filteredEmpty ? "close" : "plus"} size={16} /></button>}</div>}
+          <div className={styles.toolbar}>{view!=="History" && <div className={styles.tabs} aria-label="Task status">{["Active", "Completed", "Overdue", "All"].map((item) => <button key={item} className={status === item ? styles.tabActive : ""} onClick={() => chooseStatus(item)} aria-pressed={status === item}>{item}</button>)}</div>}<button className={`${styles.mobileFilter} ${filtersOpen ? styles.filterActive : ""}`} aria-label="Toggle priority and category filters" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><Icon name="filter" /></button><div className={`${styles.filters} ${filtersOpen ? styles.filtersVisible : ""}`}><label><span className={styles.srOnly}>Filter by priority</span><select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="Any">Priority</option>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className={styles.srOnly}>Filter by category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="Any">Category</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label></div></div>
+          {view==="History" && <p className={`${styles.inlineNotice} ${styles.historyNotice}`}>Completed repeats move here when the next task appears at midnight (India time). History is automatically deleted after 30 days.</p>}<div className={styles.listHeading}><span>{visibleTasks.length} {visibleTasks.length === 1 ? "task" : "tasks"}</span>{view!=="History" && <span className={styles.remainingTasks}><Icon name="warning" size={14} />{activeCount} left to do!</span>}</div>
+          {visibleTasks.length ? view==="History" ? <ul className={styles.historyList}>{visibleTasks.map(task=><HistoryCard key={task.id} task={task} onOpen={()=>openEditor(task)} onReopen={()=>void toggleTask(task.id)} disabled={busy || (saved && storage.expired) || (dirty && editing?.id===task.id)}/>)}</ul> : <ul className={styles.taskList}>{visibleTasks.map((task) => <li key={task.id} className={`${styles.taskRow} ${editing?.id === task.id ? styles.selected : ""} ${task.completed ? styles.completed : ""}`}><label className={styles.taskCheck}><input type="checkbox" checked={task.completed} disabled={busy || (saved && storage.expired) || (dirty && editing?.id === task.id)} onChange={() => void toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`} /><span><Icon name="check" size={15} /></span></label><button className={`${styles.taskDetails} ${task.completed && task.completedAt ? styles.taskDetailsWithCompletion : ""}`} onClick={() => openEditor(task)} aria-label={`Edit ${task.title}`}><span className={styles.taskText}><span className={styles.taskHeading}><span className={styles.taskTitle}>{task.title}</span><TaskStatus task={task} today={today} time={saved ? clock.time : "00:00:00"}/></span><span className={styles.taskNote}>{task.notes || "No notes added"}</span></span><span className={styles.taskMeta}>{task.category && <span className={styles.categoryLabel}><span className={`${styles.dot} ${categoryClass(task.category)}`} />{task.category}</span>}{task.priority !== "None" && <span className={`${styles.badge} ${styles[task.priority.toLowerCase()]}`}>{task.priority}</span>}{task.completed ? <CompletionAge value={task.completedAt} now={now}/> : <span className={`${styles.dueDate} ${isOverdue(task,today,saved ? clock.time : "00:00:00") ? styles.overdue : ""}`}>{task.date ? <><Icon name="calendar" size={13} />{task.date === today ? "Today" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(`${task.date}T12:00:00`))}{task.time && <span className={styles.dueTime}>{new Intl.DateTimeFormat("en", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(new Date(`${task.date}T${task.time}Z`))}</span>}</> : "No due date"}</span>}{task.weekdays.length>0 && <span className={styles.weekdayMeta}>{task.weekdays.map(day=>WEEKDAYS[day].slice(0,3)).join(" · ")}</span>}{task.repeat !== "Off" && <span title={`Repeats ${task.repeat.toLowerCase()}`}><Icon name="repeat" size={14} /></span>}</span>{task.completed && (status==="Completed" || status==="All") && <CompletionTime value={task.completedAt}/>}<span className={styles.rowChevron}><Icon name="chevron" size={17} /></span></button></li>)}</ul> : <div className={styles.empty}><div className={styles.emptyIcon}><Icon name={filteredEmpty ? "search" : "check"} size={29} /></div><h2>{view==="History" && !filtersApplied ? "No task history yet" : overdueEmpty ? "All caught up" : activeEmpty ? (tasks.length ? "No active tasks" : "No tasks yet") : categoryEmpty ? `No tasks in ${category || "Uncategorized"} yet` : filtersApplied ? "No tasks found" : view === "Overdue" ? "All caught up" : view === "Completed" ? "Small wins start here" : saved && !tasks.length ? "No tasks yet" : "A little room for something new"}</h2><p>{view==="History" && !filtersApplied ? "Previous completed occurrences will appear here when their next task appears at midnight (India time)." : overdueEmpty ? "You don’t have any overdue tasks in this view." : activeEmpty ? (tasks.length ? "You’re all caught up. Add a task or select All to review completed tasks." : "Add a task and take the first step.") : categoryEmpty ? "Add your first task to this category." : filtersApplied ? "Try another search or adjust your filters." : view === "Overdue" ? "You don’t have any overdue tasks. Enjoy the breathing room." : view === "Completed" ? "Your completed tasks will appear here." : "Add a task and take the first step."}</p>{(view!=="History" || filteredEmpty) && <button className={styles.emptyAction} onClick={filteredEmpty ? resetFilters : newTask}>{filteredEmpty ? "Clear filters" : "Add a task"}<Icon name={filteredEmpty ? "close" : "plus"} size={16} /></button>}</div>}
           </>}
           <p className={styles.listFooter}><span className={styles.smallLine} />A clear space for everything on your mind.</p>
         </section>
