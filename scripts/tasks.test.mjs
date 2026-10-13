@@ -70,6 +70,22 @@ test("India calendar, timed and date-only Overdue boundaries, and completed/unda
   assert.equal(model.isOverdue({...task,date:""},midnight.date,midnight.time),false);
 });
 
+test("completion age uses India calendar days rather than elapsed hours or deadlines",()=>{
+  for(const [completed,now,expected] of [
+    ["2026-10-12T18:29:59Z","2026-10-12T18:29:59Z","Today"],
+    ["2026-10-12T18:29:59Z","2026-10-12T18:30:00Z","Yesterday"],
+    ["2026-10-12T18:30:00Z","2026-10-13T18:29:59Z","Today"],
+    ["2026-10-12T18:30:00Z","2026-10-14T18:30:00Z","2 days ago"],
+    ["2026-10-16T07:25:00Z","2026-10-19T07:25:00Z","3 days ago"],
+    ["2026-12-31T18:29:59Z","2026-12-31T18:30:00Z","Yesterday"],
+    ["2028-02-28T18:30:00Z","2028-03-01T18:30:00Z","2 days ago"],
+  ]) assert.equal(model.completionAge(completed,new Date(now)),expected);
+  assert.equal(model.completionAge(null,new Date("2026-10-13T00:00:00Z")),null);
+  assert.equal(model.completionAge("invalid",new Date()),null);
+  assert.equal(model.completionAge("2026-10-13T00:00:00Z",new Date(NaN)),null);
+  assert.equal(model.completionAge("2026-10-14T18:30:00Z",new Date("2026-10-13T00:00:00Z")),null);
+});
+
 test("search uses per-field phrases and AND filters; Today includes completed due-today tasks",()=>{
   const t={...model.blankTask(),title:"Buy groceries",notes:"Buy milk today",date:"2026-10-12",category:"Work",priority:"High",completed:true};
   const f={view:"Today",status:"All",category:"Work",priority:"High",search:" GROc "};
@@ -80,6 +96,20 @@ test("search uses per-field phrases and AND filters; Today includes completed du
   assert.equal(model.matchesTask(t,{...f,category:"Personal"},t.date),false);
   assert.equal(model.matchesTask(t,f,"2026-10-13"),false);
   assert.equal(model.matchesTask(t,{...f,view:"Overdue"},"2026-10-13"),false);
+});
+
+test("Overdue status filter respects deadline and AND filters, excluding completed/history/unavailable tasks",()=>{
+  const now=new Date("2026-10-13T08:30:01Z");
+  const task={...model.blankTask(),title:"Prepare service",notes:"Team meeting",date:"2026-10-13",time:"14:00",category:"Sunday Service",priority:"High"};
+  const filters={view:"All tasks",status:"Overdue",category:"Any",priority:"Any",search:""};
+  assert.equal(model.matchesTask(task,filters,"2026-10-13","14:00:00",now),false);
+  assert.ok(model.matchesTask(task,filters,"2026-10-13","14:00:01",now));
+  assert.ok(model.matchesTask(task,{...filters,view:"Today",category:"Sunday Service",priority:"High",search:"team meeting"},"2026-10-13","14:00:01",now));
+  for(const change of [{completed:true},{date:"2026-10-14"},{date:""},{time:"15:00"},{availableAt:"2026-10-14T00:00:00Z"},{completed:true,historyAt:"2026-10-12T00:00:00Z"}])
+    assert.equal(model.matchesTask({...task,...change},filters,"2026-10-13","14:00:01",now),false);
+  for(const change of [{category:"Healing Meeting"},{priority:"Low"},{search:"missing"},{view:"Completed"}])
+    assert.equal(model.matchesTask(task,{...filters,...change},"2026-10-13","14:00:01",now),false);
+  assert.ok(model.matchesTask({...task,date:"2026-10-12",time:""},filters,"2026-10-13","00:00:00",now));
 });
 
 test("row mapping preserves dates/versions and rejects missing category joins or malformed committed rows",()=>{

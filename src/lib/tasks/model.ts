@@ -90,6 +90,16 @@ export function isOverdue(task: Task, date: string, time = "00:00:00") {
   return !task.completed && !!task.date && (task.date < date ||
     (task.date === date && !!task.time && `${task.time}:00` < time));
 }
+export function completionAge(completedAt: string | null, now: Date): string | null {
+  if(!completedAt) return null;
+  const completed=new Date(completedAt);
+  if(!Number.isFinite(completed.getTime()) || !Number.isFinite(now.getTime())) return null;
+  const completedDate=accountClock(completed,"Asia/Kolkata").date;
+  const currentDate=accountClock(now,"Asia/Kolkata").date;
+  const days=(Date.parse(`${currentDate}T00:00:00Z`)-Date.parse(`${completedDate}T00:00:00Z`))/86400000;
+  if(days<0) return null;
+  return days===0 ? "Today" : days===1 ? "Yesterday" : `${days} days ago`;
+}
 export type Filters = { view: string; status: string; priority: string; category: string; search: string };
 export function matchesTask(task: Task, filters: Filters, date: string, time = "00:00:00", now = new Date()) {
   const query = filters.search.trim().toLowerCase();
@@ -98,7 +108,8 @@ export function matchesTask(task: Task, filters: Filters, date: string, time = "
     && (filters.view !== "Today" || task.date === date)
     && (filters.view !== "Overdue" || isOverdue(task, date, time))
     && (filters.view !== "Completed" || task.completed)
-    && (filters.status === "All" || (filters.status === "Completed" ? task.completed : !task.completed))
+    && (filters.status === "Overdue" ? isOverdue(task,date,time)
+      : filters.status === "All" || (filters.status === "Completed" ? task.completed : !task.completed))
     && (filters.priority === "Any" || task.priority === filters.priority)
     && (filters.category === "Any" || task.category === filters.category);
 }
