@@ -1,0 +1,32 @@
+.memberStep { color:#1b304b; }
+.verified { display:flex; gap:8px; align-items:center; color:#62716d; font-size:12px; margin:0 0 18px; }
+.verified span { display:grid; place-items:center; width:20px; height:20px; border:1px solid #2f7253; border-radius:50%; color:#2f7253; }
+.capacity { color:#5f6875; font-size:12px; margin:0 0 24px; }
+.limitNotice { font-size:12px; line-height:1.7; color:#705a36; background:#f5edda; padding:12px; border-radius:8px; }
+.memberSelect { width:100%; min-height:48px; border:1px solid #dedfdc; border-radius:8px; background:#fff; padding:11px 12px; font:inherit; color:#1b304b; }
+.memberSelect:focus { outline:0; border-color:#71839b; }
+.modeSwitch { margin:22px 0 8px; text-align:center; font-size:12px; color:#4e5d70; }
+.modeSwitch button,.retry { border:0; background:transparent; color:#1b304b; font:inherit; text-decoration:underline; text-underline-offset:3px; min-height:44px; padding:5px; }
+.retry { font-size:12px; display:block; margin:0 auto; }
+.stepSignOut { border-top:1px solid #e8e5de; margin-top:16px; padding-top:16px; display:flex; justify-content:center; }
+.usersPanel { width:100%; max-width:850px; margin-top:24px; background:#fffdf8; border:1px solid #e9e5dc; border-radius:18px; padding:30px; color:#101c2d; }
+.usersTop { display:flex; gap:16px; align-items:flex-start; justify-content:space-between; }
+.usersTop h2 { margin:0; font-size:17px; font-weight:600; color:#92743a; }
+.usersTop p { font-size:12px; color:#637080; margin:6px 0 0; }
+.refresh { min-height:44px; padding:8px 15px; border:1px solid #d8ccb6; border-radius:8px; color:#574529; background:#fffaf0; font:inherit; font-size:12px; }
+.capacityBar { height:7px; border-radius:5px; background:#ebe8df; overflow:hidden; margin:20px 0 18px; }
+.capacityBar span { display:block; height:100%; background:#bda16a; border-radius:5px; }
+.usersList { list-style:none; padding:0; margin:0; }
+.usersList li { display:flex; gap:16px; align-items:center; padding:24px 0; border-bottom:1px solid #e8e4db; }
+.avatar { width:46px; height:46px; flex-shrink:0; display:grid; place-items:center; border-radius:50%; color:white; background:#25364d; font-size:20px; font-weight:500; }
+.yourAvatar { background:#b59b64; }
+.userDetails { min-width:0; }
+.userName { display:flex; flex-wrap:wrap; align-items:center; gap:10px; font-size:15px; font-weight:600; overflow-wrap:anywhere; }
+.you { font-size:10px; font-weight:500; padding:2px 7px; background:#e7edf4; color:#1b304b; border-radius:4px; }
+.userDetails time { display:block; color:#647080; font-size:12px; margin-top:6px; overflow-wrap:anywhere; }
+.usersNote { color:#647080; font-size:12px; text-align:center; margin:30px 0 5px; }
+.usersError { font-size:12px; color:#944e3d; line-height:1.7; }
+.memberStep button:disabled,.usersPanel button:disabled { opacity:.55; cursor:wait; }
+.modeSwitch button:focus-visible,.retry:focus-visible,.refresh:focus-visible { outline:2px solid #94733c; outline-offset:3px; }
+@media(max-width:760px) { .usersPanel { position:relative; margin-top:-12px; padding:24px; border-radius:16px; } .usersList li { gap:14px; padding:22px 0; } }
+@media(max-width:360px) { .usersPanel { padding:20px 16px; } .usersTop { gap:8px; } .usersTop h2 { font-size:16px; } .refresh { padding:8px 10px; } .userName { font-size:14px; } .userDetails time { font-size:11px; } }
