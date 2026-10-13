@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { blankTask, repeatError, MAX_BATCH_TASKS, PRIORITIES, type Priority, type Task } from "@/lib/tasks/model";
+import { newTaskDraft, categoryWeekdays, repeatError, MAX_BATCH_TASKS, PRIORITIES, type Priority, type Task } from "@/lib/tasks/model";
 import TaskRepeat from "./task-repeat";
+import TaskTime from "./task-time";
 import styles from "./task-app.module.css";
 
-type DraftRow = { key: number; task: Task; details: boolean; notesOpen: boolean };
+type DraftRow = { key: number; task: Task; details: boolean; notesOpen: boolean; daysCustomized: boolean };
 export default function BulkTaskEditor({ categories, initialCategory, onSave, onClose, onDirty, pending, uncertain }: {
   categories: string[]; initialCategory: string; onSave: (tasks: Task[], category: string)=>Promise<void>;
   onClose: ()=>void; onDirty: (dirty:boolean)=>void; pending:boolean; uncertain:boolean;
@@ -15,29 +16,35 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
   const submitting=useRef(false);
   const appliedDetails=useRef<Pick<Task,"date"|"time"|"weekdays"|"priority"|"repeat">|null>(null);
   const [category,setCategory]=useState(initialCategory);
-  const [rows,setRows]=useState<DraftRow[]>(()=>[{key:0,task:blankTask(),details:true,notesOpen:true}]);
+  const [rows,setRows]=useState<DraftRow[]>(()=>[{key:0,task:newTaskDraft(initialCategory),details:true,notesOpen:true,daysCustomized:false}]);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   useEffect(()=>{
-    onDirty(category!==initialCategory || rows.length!==1 || rows.some(row=>JSON.stringify(row.task)!==JSON.stringify(blankTask())));
+    onDirty(category!==initialCategory || rows.length!==1 || rows.some(row=>JSON.stringify(row.task)!==JSON.stringify(newTaskDraft(initialCategory))));
   },[rows,category,initialCategory,onDirty]);
   useEffect(()=>()=>onDirty(false),[onDirty]);
   function update<K extends keyof Task>(key:number,field:K,value:Task[K]) {
-    setRows(current=>current.map(row=>row.key===key?{...row,task:{...row.task,[field]:value}}:row));
+    setRows(current=>current.map(row=>row.key===key?{...row,daysCustomized:row.daysCustomized||field==="weekdays",task:{...row.task,[field]:value}}:row));
+    setError("");setNotice("");
+  }
+  function changeCategory(category:string) {
+    setCategory(category);
+    setRows(current=>current.map(row=>({...row,task:{...row.task,category,
+      weekdays:row.daysCustomized?[...row.task.weekdays]:categoryWeekdays(category)}})));
     setError("");setNotice("");
   }
   function applyDetails(source:Task) {
     const details={date:source.date,time:source.time,weekdays:[...source.weekdays],priority:source.priority,repeat:source.repeat};
     appliedDetails.current=details;
-    setRows(current=>current.map(row=>({...row,task:{...row.task,...details,weekdays:[...details.weekdays]}})));
+    setRows(current=>current.map(row=>({...row,daysCustomized:true,task:{...row.task,...details,weekdays:[...details.weekdays]}})));
     setNotice("Details applied to all tasks, including tasks you add next in this batch. Titles and notes kept.");
   }
   function addRow() {
     if(rows.length>=MAX_BATCH_TASKS) return;
     const key=sequence.current++;
     const details=appliedDetails.current;
-    const task=details?{...blankTask(),...details,weekdays:[...details.weekdays]}:blankTask();
-    setRows(current=>[...current,{key,task,details:false,notesOpen:false}]);
+    const task=details?{...newTaskDraft(category),...details,weekdays:[...details.weekdays]}:newTaskDraft(category);
+    setRows(current=>[...current,{key,task,details:false,notesOpen:false,daysCustomized:!!details}]);
     window.requestAnimationFrame(()=>document.getElementById(`${id}-title-${key}`)?.focus());
   }
   function removeRow(key:number) {
@@ -69,7 +76,7 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
     <div className={styles.bulkHeader}><div><p className={styles.editorEyebrow}>MAKE ROOM FOR WHAT MATTERS</p><h2>Add multiple tasks</h2><p>Create separate tasks in one category.</p></div><button type="button" className={styles.iconButton} disabled={pending} aria-label="Close multiple-task editor" onClick={onClose}>×</button></div>
     <form onSubmit={submit} noValidate aria-busy={pending}>
       <fieldset className={styles.formFields} disabled={pending}>
-        <label className={`${styles.field} ${styles.bulkCategory}`}>Category<select value={category} onChange={event=>setCategory(event.target.value)}>{!category && <option value="" disabled>Choose category</option>}{categories.map(name=><option key={name}>{name}</option>)}</select></label>
+        <label className={`${styles.field} ${styles.bulkCategory}`}>Category<select value={category} onChange={event=>changeCategory(event.target.value)}>{!category && <option value="" disabled>Choose category</option>}{categories.map(name=><option key={name}>{name}</option>)}</select></label>
         <div className={styles.bulkSectionHeading}><h3>Tasks</h3><span>{rows.length} / {MAX_BATCH_TASKS}</span></div>
         <div className={styles.bulkRows}>{rows.map((row,index)=><section key={row.key} className={styles.bulkRow} aria-label={`Task ${index+1}`}>
           <div className={styles.bulkTitleRow}><span className={styles.taskNumber}>{index+1}</span><label className={styles.field}><span className={styles.srOnly}>Task {index+1} title</span><input id={`${id}-title-${row.key}`} value={row.task.title} onChange={event=>update(row.key,"title",event.target.value)} maxLength={200} required placeholder="What would you like to do?" data-autofocus={index===0} aria-invalid={!!error && !row.task.title.trim()} /></label><button type="button" className={styles.iconButton} aria-label={`Remove task ${index+1}`} disabled={rows.length===1} onClick={()=>removeRow(row.key)}>×</button></div>
@@ -77,7 +84,7 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
           <button type="button" className={styles.detailsToggle} aria-expanded={row.details} aria-controls={`${id}-details-${row.key}`} onClick={()=>setRows(current=>current.map(item=>item.key===row.key?{...item,details:!item.details}:item))}>{row.details?"Hide details":"Task details"}<span aria-hidden="true">{row.details?"−":"+"}</span></button>
           <div id={`${id}-details-${row.key}`} hidden={!row.details}>
             <div className={styles.bulkDetails}>
-              <div className={styles.dateFields}><label className={styles.field}><span>Due date<span className={styles.srOnly}> for task {index+1}</span></span><input id={`${id}-date-${row.key}`} type="date" value={row.task.date} onInput={event=>{update(row.key,"date",event.currentTarget.value);if(!event.currentTarget.value)update(row.key,"time","");}} onChange={event=>{update(row.key,"date",event.target.value);if(!event.target.value)update(row.key,"time","");}} /></label><label className={styles.field}><span>Time <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span></span><input type="time" value={row.task.time} onInput={event=>update(row.key,"time",event.currentTarget.value)} onChange={event=>update(row.key,"time",event.target.value)} /></label></div>
+              <div className={styles.dateFields}><label className={styles.field}><span>Due date<span className={styles.srOnly}> for task {index+1}</span></span><input id={`${id}-date-${row.key}`} type="date" value={row.task.date} onInput={event=>{update(row.key,"date",event.currentTarget.value);if(!event.currentTarget.value)update(row.key,"time","");}} onChange={event=>{update(row.key,"date",event.target.value);if(!event.target.value)update(row.key,"time","");}} /></label><div className={styles.field}><span>Time <span className={styles.optional}>optional</span></span><TaskTime value={row.task.time} onChange={value=>update(row.key,"time",value)} label={`Time for task ${index+1}`}/></div></div>
               <p className={styles.editorHint}>India time · Mumbai</p>
               <TaskRepeat task={row.task} onChange={rule=>update(row.key,"repeat",rule)} onDaysChange={days=>update(row.key,"weekdays",days)} label={`Repeat for task ${index+1}`}/>
               <label className={styles.property}><span>Priority<span className={styles.srOnly}> for task {index+1}</span></span><select value={row.task.priority} onChange={event=>update(row.key,"priority",event.target.value as Priority)}>{PRIORITIES.map(item=><option key={item}>{item}</option>)}</select></label>
