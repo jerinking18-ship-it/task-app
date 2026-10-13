@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Category, Dataset, TaskAction, TaskRow } from "./model";
 import { MEETING_CATEGORIES } from "./model";
-import { decodeCategory, decodeRow } from "./validation";
+import { decodeCategory, decodeRow, timestamp } from "./validation";
 
 const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name";
 export class TaskError extends Error {
@@ -97,7 +97,17 @@ export class TaskRepository {
       expected_series_version:input.action==="update"?(input.seriesVersion??input.version):null
     });
     check(error);
-    if (data && !data.conflict) return input.action === "delete" ? {deleted:decodeRow(data).id} : {task:decodeRow(data)};
+    if (data && !data.conflict) {
+      if (input.action === "delete") {
+        // Deleted tasks have no live series version when no occurrence remains.
+        // Confirm the committed Bin move without treating that null as a live row.
+        const deleted = decodeRow({...data,series_version:data.series_version ?? undefined});
+        if (deleted.id !== input.id || !timestamp(data.deleted_at))
+          throw new TaskError(503,"We couldn’t confirm moving this task. Refresh to check Bin before trying again.");
+        return {deleted:deleted.id};
+      }
+      return {task:decodeRow(data)};
+    }
     const current = await this.client.from("tasks").select(TASK_COLUMNS).eq("id",input.id).eq("owner_id",this.owner).is("deleted_at",null).maybeSingle();
     check(current.error);
     if (!current.data) throw new TaskError(404,"This task is no longer available. Your draft has been kept.");
