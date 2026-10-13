@@ -15,7 +15,8 @@
     "test:supabase": "node --test scripts/supabase-foundation.test.mjs",
     "test:auth": "node --test scripts/auth-flow.test.mjs",
     "test:tasks": "node --test scripts/tasks.test.mjs",
-    "test:members": "node --test scripts/members.test.mjs"
+    "test:members": "node --test scripts/members.test.mjs",
+    "test:bin": "node --test scripts/bin.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
