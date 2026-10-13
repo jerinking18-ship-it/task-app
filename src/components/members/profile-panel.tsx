@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import AccountControls from "@/components/auth/account-controls";
-import { decodeMembers, MEMBER_LIMIT, memberName, memberSeen, type MemberState } from "@/lib/members/model";
+import { decodeMemberResponse, MEMBER_LIMIT, memberName, memberSeen, type MemberState } from "@/lib/members/model";
 import { isRecord } from "@/lib/tasks/validation";
 import styles from "./profile.module.css";
 
@@ -58,7 +58,7 @@ export default function ProfilePanel({ state, email, loading, error, disabled, n
         if (response.status === 401) setExpired(true);
         throw new Error(isRecord(body) && typeof body.message === "string" ? body.message : "Unable to save your name. Please try again.");
       }
-      const next = decodeMembers(body);
+      const next = decodeMemberResponse(body);
       if (next.current?.id !== member.id) throw new Error("Refresh your profile to confirm your saved name.");
       onSaved(next); onDirty(false); setEditing(false); setFeedback("Name updated");
     } catch (reason) { setProblem(reason instanceof Error ? reason.message : "We couldn’t confirm the save. Cancel and refresh your profile before retrying."); }
