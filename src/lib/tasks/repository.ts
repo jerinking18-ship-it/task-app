@@ -3,7 +3,7 @@ import type { Category, Dataset, TaskAction, TaskRow } from "./model";
 import { MEETING_CATEGORIES } from "./model";
 import { decodeCategory, decodeRow } from "./validation";
 
-const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at";
+const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name";
 export class TaskError extends Error {
   constructor(public status: number, message: string, public latest?: TaskRow, public categories?: Category[], public future?:TaskRow[]) { super(message); }
 }

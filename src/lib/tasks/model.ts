@@ -17,7 +17,7 @@ export type Task = {
   time: string; priority: Priority; category: string; reminder: string;
   notification: boolean; email: boolean; repeat: Repeat;
   seriesId: string | null; historyAt: string | null; availableAt: string | null; repeatAnchor: number | null; seriesVersion:string;
-  createdAt: string; updatedAt: string; completedAt:string|null; weekdays: number[];
+  createdAt: string; updatedAt: string; completedAt:string|null; completedById:string|null; completedByName:string|null; weekdays: number[];
 };
 export type Category = { id: string; name: string };
 export type TaskFields = {
@@ -29,6 +29,7 @@ export type TaskFields = {
 };
 export type TaskRow = TaskFields & {
   id: string; created_at: string; updated_at: string; completed_at: string | null;
+  completed_by_member_id?: string | null; completed_by_name?: string | null;
   series_id?: string | null; history_at?: string | null; available_at?: string | null; repeat_anchor_day?: number | null; series_version?:string;
 };
 export type Dataset = { tasks: TaskRow[]; categories: Category[]; timezone: "Asia/Kolkata" | null };
@@ -44,7 +45,7 @@ export type TaskAction =
 
 export function blankTask(): Task {
   return { id: "", title: "", notes: "", completed: false, date: "", time: "", priority: "Medium",
-    category: "", reminder: "Off", notification: false, email: false, repeat: "Off", seriesId:null,historyAt:null,availableAt:null,repeatAnchor:null,seriesVersion:"",createdAt: "", updatedAt: "",completedAt:null, weekdays: [] };
+    category: "", reminder: "Off", notification: false, email: false, repeat: "Off", seriesId:null,historyAt:null,availableAt:null,repeatAnchor:null,seriesVersion:"",createdAt: "", updatedAt: "",completedAt:null,completedById:null,completedByName:null, weekdays: [] };
 }
 export function mapTask(row: TaskRow, categories: Category[]): Task {
   const category = row.category_id ? categories.find(c => c.id === row.category_id) : null;
@@ -52,7 +53,8 @@ export function mapTask(row: TaskRow, categories: Category[]): Task {
   return { ...blankTask(), id: row.id, title: row.title, notes: row.notes ?? "", completed: row.status === "completed",
     date: row.due_date ?? "", time: row.due_time?.slice(0, 5) ?? "",
     priority: (row.priority[0].toUpperCase() + row.priority.slice(1)) as Priority,
-    category: category?.name ?? "", createdAt: row.created_at, updatedAt: row.updated_at,completedAt:row.completed_at, weekdays: [...row.weekdays],
+    category: category?.name ?? "", createdAt: row.created_at, updatedAt: row.updated_at,completedAt:row.completed_at,
+    completedById:row.completed_by_member_id ?? null,completedByName:row.completed_by_name ?? null, weekdays: [...row.weekdays],
     repeat: REPEATS.find(rule=>rule.toLowerCase()===(row.repeat_rule ?? "off")) ?? "Off",
     seriesId:row.series_id ?? null,historyAt:row.history_at ?? null,availableAt:row.available_at ?? null,repeatAnchor:row.repeat_anchor_day ?? null,seriesVersion:row.series_version ?? row.updated_at };
 }
