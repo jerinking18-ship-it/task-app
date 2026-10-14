@@ -1,6 +1,7 @@
-import { isRecord, uuid } from "@/lib/tasks/validation";
+import { isRecord, uuid, date } from "@/lib/tasks/validation";
 import { memberName, type MemberRole } from "@/lib/members/model";
 export type WorkspaceAction =
+ | {action:"absent";categoryId:string;meetingDate:string|null;confirmed:true}
  | {action:"invite";email:string;role:"member"|"coordinator";replaceId?:string}
  | {action:"accept";token:string;name:string}
  | {action:"revoke";id:string;confirmed:true}
@@ -12,6 +13,8 @@ export function workspaceAction(value:unknown):WorkspaceAction|null {
  const role=value.role==="member"||value.role==="coordinator";
  if(value.action==="invite"&&only(["action","email","role","replaceId"])&&typeof value.email==="string"&&value.email.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email)&&role&&(value.replaceId===undefined||uuid(value.replaceId)))return value as WorkspaceAction;
  if(value.action==="accept"&&only(["action","token","name"])&&typeof value.token==="string"&&/^[a-f0-9]{64}$/.test(value.token)&&memberName(value.name))return {...value,name:memberName(value.name)!} as WorkspaceAction;
+ if(value.action==="absent"&&only(["action","categoryId","meetingDate","confirmed"])&&uuid(value.categoryId)&&value.confirmed===true
+ &&(value.meetingDate===null||date(value.meetingDate)))return value as WorkspaceAction;
  if(value.confirmed!==true||!uuid(value.id))return null;
  if((value.action==="revoke"||value.action==="transfer")&&only(["action","id","confirmed"]))return value as WorkspaceAction;
  if(value.action==="role"&&only(["action","id","previousRole","role","confirmed"])&&role&&["member","coordinator"].includes(value.previousRole as string))return value as WorkspaceAction;
@@ -19,6 +22,7 @@ export function workspaceAction(value:unknown):WorkspaceAction|null {
 }
 export function workspaceRpc(action:WorkspaceAction):{name:string;args:Record<string,unknown>} {
  switch(action.action){
+ case "absent":return {name:"task_app_mark_absent",args:{selected_category:action.categoryId,selected_date:action.meetingDate,confirmed:true}};
  case "invite":return {name:"task_app_invite",args:{invited_email:action.email,invited_role:action.role,replace_invitation:action.replaceId??null}};
  case "accept":return {name:"task_app_accept_invitation",args:{invitation_token:action.token,member_name:action.name}};
  case "revoke":return {name:"task_app_revoke_invitation",args:{invitation_id:action.id}};
