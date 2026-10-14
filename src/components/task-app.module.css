@@ -1889,3 +1889,20 @@
 
 /* Occurrence-only absence coverage, shared across the existing task views. */
 .coverageLabel{padding-right:112px;min-height:44px;align-items:flex-start;padding-top:2px}.coverageLabel>svg{margin-top:2px}.coverageLabel small{display:block;font-size:11px;line-height:1.5;color:#7b8492;font-weight:400;margin-top:3px;overflow-wrap:anywhere}.takeTaskButton,.takeTaskConfirm{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #1b304b;border-radius:9px;background:#1b304b;color:#fffdf8;font:inherit;font-size:12px;font-weight:500;padding:10px 14px;cursor:pointer}.takeTaskButton{position:absolute;bottom:18px;right:24px;z-index:1}.takeTaskConfirm{font-size:13px;padding:11px 18px}.takeTaskButton:hover:not(:disabled),.takeTaskConfirm:hover:not(:disabled){background:#29415e;border-color:#29415e}.takeTaskButton:focus-visible,.takeTaskConfirm:focus-visible{outline:2px solid #71839b;outline-offset:3px}.takeTaskButton:disabled,.takeTaskConfirm:disabled{opacity:.55;cursor:default}@media(max-width:760px){.takeTaskButton{right:16px;bottom:15px;padding:10px 12px}.coverageLabel{padding-right:100px}.coverageLabel small{font-size:10px}}
+
+/* Approved compact absence coverage footer. */
+
+.taskMeta .coverageLabel{margin-top:6px;padding:0 108px 0 0;min-height:54px;align-items:center;box-sizing:border-box}
+.coverageInfo{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;max-width:100%}
+.coverageBadge{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid #d0dfd5;border-radius:6px;background:#eef5ef;color:#3e7055;font-size:11px;font-weight:500;line-height:1.4;white-space:nowrap}
+.coverageStatusDot{width:5px;height:5px;flex-shrink:0;border-radius:50%;background:#568365}
+
+.coverageOwner{display:block;color:#617188;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.coverageOwner svg{display:inline-block;margin-right:4px;vertical-align:-2px}
+.coverageOwner strong{color:#263c55;font-weight:500}
+.takeTaskButton{bottom:22px;right:24px;min-width:88px;min-height:44px;border-radius:9px;box-shadow:0 2px 4px #172a4010}
+@media(max-width:760px){.taskMeta .coverageLabel{padding-right:98px;min-height:54px}.coverageBadge,.coverageOwner{font-size:11px}.takeTaskButton{right:16px;bottom:19px;min-width:82px}}
+
+/* The absent assignee sees availability; teammates see the red help request. */
+.taskMeta .ownCoverageLabel{padding-right:0;min-height:30px}
+.helpMeBadge{display:inline-flex;align-items:center;padding:3px 9px;border:1px solid #df9799;border-radius:6px;background:#fff0ee;color:#bb3b43;font-size:11px;font-weight:500;line-height:1.4}

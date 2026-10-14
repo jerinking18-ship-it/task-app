@@ -2,6 +2,7 @@ import type {Member} from "@/lib/members/model";
 import {matchesTask,type Filters,type Task} from "./model";
 import {isCategoryTaskVisible} from "./meeting-period";
 export function assignmentLabel(task:Task,currentId:string|undefined,members:Member[]):string {
+ if(task.completed&&task.claimOrigin&&task.claimOrigin.takenById===task.assignedToId)return `Assigned to ${task.claimOrigin.memberName}`;
  if(task.assignedToId&&task.assignedToId===currentId)return "Assigned to me";
  if(!task.assignedToId)return "Unassigned";
  const name=members.find(member=>member.id===task.assignedToId)?.name;

@@ -13,7 +13,9 @@ export function categoryOrder(names: string[]) {
     return (first < 0 ? 99 : first) - (second < 0 ? 99 : second) || a.localeCompare(b);
   });
 }
+export type ClaimOrigin = {memberId:string;memberName:string;takenById:string};
 export type Task = {
+  claimOrigin?:ClaimOrigin|null;
   coverage?:Coverage|null; assignedToId?: string | null; id: string; title: string; notes: string; completed: boolean; date: string;
   time: string; priority: Priority; category: string; reminder: string;
   notification: boolean; email: boolean; repeat: Repeat;
@@ -29,6 +31,7 @@ export type TaskFields = {
   repeat_rule?: "off" | "daily" | "weekly" | "monthly";
 };
 export type TaskRow = TaskFields & {
+  claim_origin?:{member_id:string;member_name:string;taken_by_member_id:string}|null;
   coverage?: {absence_id:string;member_id:string;member_name:string;expires_at:string}|null;
   id: string; created_at: string; updated_at: string; completed_at: string | null;
   completed_by_member_id?: string | null; completed_by_name?: string | null;
@@ -60,7 +63,7 @@ export function newTaskDraft(category = ""): Task {
 export function mapTask(row: TaskRow, categories: Category[]): Task {
   const category = row.category_id ? categories.find(c => c.id === row.category_id) : null;
   if (row.category_id && !category) throw new Error("Category data is incomplete. Refresh your tasks.");
-  return { ...blankTask(), coverage:row.coverage?{absenceId:row.coverage.absence_id,memberId:row.coverage.member_id,memberName:row.coverage.member_name,expiresAt:row.coverage.expires_at}:null, assignedToId:row.assigned_to_member_id ?? null, id: row.id, title: row.title, notes: row.notes ?? "", completed: row.status === "completed",
+  return { ...blankTask(), claimOrigin:row.claim_origin?{memberId:row.claim_origin.member_id,memberName:row.claim_origin.member_name,takenById:row.claim_origin.taken_by_member_id}:null, coverage:row.coverage?{absenceId:row.coverage.absence_id,memberId:row.coverage.member_id,memberName:row.coverage.member_name,expiresAt:row.coverage.expires_at}:null, assignedToId:row.assigned_to_member_id ?? null, id: row.id, title: row.title, notes: row.notes ?? "", completed: row.status === "completed",
     date: row.due_date ?? "", time: row.due_time?.slice(0, 5) ?? "",
     priority: (row.priority[0].toUpperCase() + row.priority.slice(1)) as Priority,
     category: category?.name ?? "", createdAt: row.created_at, updatedAt: row.updated_at,completedAt:row.completed_at,

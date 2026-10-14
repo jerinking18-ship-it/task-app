@@ -43,12 +43,28 @@ export class TaskRepository {
     }
     throw new TaskError(503,"There are too many records to load in this version. No partial list is shown.");
   }
+  private async origins() {
+    const {data,error}=await this.client.rpc("task_app_coverage_origins");check(error);
+    if(!Array.isArray(data))throw new TaskError(503,"Original task assignments could not be confirmed. Refresh before continuing.");
+    const origins=new Map<string,{version:string;origin:NonNullable<TaskRow["claim_origin"]>}>();
+    for(const value of data){
+      if(!isRecord(value)||!uuid(value.task_id)||!timestamp(value.version)||!uuid(value.member_id)||!uuid(value.taken_by_member_id)
+        ||value.member_id===value.taken_by_member_id||typeof value.member_name!=="string"||!value.member_name.trim()||value.member_name.length>50||origins.has(value.task_id))
+        throw new TaskError(503,"Original task assignments could not be loaded completely. Refresh before continuing.");
+      origins.set(value.task_id,{version:value.version,origin:{member_id:value.member_id,member_name:value.member_name,taken_by_member_id:value.taken_by_member_id}});
+    }
+    return origins;
+  }
+  private async withOrigin(row:TaskRow):Promise<TaskRow> {
+    const origin=(await this.origins()).get(row.id);
+    return decodeRow({...row,claim_origin:origin?.version===row.updated_at?origin.origin:null});
+  }
   async read(): Promise<Dataset> {
     // Owner-scoped, server-clock catch-up also covers a delayed Cron run. Before
     // midnight this is a no-op. Failed maintenance must never show a partial list.
     const {error}=await this.client.rpc("task_app_release_my_repeats"); check(error);
     const [timezone,tasks,categories] = await Promise.all([this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory)]);
-    const {data:coverage,error:coverageError}=await this.client.rpc("task_app_available_coverage");check(coverageError);
+    const [{data:coverage,error:coverageError},origins]=await Promise.all([this.client.rpc("task_app_available_coverage"),this.origins()]);check(coverageError);
     if(!Array.isArray(coverage))throw new TaskError(503,"Task availability could not be confirmed. Refresh before continuing.");
     const released=new Map<string,{version:string;coverage:NonNullable<TaskRow["coverage"]>}>();
     for(const value of coverage){
@@ -57,7 +73,7 @@ export class TaskRepository {
         throw new TaskError(503,"Task availability could not be loaded completely. Refresh before continuing.");
       released.set(value.task_id,{version:value.version,coverage:{absence_id:value.absence_id,member_id:value.member_id,member_name:value.member_name,expires_at:value.expires_at}});
     }
-    const decorated=tasks.map(task=>{const entry=released.get(task.id);return decodeRow({...task,coverage:entry&&entry.version===task.updated_at?entry.coverage:null});});
+    const decorated=tasks.map(task=>{const entry=released.get(task.id),origin=origins.get(task.id);return decodeRow({...task,coverage:entry&&entry.version===task.updated_at?entry.coverage:null,claim_origin:origin?.version===task.updated_at?origin.origin:null});});
     const versions=new Map<string,string>();
     for(const task of tasks) if(task.series_id && (!versions.has(task.series_id) || task.updated_at>versions.get(task.series_id)!)) versions.set(task.series_id,task.updated_at);
     return {timezone,tasks:decorated.map(task=>({...task,series_version:task.series_id?versions.get(task.series_id):task.updated_at})),categories};
@@ -82,7 +98,7 @@ export class TaskRepository {
       const {data,error}=await this.client.rpc("task_app_take_task",{task_id:input.id,expected_version:input.version,absence_id:input.absenceId,confirmed:input.confirmed});check(error);
       const task=decodeRow(data);
       if(task.id!==input.id)throw new TaskError(503,"Taking this task could not be confirmed. Refresh before trying again.");
-      return {task};
+      return {task:await this.withOrigin(task)};
     }
     const {data,error} = await this.client.rpc("task_app_mutate",{
       task_id:input.id,expected_version:input.version,operation:input.action,
@@ -100,11 +116,11 @@ export class TaskRepository {
           throw new TaskError(503,"We couldn’t confirm moving this task. Refresh to check Bin before trying again.");
         return {deleted:deleted.id};
       }
-      return {task:decodeRow(data)};
+      return {task:await this.withOrigin(decodeRow(data))};
     }
     const current = await this.client.from("tasks").select(TASK_COLUMNS).eq("id",input.id).eq("owner_id",this.owner).is("deleted_at",null).maybeSingle();
     check(current.error);
     if (!current.data) throw new TaskError(404,"This task is no longer available. Your draft has been kept.");
-    throw new TaskError(409,input.action === "delete" ? "This task changed elsewhere. Review the saved version before deleting it." : "This task or a future occurrence changed elsewhere. Review saved tasks before saving your draft.",decodeRow({...current.data,...(data?.series_version?{series_version:data.series_version}:{})}),await this.pages("categories",decodeCategory),Array.isArray(data?.future)?data.future.map(decodeRow):undefined);
+    throw new TaskError(409,input.action === "delete" ? "This task changed elsewhere. Review the saved version before deleting it." : "This task or a future occurrence changed elsewhere. Review saved tasks before saving your draft.",await this.withOrigin(decodeRow({...current.data,...(data?.series_version?{series_version:data.series_version}:{})})),await this.pages("categories",decodeCategory),Array.isArray(data?.future)?data.future.map(decodeRow):undefined);
   }
 }

@@ -27,6 +27,8 @@ Only unfinished, available work in that meeting period becomes available for a t
 
 Task titles, template titles/names and member-name inputs capitalize the first typed letter while preserving later casing. Credentials, notes, search and existing saved content are unchanged.
 
+Migration017 adds a read-only original-assignee lookup for taken occurrences. A completed taken task displays its source assignee separately from the helper who actually completed it; completion and reopening permissions still belong to the helper. Active released work shows a red Help me badge to teammates, while its absent assignee sees Available. My profile's meeting dropdown orders Sunday Service, Healing Meeting, Woman's Meeting, Revival Meeting, then Special Meeting.
+
 ## Data and authorization
 
 Stable workspace owner_id partitions data independently of the current Owner role. Server/RPC checks derive identity and workspace from the verified Auth session. RLS limits shared reads; browser table mutations and legacy identity-picker/mutation function execution are revoked. Checked RPCs enforce current role, assignment, versions, category boundaries, invitation seats and ownership transfer. Private realtime invalidations refresh authorized devices without broadcasting task content.
@@ -35,7 +37,7 @@ Existing recurrence, Bin stop/resume behavior, completion attribution and annual
 
 ## Run locally
 
-The declared production runtime is Node.js24.x. This implementation was tested using the installed local Node.js26.2.0; it has not been retested locally under Node24 or on hosted production.
+The production runtime is Node.js24.x. The final source passed the local Node24.19.0 test suite and production build. Authenticated hosted and two-device workflows still require separate live testing.
 
 ```bash
 npm install
@@ -61,6 +63,6 @@ For isolated browser QA, `node scripts/workspace-ui-fixture.mjs` creates disposa
 
 ## Release boundary
 
-Keep private planning, memory, screenshots, bootstrap identity details, database exports and environment values out of the public release. For this release, apply only reviewed new migration016 after checking the existing verified migration015 workspace and function fingerprints; never replay applied001–015, Owner bootstrap or any completed fresh-data reset. Protected initial Owner setup must preserve the existing verified account/password and refuse unexpected mappings or data. Read-only schema/privilege verification is in `supabase/verification/20261014_workspace_assignment_schema_checks.sql` and `supabase/verification/20261014_absence_coverage_schema_checks.sql`.
+Keep private planning, memory, screenshots, bootstrap identity details, database exports and environment values out of the public release. For this release, apply only reviewed new migration017 after checking the existing migration016 tables and function fingerprints; never replay applied001–016, Owner bootstrap or any completed fresh-data reset. Protected initial Owner setup must preserve the existing verified account/password and refuse unexpected mappings or data. Read-only schema/privilege verification is in `supabase/verification/20261014_workspace_assignment_schema_checks.sql` and `supabase/verification/20261014_absence_coverage_schema_checks.sql` and `supabase/verification/20261014_coverage_original_assignee_checks.sql`.
 
 Hosted database/access changes, real invitations/account tests and Vercel publication require explicit approval. Local tests are evidence of local behavior, not proof of live email delivery, cross-device behavior or a hosted deployment.

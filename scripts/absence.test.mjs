@@ -56,8 +56,8 @@ test('Special absence only blocks helper claims for the same selected meeting',(
  assert.equal(absence.canTakeTask({...task,category:'Special Meeting',date:'2026-10-14'},{...state,absences:[special]},now),false);
  assert.equal(absence.canTakeTask({...task,category:'Special Meeting',date:'2026-10-16'},{...state,absences:[special]},now),true);
 });
-function fixture(coverageData,taskRow=row,claimReply){
- const calls=[];const client={rpc(name,args){calls.push({name,args});return Promise.resolve({data:name==='task_app_available_coverage'?coverageData:name==='task_app_take_task'?claimReply:null,error:null});},from(table){const query={};for(const key of ['select','eq','is','order','limit','gt','maybeSingle'])query[key]=()=>query;query.then=(resolve,reject)=>Promise.resolve({data:table==='tasks'?[taskRow]:table==='categories'?[{id:id(5),name:a.category}]:{timezone:'Asia/Kolkata'},error:null}).then(resolve,reject);return query;}};
+function fixture(coverageData,taskRow=row,claimReply,originData=[]){
+ const calls=[];const client={rpc(name,args){calls.push({name,args});return Promise.resolve({data:name==='task_app_available_coverage'?coverageData:name==='task_app_take_task'||name==='task_app_mutate'?claimReply:name==='task_app_coverage_origins'?originData:null,error:null});},from(table){const query={};for(const key of ['select','eq','is','order','limit','gt','maybeSingle'])query[key]=()=>query;query.then=(resolve,reject)=>Promise.resolve({data:table==='tasks'?[taskRow]:table==='categories'?[{id:id(5),name:a.category}]:{timezone:'Asia/Kolkata'},error:null}).then(resolve,reject);return query;}};
  return {repo:new repository.TaskRepository(client,id(1)),calls};
 }
 const available={task_id:row.id,version:stamp,...coverage};
@@ -69,6 +69,23 @@ test('repository decorates only the same task version and rejects malformed or d
 test('claim uses dedicated scoped RPC without client-supplied helper identity and checks returned task',async()=>{
  const f=fixture([],row,{...row,assigned_to_member_id:helper.id,coverage:null});
  const result=await f.repo.mutate({action:'take',id:row.id,version:stamp,absenceId:a.id,confirmed:true});
- assert.equal(result.task.assigned_to_member_id,helper.id);assert.equal(f.calls.length,1);assert.equal(f.calls[0].name,'task_app_take_task');assert.deepEqual(Object.keys(f.calls[0].args).sort(),['absence_id','confirmed','expected_version','task_id']);
+ assert.equal(result.task.assigned_to_member_id,helper.id);assert.equal(f.calls.length,2);assert.equal(f.calls[1].name,'task_app_coverage_origins');assert.equal(f.calls[0].name,'task_app_take_task');assert.deepEqual(Object.keys(f.calls[0].args).sort(),['absence_id','confirmed','expected_version','task_id']);
  await assert.rejects(()=>fixture([],row,{...row,id:id(99)}).repo.mutate({action:'take',id:row.id,version:stamp,absenceId:a.id,confirmed:true}));
+});
+
+const origin={task_id:row.id,version:stamp,member_id:person.id,member_name:person.name,taken_by_member_id:helper.id};
+test('original assignment survives reads and immediate completion replies without changing the acting assignee',async()=>{
+ const taken={...row,assigned_to_member_id:helper.id};
+ const read=await fixture([],taken,undefined,[origin]).repo.read();
+ assert.equal(read.tasks[0].claim_origin.member_id,person.id);assert.equal(read.tasks[0].assigned_to_member_id,helper.id);
+ const done={...taken,status:'completed',completed_at:stamp,completed_by_member_id:helper.id,completed_by_name:helper.name};
+ const result=await fixture([],taken,done,[origin]).repo.mutate({action:'status',id:row.id,version:stamp,status:'completed'});
+ assert.equal(result.task.claim_origin.member_name,'Sarah');assert.equal(result.task.completed_by_name,'Jerin');assert.equal(result.task.assigned_to_member_id,helper.id);
+ const mapped=model.mapTask(result.task,[{id:id(5),name:a.category}]);assert.equal(mapped.claimOrigin.memberName,'Sarah');assert.equal(mapped.completedByName,'Jerin');
+ const stale=await fixture([],taken,undefined,[{...origin,version:'2026-10-13T06:00:00Z'}]).repo.read();assert.equal(stale.tasks[0].claim_origin,null);
+});
+test('provenance rejects malformed, duplicate, mismatched and client-injected identities',async()=>{
+ for(const data of [null,[origin,origin],[{...origin,member_id:helper.id}],[{...origin,member_name:''}],[{...origin,version:'bad'}],[{...origin,taken_by_member_id:id(99)}]])await assert.rejects(()=>fixture([],{...row,assigned_to_member_id:helper.id},undefined,data).repo.read());
+ assert.equal(validation.validateAction({action:'take',id:row.id,version:stamp,absenceId:a.id,confirmed:true,claim_origin:origin}),null);
+ assert.equal(validation.validateAction({action:'status',id:row.id,version:stamp,status:'completed',claim_origin:origin}),null);
 });
