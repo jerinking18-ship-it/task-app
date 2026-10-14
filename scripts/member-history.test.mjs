@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 import ts from 'typescript';
 const require=createRequire(import.meta.url);
-function load(file,deps={},globals={}){const exports={};const {outputText}=ts.transpileModule(readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});vm.runInNewContext(outputText,{exports,Date,Intl,Set,Map,Promise,URL,TextDecoder,Uint8Array,JSON,...globals,require(name){if(name in deps)return deps[name];if(name==='next/server')return require(name);throw Error(name);}});return exports;}
+function load(file,deps={},globals={}){const exports={};const {outputText}=ts.transpileModule(readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}});vm.runInNewContext(outputText,{exports,Date,Intl,Set,Map,Promise,URL,TextDecoder,Uint8Array,JSON,...globals,require(name){if(name in deps)return deps[name];if(name==='next/server')return require(name);throw Error(name);}});return exports;}
 const tasks=load('../src/lib/tasks/model.ts');
 const validation=load('../src/lib/tasks/validation.ts',{'./model':tasks});
 const model=load('../src/lib/member-history/model.ts',{'@/lib/tasks/model':tasks,'@/lib/tasks/validation':validation});
@@ -31,14 +31,44 @@ test('Only selected member/category unexpired completions appear; cutoff removes
  assert.equal(model.visibleCompletions(data,id,'Sunday Service',new Date(data.serverNow)).length,1);assert.equal(model.visibleCompletions(data,other,'Sunday Service',new Date(data.serverNow)).length,0);assert.equal(model.visibleCompletions(data,id,'Healing Meeting',new Date(data.serverNow)).length,0);
  assert.equal(model.visibleCompletions(data,id,'Sunday Service',new Date('2026-10-12T18:20:00Z')).length,0);assert.equal(model.yearlyTotal({...data,entries:[]},id,new Date(data.serverNow)),125);
 });
-test('Special overrides main category at midnight then returns to current weekly category after next-day23:50',()=>{
- const rows={...data,specialWindows:[{startsAt:'2026-10-12T18:30:00Z',endsAt:'2026-10-14T18:20:00Z'}]};
- assert.equal(model.reportSchedule(rows,new Date('2026-10-12T18:29:59Z')).category,'Healing Meeting');assert.equal(model.reportSchedule(rows,new Date('2026-10-12T18:30:00Z')).category,'Special Meeting');assert.equal(model.reportSchedule(rows,new Date('2026-10-14T18:19:59Z')).category,'Special Meeting');assert.equal(model.reportSchedule(rows,new Date('2026-10-14T18:20:00Z')).category,'Healing Meeting');
- assert.equal(model.reportSchedule(rows,new Date('2026-10-12T18:20:00Z')).boundary,'2026-10-12T18:30:00Z');
+test('Scheduled Special Meetings never replace the regular category, including exact weekly cutoffs',()=>{
+ const rows={...data,specialWindows:[{startsAt:'2026-10-12T18:30:00Z',endsAt:'2026-10-18T18:20:00Z'}]};
+ for(const [time,category] of [['2026-10-12T18:30:00Z','Healing Meeting'],['2026-10-15T18:19:59Z','Healing Meeting'],['2026-10-15T18:20:00Z',"Woman's Meeting"],['2026-10-16T18:20:00Z','Revival Meeting'],['2026-10-17T18:20:00Z','Sunday Service']])assert.equal(model.reportSchedule(rows,new Date(time)).category,category);
+ assert.equal(model.reportSchedule(rows,new Date('2026-10-14T12:00:00Z')).resetAt,'2026-10-15T18:20:00.000Z');
 });
-test('Overlapping Special days merge for display without modifying input or extending individual entry expiry',()=>{
- const rows={...data,specialWindows:[{startsAt:'2026-10-12T18:30:00Z',endsAt:'2026-10-14T18:20:00Z'},{startsAt:'2026-10-13T18:30:00Z',endsAt:'2026-10-15T18:20:00Z'}]};
- assert.equal(model.reportSchedule(rows,new Date('2026-10-14T18:20:00Z')).category,'Special Meeting');assert.equal(model.reportSchedule(rows,new Date('2026-10-14T18:20:00Z')).resetAt,'2026-10-15T18:20:00Z');assert.equal(rows.specialWindows[0].endsAt,'2026-10-14T18:20:00Z');
+test('Special completion deadlines stay independent across overlapping days and trigger timely refresh',()=>{
+ const special=(id,expiresAt)=>({...data.entries[0],id,category:'Special Meeting',completedAt:'2026-10-13T07:25:00Z',expiresAt});
+ const rows={...data,entries:[special(taskId,'2026-10-14T18:20:00Z'),special(other,'2026-10-15T18:20:00Z')],specialWindows:[{startsAt:'2026-10-12T18:30:00Z',endsAt:'2026-10-15T18:20:00Z'}]};
+ const before=new Date('2026-10-14T18:19:59Z'),after=new Date('2026-10-14T18:20:00Z');
+ assert.equal(model.reportSchedule(rows,before).boundary,'2026-10-14T18:20:00.000Z');
+ assert.equal(model.visibleCompletions(rows,id,'Special Meeting',before).length,2);
+ const remaining=model.visibleCompletions(rows,id,'Special Meeting',after);assert.equal(remaining.length,1);
+ assert.equal(model.specialResetLabel(remaining),'Next clears Thursday, Oct 15 · 11:50 PM IST');
+ assert.equal(model.reportSchedule(rows,after).category,'Healing Meeting');
+ assert.equal(model.yearlyTotal(rows,id,after),125);
+ assert.equal(rows.entries[0].expiresAt,'2026-10-14T18:20:00Z');
+});
+const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+const Panel=load('../src/components/members/member-history-panel.tsx',{'react':React,'react/jsx-runtime':require('react/jsx-runtime'),'@/lib/member-history/model':model,'./member-history.module.css':{default:new Proxy({},{get:(_,name)=>String(name)})}}).default;
+function renderHistory(rows,member=id,hasSpecialTasks=false){return renderToStaticMarkup(React.createElement(Panel,{data:rows,now:new Date('2026-10-14T07:25:00Z'),loading:false,error:'',currentMemberId:member,hasSpecialTasks,onRefresh(){}}));}
+test('Report renders only the period category followed by separate Special entries for the selected member',()=>{
+ const entry=(memberId,category,title,index)=>({...data.entries[0],id:String(index),memberId,category,title,completedAt:'2026-10-14T07:00:00Z',expiresAt:'2026-10-15T18:20:00Z'});
+ const rows={...data,entries:[entry(id,'Healing Meeting','Daniel healing',1),entry(id,'Sunday Service','Daniel Sunday',2),entry(id,'Special Meeting','Daniel special',3),entry(other,'Healing Meeting','Grace healing',4),entry(other,'Special Meeting','Grace special',5)]};
+ for(const [member,name,notName] of [[id,'Daniel','Grace'],[other,'Grace','Daniel']]){
+  const html=renderHistory(rows,member);assert.ok(html.indexOf('Healing Meeting completed history')<html.indexOf('Special Meeting completed history'));
+  assert.match(html,new RegExp(name+' healing'));assert.match(html,new RegExp(name+' special'));
+  assert.doesNotMatch(html,new RegExp(notName+' healing|'+notName+' special|Daniel Sunday'));
+  assert.match(html,/<strong class="number">2<\/strong><span class="statLabel">Visible history/);
+ }
+});
+test('Special section is conditional, shows an empty state for active/no-date tasks and does not inflate visible count',()=>{
+ const rows={...data,entries:[],specialWindows:[]};
+ assert.doesNotMatch(renderHistory(rows),/Special Meeting completed history/);
+ const active=renderHistory(rows,id,true);assert.match(active,/Special Meeting completed history/);assert.match(active,/Completed Special Meeting tasks will appear here/);
+ assert.match(active,/<strong class="number">0<\/strong><span class="statLabel">Visible history/);
+ const scheduled={...rows,specialWindows:[{startsAt:'2026-10-15T18:30:00Z',endsAt:'2026-10-17T18:20:00Z'}]};
+ assert.match(renderHistory(scheduled),/Special Meeting completed history/);
+ const expired={...rows,entries:[{...data.entries[0],category:'Special Meeting'}]};assert.doesNotMatch(renderHistory(expired),/Special Meeting completed history/);
 });
 test('Completion formatting uses India timestamp and weekday',()=>{assert.equal(model.completionTime('2026-10-14T07:25:00Z'),'Oct 14 · 12:55 PM · Wed');});
 test('Repository calls only the authenticated read RPC and never accepts corrupt or private provider errors',async()=>{
