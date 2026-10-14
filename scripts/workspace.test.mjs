@@ -10,7 +10,8 @@ const tasks=load('../src/lib/tasks/model.ts');const validation=load('../src/lib/
 const members=load('../src/lib/members/model.ts',{'@/lib/tasks/validation':validation});
 const model=load('../src/lib/workspace/model.ts',{'@/lib/tasks/validation':validation,'@/lib/members/model':members});
 const meeting=load('../src/lib/tasks/meeting-period.ts',{'./model':tasks});
-const assignments=load('../src/lib/tasks/assignment.ts',{'./model':tasks,'./meeting-period':meeting});
+const displayNames=load('../src/lib/members/display-name.ts');
+const assignments=load('../src/lib/tasks/assignment.ts',{'./model':tasks,'./meeting-period':meeting,'@/lib/members/display-name':displayNames});
 const server=load('../src/lib/members/server.ts',{'./model':members});
 const id='00000000-0000-4000-8000-000000000001',other='00000000-0000-4000-8000-000000000002',stamp='2026-10-14T07:25:00Z',token='a'.repeat(64);
 const member={id,name:'Jerin',role:'owner',createdAt:stamp,lastSeenAt:stamp};
@@ -67,4 +68,26 @@ test('completed coverage task displays original assignee for everyone, preservin
  assert.equal(assignments.assignmentLabel({...task,claimOrigin:null},id,state.members),'Assigned to me');
  assert.equal(assignments.assignmentLabel({...task,assignedToId:other},other,state.members),'Assigned to me');
  assert.equal(task.completedByName,'Jerin');
+});
+
+test('renamed profiles resolve cached attribution by identity while preserving snapshots and former-member fallback',()=>{
+ const directory=[{id,name:'Jerin New'},{id:other,name:'Sarah New'}];
+ assert.equal(displayNames.displayMemberName(id,'Jerin',directory),'Jerin New');
+ assert.equal(displayNames.displayMemberName(other,'Sarah',directory),'Sarah New');
+ assert.equal(displayNames.displayMemberName('00000000-0000-4000-8000-000000000099','Former name',directory),'Former name');
+ assert.equal(displayNames.displayMemberName(null,'Legacy name',directory),'Legacy name');
+ assert.equal(displayNames.displayMemberName(null,null,directory),null);
+ const completion={...tasks.blankTask(),assignedToId:id,completed:true,completedById:id,completedByName:'Jerin',completedAt:stamp,claimOrigin:{memberId:other,memberName:'Sarah',takenById:id}};
+ const before=JSON.stringify(completion);
+ assert.equal(assignments.assignmentLabel(completion,id,directory),'Assigned to Sarah New');
+ assert.equal(displayNames.displayMemberName(completion.completedById,completion.completedByName,directory),'Jerin New');
+ assert.equal(JSON.stringify(completion),before);
+ assert.equal(members.canChangeTaskStatus(state,completion.assignedToId),true);
+ assert.equal(displayNames.displayMemberName(other,'Jerin',[{id,name:'Different person'}]),'Jerin');
+});
+
+test('Changed completion requires the actual helper author and original assignee provenance',()=>{
+ const completed={...tasks.blankTask(),completed:true,assignedToId:id,completedById:id,claimOrigin:{memberId:other,memberName:'Sarah',takenById:id}};
+ assert.equal(assignments.isChangedCompletion(completed),true);
+ for(const patch of [{completed:false},{claimOrigin:null},{completedById:other},{completedById:null},{assignedToId:other},{claimOrigin:{...completed.claimOrigin,memberId:id}}])assert.equal(assignments.isChangedCompletion({...completed,...patch}),false);
 });

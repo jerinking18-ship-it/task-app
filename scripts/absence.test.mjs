@@ -57,7 +57,7 @@ test('Special absence only blocks helper claims for the same selected meeting',(
  assert.equal(absence.canTakeTask({...task,category:'Special Meeting',date:'2026-10-16'},{...state,absences:[special]},now),true);
 });
 function fixture(coverageData,taskRow=row,claimReply,originData=[]){
- const calls=[];const client={rpc(name,args){calls.push({name,args});return Promise.resolve({data:name==='task_app_available_coverage'?coverageData:name==='task_app_take_task'||name==='task_app_mutate'?claimReply:name==='task_app_coverage_origins'?originData:null,error:null});},from(table){const query={};for(const key of ['select','eq','is','order','limit','gt','maybeSingle'])query[key]=()=>query;query.then=(resolve,reject)=>Promise.resolve({data:table==='tasks'?[taskRow]:table==='categories'?[{id:id(5),name:a.category}]:{timezone:'Asia/Kolkata'},error:null}).then(resolve,reject);return query;}};
+ const calls=[];const client={rpc(name,args){calls.push({name,args});return Promise.resolve({data:name==='task_app_available_coverage'?coverageData:name==='task_app_take_task'||name==='task_app_mutate'?claimReply:name==='task_app_coverage_origins'?originData:name==='task_app_member_names'?[{id:person.id,name:person.name},{id:helper.id,name:helper.name}]:null,error:null});},from(table){const query={};for(const key of ['select','eq','is','order','limit','gt','maybeSingle'])query[key]=()=>query;query.then=(resolve,reject)=>Promise.resolve({data:table==='tasks'?[taskRow]:table==='account_members'?[{id:person.id,name:person.name},{id:helper.id,name:helper.name}]:table==='categories'?[{id:id(5),name:a.category}]:{timezone:'Asia/Kolkata'},error:null}).then(resolve,reject);return query;}};
  return {repo:new repository.TaskRepository(client,id(1)),calls};
 }
 const available={task_id:row.id,version:stamp,...coverage};
@@ -69,7 +69,7 @@ test('repository decorates only the same task version and rejects malformed or d
 test('claim uses dedicated scoped RPC without client-supplied helper identity and checks returned task',async()=>{
  const f=fixture([],row,{...row,assigned_to_member_id:helper.id,coverage:null});
  const result=await f.repo.mutate({action:'take',id:row.id,version:stamp,absenceId:a.id,confirmed:true});
- assert.equal(result.task.assigned_to_member_id,helper.id);assert.equal(f.calls.length,2);assert.equal(f.calls[1].name,'task_app_coverage_origins');assert.equal(f.calls[0].name,'task_app_take_task');assert.deepEqual(Object.keys(f.calls[0].args).sort(),['absence_id','confirmed','expected_version','task_id']);
+ assert.equal(result.task.assigned_to_member_id,helper.id);assert.equal(f.calls.length,3);assert.equal(f.calls[1].name,'task_app_coverage_origins');assert.equal(f.calls[2].name,'task_app_member_names');assert.equal(f.calls[2].args,undefined);assert.equal(f.calls[0].name,'task_app_take_task');assert.deepEqual(Object.keys(f.calls[0].args).sort(),['absence_id','confirmed','expected_version','task_id']);
  await assert.rejects(()=>fixture([],row,{...row,id:id(99)}).repo.mutate({action:'take',id:row.id,version:stamp,absenceId:a.id,confirmed:true}));
 });
 

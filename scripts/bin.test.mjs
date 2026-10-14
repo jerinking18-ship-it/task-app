@@ -27,10 +27,10 @@ test('Deletion label uses actual India time and local midnight age boundaries',(
  assert.equal(bin.deletionLabel('2026-10-12T18:29:59Z',new Date('2026-10-12T18:30:00Z')),'Deleted yesterday · 11:59 PM');
  assert.equal(bin.deletionLabel('2026-10-13T07:25:00Z',new Date('2026-10-16T07:25:00Z')),'Deleted 3 days ago · 12:55 PM');assert.equal(bin.deletionLabel('bad'),'Deletion time unavailable');
 });
-function repositoryFixture(respond){const calls=[];return {calls,repo:new BinRepository({rpc(name,args){calls.push({name,args});return name==='task_app_deleted_templates'?{data:[],error:null}:respond({name,args});},from(table){const ops=[];const q={};for(const method of ['select','eq','not','order','limit','gt'])q[method]=(...args)=>{ops.push([method,...args]);return q;};q.then=(resolve,reject)=>Promise.resolve(respond({table,ops})).then(resolve,reject);calls.push({table,ops});return q;}},owner)};}
+function repositoryFixture(respond,names=[]){const calls=[];return {calls,repo:new BinRepository({rpc(name,args){calls.push({name,args});return name==='task_app_deleted_templates'?{data:[],error:null}:name==='task_app_member_names'?{data:names,error:null}:respond({name,args});},from(table){const ops=[];const q={};for(const method of ['select','eq','not','order','limit','gt'])q[method]=(...args)=>{ops.push([method,...args]);return q;};q.then=(resolve,reject)=>Promise.resolve(respond({table,ops})).then(resolve,reject);calls.push({table,ops});return q;}},owner)};}
 test('Bin reads are owner-scoped, exclude live tasks and page completely past500 without partial acceptance',async()=>{
  const rows=Array.from({length:501},(_,i)=>({...row,id:`00000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`}));
- const f=repositoryFixture(c=>({data:c.table==='categories'?[]:c.ops.some(o=>o[0]==='gt')?rows.slice(500):rows.slice(0,500),error:null}));
+ const f=repositoryFixture(c=>({data:c.table==='categories'||c.table==='account_members'?[]:c.ops.some(o=>o[0]==='gt')?rows.slice(500):rows.slice(0,500),error:null}));
  const result=await f.repo.read();assert.equal(result.tasks.length,501);
  for(const c of f.calls.filter(c=>c.table)){assert.ok(c.ops.some(o=>o[0]==='eq'&&o[1]==='owner_id'&&o[2]===owner));if(c.table==='tasks')assert.ok(c.ops.some(o=>o[0]==='not'&&o[1]==='deleted_at'&&o[2]==='is'&&o[3]===null));}
  const broken=repositoryFixture(()=>({data:null,error:{code:'provider-private'}}));await assert.rejects(()=>broken.repo.read(),e=>e.status===503&&!e.message.includes('provider-private'));
@@ -92,4 +92,23 @@ test('Right-click and keyboard options are accessible without triggering edit or
  const f=dragFixture(),task=model.blankTask(),h=f.api.handle(task);let prevented=0;
  h.onContextMenu({currentTarget:f.element,preventDefault(){prevented++;}});assert.equal(f.held(),task);f.api.cancel();
  h.onKeyDown({key:'F10',shiftKey:true,currentTarget:f.element,preventDefault(){prevented++;}});assert.equal(f.held(),task);assert.equal(f.opens()+f.drops(),0);assert.equal(prevented,2);assert.equal(f.api.origin.current,f.element);
+});
+
+test('Bin carries stable deletion author IDs for tasks and templates and rejects malformed attribution',()=>{
+ const template={id:owner,name:'Saved set',items:[{title:'Setup',notes:''}],created_at:stamp,updated_at:stamp,deleted_at:stamp,deleted_by_name:'Old name',deleted_by_member_id:id};
+ const result=bin.decodeBinResponse({tasks:[{...row,deleted_by_member_id:id}],categories:[],templates:[template]});
+ assert.equal(result.tasks[0].deletedById,id);assert.equal(result.tasks[0].deletedByName,'Example');
+ assert.equal(result.templates[0].deletedById,id);assert.equal(result.templates[0].deletedByName,'Old name');
+ for(const bad of ['fake',42,{}]){
+  assert.throws(()=>bin.decodeBinResponse({tasks:[{...row,deleted_by_member_id:bad}],categories:[],templates:[]}));
+  assert.throws(()=>bin.decodeBinResponse({tasks:[],categories:[],templates:[{...template,deleted_by_member_id:bad}]}));
+ }
+ assert.equal(bin.validateBinAction({...action,deleted_by_member_id:id}),null);
+});
+
+test('Bin read projects current retained author names for completed/deleted records without modifying snapshots',async()=>{
+ const original={...row,deleted_by_member_id:id};
+ const f=repositoryFixture(c=>({data:c.table==='tasks'?[original]:[],error:null}),[{id,name:'Renamed person'}]);
+ const result=await f.repo.read();assert.equal(result.tasks[0].deleted_by_name,'Renamed person');assert.equal(result.tasks[0].completed_by_name,'Renamed person');
+ assert.equal(result.tasks[0].updated_at,stamp);assert.equal(original.deleted_by_name,'Example');assert.equal(original.completed_by_name,'Example');
 });
