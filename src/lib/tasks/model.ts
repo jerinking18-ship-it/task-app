@@ -93,7 +93,32 @@ export function isAvailable(task: Task, now: Date): boolean {
   return !task.availableAt || Date.parse(task.availableAt)<=now.getTime();
 }
 export function newestFirst<T extends Task>(tasks: T[]): T[] {
-  return [...tasks].sort((a,b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+  return [...tasks].sort((a,b) => compareNewestTime(a.createdAt,b.createdAt) || b.id.localeCompare(a.id));
+}
+export function compareNewestTime(a: string | null, b: string | null): number {
+  const first=Date.parse(a??""), second=Date.parse(b??"");
+  const firstValid=Number.isFinite(first), secondValid=Number.isFinite(second);
+  if(!firstValid || !secondValid) return Number(secondValid)-Number(firstValid);
+  // Keep PostgreSQL's sub-millisecond precision when two instants share a JS millisecond.
+  const fraction=(value:string)=>Number((value.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/i)?.[1]??"").slice(0,9).padEnd(9,"0"));
+  return second-first || fraction(b!)-fraction(a!);
+}
+export function sortTasksForStatus<T extends Task>(tasks: T[], status: string): T[] {
+  return [...tasks].sort((a,b)=>{
+    let primary=0;
+    if(status==="Completed") primary=compareNewestTime(a.completedAt,b.completedAt);
+    if(status==="Overdue") {
+      // Date-only work becomes overdue at the next midnight, after timed work that day.
+      const dueTime=(task:Task)=>{
+        const midnight=Date.parse(`${task.date}T00:00:00+05:30`);
+        const [hour,minute]=task.time.split(":").map(Number);
+        return midnight+(task.time?(hour*60+minute)*60_000:86_400_000);
+      };
+      const first=dueTime(a),second=dueTime(b);
+      primary=Number.isFinite(first)&&Number.isFinite(second)?second-first:Number(Number.isFinite(second))-Number(Number.isFinite(first));
+    }
+    return primary || compareNewestTime(a.createdAt,b.createdAt) || b.id.localeCompare(a.id);
+  });
 }
 export function accountClock(now: Date, timezone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit",

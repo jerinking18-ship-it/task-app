@@ -1,4 +1,4 @@
-import { completionAge, mapTask, newestFirst, type Task, type Category, type TaskRow } from "./model";
+import { completionAge, compareNewestTime, mapTask, type Task, type Category, type TaskRow } from "./model";
 import { decodeCategory, decodeRow, isRecord, timestamp, uuid } from "./validation";
 
 import { decodeDeletedTemplate, type TemplateItem } from "@/lib/templates/model";
@@ -11,6 +11,9 @@ export type BinItem = { id: string; version: string; kind?:"task"|"template" };
 export const binKey=(item:{id:string;kind?:"task"|"template"})=>(item.kind??"task")+":"+item.id.toLowerCase();
 export type BinAction = { action: "restore" | "purge"; items: BinItem[]; confirmed: true };
 export type BinRow = TaskRow & { deleted_at: string; deleted_by_name: string | null;deleted_by_member_id?:string|null };
+export function newestDeletedFirst<T extends {id:string;deletedAt:string}>(items:T[]):T[] {
+  return [...items].sort((a,b)=>compareNewestTime(a.deletedAt,b.deletedAt)||b.id.localeCompare(a.id));
+}
 export function validateBinAction(value: unknown): BinAction | null {
   if (!isRecord(value) || !["restore", "purge"].includes(value.action as string) || value.confirmed !== true
     || Object.keys(value).some(key => !["action", "items", "confirmed"].includes(key))
@@ -35,8 +38,7 @@ export function decodeBinResponse(value: unknown): { tasks: BinTask[]; templates
   const deletedTemplates=value.templates.map(decodeDeletedTemplate);
   if(new Set(deletedTemplates.map(item=>item.id)).size!==deletedTemplates.length)throw Error("Incomplete Bin templates response.");
   const templates:BinTemplate[]=deletedTemplates.map(item=>({kind:"template",id:item.id,title:item.name,notes:"",items:item.items,updatedAt:item.updated_at,deletedAt:item.deleted_at,deletedByName:item.deleted_by_name,deletedById:item.deleted_by_member_id??null}));
-  templates.sort((a,b)=>Date.parse(b.deletedAt)-Date.parse(a.deletedAt)||a.id.localeCompare(b.id));
-  return { categories, templates, tasks: newestFirst(rows.map(row => ({ ...mapTask(row, categories), deletedAt: row.deleted_at, deletedByName: row.deleted_by_name,deletedById:row.deleted_by_member_id??null }))) };
+  return { categories, templates:newestDeletedFirst(templates), tasks: newestDeletedFirst(rows.map(row => ({ ...mapTask(row, categories), deletedAt: row.deleted_at, deletedByName: row.deleted_by_name,deletedById:row.deleted_by_member_id??null }))) };
 }
 export function confirmBinItems(value:unknown,input:BinAction){
   if(!isRecord(value)||value.action!==input.action||!Array.isArray(value.items)||value.items.length!==input.items.length
