@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Category, Dataset, TaskAction, TaskRow } from "./model";
 import { MEETING_CATEGORIES } from "./model";
-import { decodeCategory, decodeRow, timestamp } from "./validation";
+import { decodeCategory, decodeRow, timestamp, uuid, isRecord } from "./validation";
 
 const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,assigned_to_member_id";
 export class TaskError extends Error {
@@ -48,9 +48,19 @@ export class TaskRepository {
     // midnight this is a no-op. Failed maintenance must never show a partial list.
     const {error}=await this.client.rpc("task_app_release_my_repeats"); check(error);
     const [timezone,tasks,categories] = await Promise.all([this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory)]);
+    const {data:coverage,error:coverageError}=await this.client.rpc("task_app_available_coverage");check(coverageError);
+    if(!Array.isArray(coverage))throw new TaskError(503,"Task availability could not be confirmed. Refresh before continuing.");
+    const released=new Map<string,{version:string;coverage:NonNullable<TaskRow["coverage"]>}>();
+    for(const value of coverage){
+      if(!isRecord(value)||!uuid(value.task_id)||!timestamp(value.version)||!uuid(value.absence_id)||!uuid(value.member_id)
+        ||typeof value.member_name!=="string"||!value.member_name.trim()||value.member_name.length>50||!timestamp(value.expires_at)||released.has(value.task_id))
+        throw new TaskError(503,"Task availability could not be loaded completely. Refresh before continuing.");
+      released.set(value.task_id,{version:value.version,coverage:{absence_id:value.absence_id,member_id:value.member_id,member_name:value.member_name,expires_at:value.expires_at}});
+    }
+    const decorated=tasks.map(task=>{const entry=released.get(task.id);return decodeRow({...task,coverage:entry&&entry.version===task.updated_at?entry.coverage:null});});
     const versions=new Map<string,string>();
     for(const task of tasks) if(task.series_id && (!versions.has(task.series_id) || task.updated_at>versions.get(task.series_id)!)) versions.set(task.series_id,task.updated_at);
-    return {timezone,tasks:tasks.map(task=>({...task,series_version:task.series_id?versions.get(task.series_id):task.updated_at})),categories};
+    return {timezone,tasks:decorated.map(task=>({...task,series_version:task.series_id?versions.get(task.series_id):task.updated_at})),categories};
   }
   async mutate(input: TaskAction): Promise<Record<string,unknown>> {
     if (input.action==="setup" || input.action==="bootstrap" || input.action==="category") {
@@ -67,6 +77,12 @@ export class TaskRepository {
       const {data,error}=await this.client.rpc("task_app_create_tasks",{task_fields:fields});check(error);
       if(!Array.isArray(data)||data.length!==fields.length)throw new TaskError(503,"Refresh and review saved tasks before trying again.");
       const tasks=data.map(decodeRow);return input.action==="create"?{task:tasks[0]}:{tasks};
+    }
+    if(input.action==="take"){
+      const {data,error}=await this.client.rpc("task_app_take_task",{task_id:input.id,expected_version:input.version,absence_id:input.absenceId,confirmed:input.confirmed});check(error);
+      const task=decodeRow(data);
+      if(task.id!==input.id)throw new TaskError(503,"Taking this task could not be confirmed. Refresh before trying again.");
+      return {task};
     }
     const {data,error} = await this.client.rpc("task_app_mutate",{
       task_id:input.id,expected_version:input.version,operation:input.action,

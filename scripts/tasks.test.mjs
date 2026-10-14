@@ -37,7 +37,7 @@ function fixture(respond) {
   return {repo:new repository.TaskRepository(client,owner),calls,client};
 }
 const op=(call,name)=>call.ops.find(o=>o[0]===name);
-const normal=call=>({data:call.table==="account_settings" ? {timezone:"Asia/Kolkata"} : call.table==="rpc" ? null : [],error:null});
+const normal=call=>({data:call.table==="account_settings" ? {timezone:"Asia/Kolkata"} : call.table==="rpc" ? (op(call,"rpc")[1]==="task_app_available_coverage"?[]:null) : [],error:null});
 
 test("task payload validation rejects unsupported/owner/metadata writes, bad dates, missing fields, and completed creates",()=>{
   assert.equal(validation.validateAction({action:"create",fields:{...fields,title:"  hello  "}}).fields.title,"hello");
@@ -131,7 +131,7 @@ test("paged reads release only the session owner's due repeats, load beyond 500 
   });
   const data=await f.repo.read();assert.equal(data.tasks.length,501);
   for(const call of f.calls) {
-    if(call.table==="rpc") {assert.equal(op(call,"rpc")[1],"task_app_release_my_repeats");assert.equal(op(call,"rpc")[2],undefined);continue;}
+    if(call.table==="rpc") {assert.ok(["task_app_release_my_repeats","task_app_available_coverage"].includes(op(call,"rpc")[1]));assert.equal(op(call,"rpc")[2],undefined);continue;}
     assert.ok(call.ops.some(o=>o[0]==="eq"&&o[1]==="owner_id"&&o[2]===owner));
     assert.equal(!!op(call,"insert"),false);assert.equal(!!op(call,"update"),false);
   }

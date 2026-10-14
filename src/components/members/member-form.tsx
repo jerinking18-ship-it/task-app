@@ -1,4 +1,5 @@
 "use client";
+import CapitalizedInput from "../capitalized-input";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { decodeMemberResponse, memberName, type MemberState } from "@/lib/members/model";
@@ -29,7 +30,7 @@ export default function MemberForm({initialState,signedIn=true}:{initialState:Me
   {error&&<p className={auth.error} role="alert">{error}</p>}
   {initialState?.current&&initialState.workspace?<Link className={auth.primary} href="/account">Open workspace</Link>:token?<>
    <p className={styles.capacity}>An invitation reserves your place for seven days. Sign in with the same verified email the Owner invited.</p>
-   {signedIn?<form onSubmit={submit} aria-busy={pending}><label className={auth.field}><span>Your name</span><input autoComplete="name" maxLength={50} required value={name} disabled={pending} onChange={e=>setName(e.target.value)} placeholder="Enter your own name"/></label><button className={auth.primary} disabled={pending}>{pending?"Joining…":"Accept invitation"}</button></form>:<><Link className={auth.primary} href="/sign-in">Sign in</Link><p className={styles.modeSwitch}>New here? <Link href="/sign-up">Create your account</Link></p></>}
+   {signedIn?<form onSubmit={submit} aria-busy={pending}><label className={auth.field}><span>Your name</span><CapitalizedInput autoComplete="name" maxLength={50} required value={name} disabled={pending} onValueChange={setName} placeholder="Enter your own name"/></label><button className={auth.primary} disabled={pending}>{pending?"Joining…":"Accept invitation"}</button></form>:<><Link className={auth.primary} href="/sign-in">Sign in</Link><p className={styles.modeSwitch}>New here? <Link href="/sign-up">Create your account</Link></p></>}
   </>:<p className={styles.capacity}>You haven’t joined a workspace yet. Ask the Owner for your invitation link, then open it in this browser. Signing up alone does not grant workspace access.</p>}
   {signedIn&&<div className={styles.stepSignOut}><AccountControls blocked={pending}/></div>}
  </div>;

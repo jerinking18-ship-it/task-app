@@ -5,7 +5,7 @@ export const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typ
 export const uuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 export const timestamp = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/.test(v) && Number.isFinite(Date.parse(v));
 const keys = (v: Record<string, unknown>, allowed: string[]) => Object.keys(v).every(k => allowed.includes(k));
-function date(v: unknown) {
+export function date(v: unknown) {
   return typeof v === "string" && /^\d{4}-\d\d-\d\d$/.test(v) && v >= "0001-01-01" && v <= "9999-12-31"
     && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0,10) === v;
 }
@@ -46,6 +46,7 @@ export function validateAction(v: unknown): TaskAction | null {
       && (v.scope===undefined || v.scope==="this" || v.scope==="future")
       && (v.seriesVersion===undefined || timestamp(v.seriesVersion))
       ? { action:"update", id:v.id, version:v.version, fields:{...v.fields,title:v.fields.title.trim()},scope:v.scope as "this"|"future"|undefined,seriesVersion:v.seriesVersion as string|undefined } : null;
+    case "take": return keys(v,["action","id","version","absenceId","confirmed"]) && uuid(v.id) && timestamp(v.version) && uuid(v.absenceId) && v.confirmed===true ? v as TaskAction : null;
     case "status": return keys(v,["action","id","version","status"]) && uuid(v.id) && timestamp(v.version) && ["active","completed"].includes(v.status as string)
       ? v as TaskAction : null;
     default: return null;
@@ -70,10 +71,14 @@ export function decodeRow(v: unknown): TaskRow {
     || !(v.available_at===undefined || v.available_at===null || timestamp(v.available_at))
     || !(v.repeat_anchor_day===undefined || v.repeat_anchor_day===null || (Number.isInteger(v.repeat_anchor_day) && Number(v.repeat_anchor_day)>=1 && Number(v.repeat_anchor_day)<=31))) throw new Error("Incomplete repeat response.");
   if(v.repeat_rule && v.repeat_rule!=="off" && (!uuid(v.series_id) || (v.repeat_rule==="monthly" && !v.repeat_anchor_day))) throw new Error("Incomplete repeat response.");
+  const coverage=v.coverage;
+  if(coverage!==undefined&&coverage!==null&&(!isRecord(coverage)||!uuid(coverage.absence_id)||!uuid(coverage.member_id)
+    ||coverage.member_id!==v.assigned_to_member_id||typeof coverage.member_name!=="string"||!coverage.member_name.trim()
+    ||coverage.member_name.length>50||!timestamp(coverage.expires_at)||v.status!=="active"))throw new Error("Incomplete coverage response.");
   const completedById=v.completed_by_member_id ?? null, completedByName=v.completed_by_name ?? null;
   if (!((completedById===null && completedByName===null) || (v.status==="completed" && uuid(completedById)
     && typeof completedByName==="string" && completedByName.trim().length>0 && completedByName.length<=50))) throw new Error("Incomplete completion member response.");
-  return { ...fields, id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
+  return { ...fields, ...(coverage===undefined?{}:{coverage:coverage as TaskRow["coverage"]}), id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
     completed_by_member_id:completedById as string|null,completed_by_name:completedByName as string|null,
     series_id:v.series_id as string|null|undefined,history_at:v.history_at as string|null|undefined,available_at:v.available_at as string|null|undefined,repeat_anchor_day:v.repeat_anchor_day as number|null|undefined,series_version:v.series_version as string|undefined };
 }
