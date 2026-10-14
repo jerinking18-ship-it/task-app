@@ -1,4 +1,4 @@
-import { completionAge, mapTask, type Task, type Category, type TaskRow } from "./model";
+import { completionAge, mapTask, newestFirst, type Task, type Category, type TaskRow } from "./model";
 import { decodeCategory, decodeRow, isRecord, timestamp, uuid } from "./validation";
 
 import { decodeDeletedTemplate, type TemplateItem } from "@/lib/templates/model";
@@ -36,8 +36,7 @@ export function decodeBinResponse(value: unknown): { tasks: BinTask[]; templates
   if(new Set(deletedTemplates.map(item=>item.id)).size!==deletedTemplates.length)throw Error("Incomplete Bin templates response.");
   const templates:BinTemplate[]=deletedTemplates.map(item=>({kind:"template",id:item.id,title:item.name,notes:"",items:item.items,updatedAt:item.updated_at,deletedAt:item.deleted_at,deletedByName:item.deleted_by_name,deletedById:item.deleted_by_member_id??null}));
   templates.sort((a,b)=>Date.parse(b.deletedAt)-Date.parse(a.deletedAt)||a.id.localeCompare(b.id));
-  return { categories, templates, tasks: rows.map(row => ({ ...mapTask(row, categories), deletedAt: row.deleted_at, deletedByName: row.deleted_by_name,deletedById:row.deleted_by_member_id??null }))
-    .sort((a,b) => Date.parse(b.deletedAt) - Date.parse(a.deletedAt) || a.id.localeCompare(b.id)) };
+  return { categories, templates, tasks: newestFirst(rows.map(row => ({ ...mapTask(row, categories), deletedAt: row.deleted_at, deletedByName: row.deleted_by_name,deletedById:row.deleted_by_member_id??null }))) };
 }
 export function confirmBinItems(value:unknown,input:BinAction){
   if(!isRecord(value)||value.action!==input.action||!Array.isArray(value.items)||value.items.length!==input.items.length
