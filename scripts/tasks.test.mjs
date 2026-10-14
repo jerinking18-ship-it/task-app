@@ -37,7 +37,7 @@ function fixture(respond) {
   return {repo:new repository.TaskRepository(client,owner),calls,client};
 }
 const op=(call,name)=>call.ops.find(o=>o[0]===name);
-const normal=call=>({data:call.table==="account_settings" ? {timezone:"Asia/Kolkata"} : call.table==="rpc" ? (op(call,"rpc")[1]==="task_app_available_coverage"?[]:null) : [],error:null});
+const normal=call=>({data:call.table==="account_settings" ? {timezone:"Asia/Kolkata"} : call.table==="rpc" ? (["task_app_available_coverage","task_app_coverage_origins"].includes(op(call,"rpc")[1])?[]:null) : [],error:null});
 
 test("task payload validation rejects unsupported/owner/metadata writes, bad dates, missing fields, and completed creates",()=>{
   assert.equal(validation.validateAction({action:"create",fields:{...fields,title:"  hello  "}}).fields.title,"hello");
@@ -131,7 +131,7 @@ test("paged reads release only the session owner's due repeats, load beyond 500 
   });
   const data=await f.repo.read();assert.equal(data.tasks.length,501);
   for(const call of f.calls) {
-    if(call.table==="rpc") {assert.ok(["task_app_release_my_repeats","task_app_available_coverage"].includes(op(call,"rpc")[1]));assert.equal(op(call,"rpc")[2],undefined);continue;}
+    if(call.table==="rpc") {assert.ok(["task_app_release_my_repeats","task_app_available_coverage","task_app_coverage_origins"].includes(op(call,"rpc")[1]));assert.equal(op(call,"rpc")[2],undefined);continue;}
     assert.ok(call.ops.some(o=>o[0]==="eq"&&o[1]==="owner_id"&&o[2]===owner));
     assert.equal(!!op(call,"insert"),false);assert.equal(!!op(call,"update"),false);
   }
@@ -194,7 +194,7 @@ test("create sends one checked RPC with assignee and validates committed row",as
 
 test("status uses the atomic owner-checked RPC with original task/version",async()=>{
   const done={...row,status:"completed",completed_at:version};
-  const f=fixture(call=>op(call,"rpc") ? {data:done,error:null} : normal(call));
+  const f=fixture(call=>op(call,"rpc")?.[1]==="task_app_mutate" ? {data:done,error:null} : normal(call));
   await f.repo.mutate({action:"status",id:taskId,version,status:"completed"});
   const args=op(f.calls.find(c=>op(c,"rpc")),"rpc")[2];
   assert.equal(args.task_id,taskId);assert.equal(args.expected_version,version);
@@ -204,9 +204,9 @@ test("status uses the atomic owner-checked RPC with original task/version",async
 });
 
 test("stale edit returns latest owned row as conflict, missing row returns 404, no automatic replay",async()=>{
-  const f=fixture(call=>op(call,"rpc") ? {data:null,error:null} : call.table==="tasks" ? {data:{...row,title:"Changed elsewhere"},error:null} : normal(call));
+  const f=fixture(call=>op(call,"rpc")?.[1]==="task_app_mutate" ? {data:null,error:null} : call.table==="tasks" ? {data:{...row,title:"Changed elsewhere"},error:null} : normal(call));
   await assert.rejects(()=>f.repo.mutate({action:"update",id:taskId,version,fields}),e=>e.status===409 && e.latest.title==="Changed elsewhere");
-  assert.equal(f.calls.filter(c=>op(c,"rpc")).length,1);
+  assert.equal(f.calls.filter(c=>op(c,"rpc")).length,2);
   const missing=fixture(call=>call.table==="tasks" ? {data:null,error:null} : normal(call));
   await assert.rejects(()=>missing.repo.mutate({action:"update",id:taskId,version,fields}),e=>e.status===404);
 });
@@ -326,9 +326,9 @@ test("delete marks the retained row and checks original owner/version; all task 
 });
 
 test("stale delete preserves task and reports saved version for review",async()=>{
-  const f=fixture(call=>op(call,"rpc")?{data:null,error:null}:call.table==="tasks"?{data:{...row,title:"New saved title"},error:null}:normal(call));
+  const f=fixture(call=>op(call,"rpc")?.[1]==="task_app_mutate"?{data:null,error:null}:call.table==="tasks"?{data:{...row,title:"New saved title"},error:null}:normal(call));
   await assert.rejects(()=>f.repo.mutate({action:"delete",id:taskId,version}),error=>error.status===409&&error.latest.title==="New saved title");
-  assert.equal(f.calls.filter(call=>op(call,"rpc")).length,1);
+  assert.equal(f.calls.filter(call=>op(call,"rpc")).length,2);
 });
 
 test("new task actions still require authenticated same-origin requests; meeting presets keep approved order",async()=>{

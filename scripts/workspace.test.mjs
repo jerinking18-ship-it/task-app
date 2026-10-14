@@ -57,3 +57,14 @@ test('workspace API uses fixed RPC mappings, private cache policy, sanitized den
  const action={action:'invite',email:'sarah@example.test',role:'member'};const f=fixture();const response=await f.route.POST(request(action));assert.equal(response.status,200);assert.match(response.headers.get('cache-control'),/private, no-store/);assert.equal(f.calls[0].name,'task_app_invite');assert.equal('owner_id'in f.calls[0].args,false);
  for(const [code,status]of [['P0403',403],['P0409',409],['P0010',409],['42501',401],['XX000',503]]){const denied=fixture({error:{code,message:'private-provider-detail'}});const result=await denied.route.POST(request(action));assert.equal(result.status,status);assert.equal((await result.text()).includes('private-provider-detail'),false);}
 });
+
+test('completed coverage task displays original assignee for everyone, preserving helper permissions and author',()=>{
+ const task={...tasks.blankTask(),assignedToId:id,completed:true,completedById:id,completedByName:'Jerin',claimOrigin:{memberId:other,memberName:'Sarah',takenById:id}};
+ for(const viewer of [id,other,undefined])assert.equal(assignments.assignmentLabel(task,viewer,state.members),'Assigned to Sarah');
+ assert.equal(members.canChangeTaskStatus(state,task.assignedToId),true);
+ assert.equal(members.canChangeTaskStatus({...state,current:state.members[1]},task.assignedToId),false);
+ assert.equal(assignments.assignmentLabel({...task,completed:false},id,state.members),'Assigned to me');
+ assert.equal(assignments.assignmentLabel({...task,claimOrigin:null},id,state.members),'Assigned to me');
+ assert.equal(assignments.assignmentLabel({...task,assignedToId:other},other,state.members),'Assigned to me');
+ assert.equal(task.completedByName,'Jerin');
+});
