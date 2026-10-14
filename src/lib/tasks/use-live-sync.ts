@@ -15,8 +15,9 @@ export function useLiveSync(options:Options) {
     const visible=()=>document.visibilityState==="visible"&&navigator.onLine;
     const using=()=>visible()&&document.hasFocus();
     function flush(){
-      timer=undefined;if(!alive||!visible()||latest.current.blocked)return;
+      timer=undefined;if(!alive||!visible())return;
       if(presence){latest.current.onPresence(presence);presence=null;}
+      if(latest.current.blocked)return;
       if(queued.delete("tasks"))latest.current.onTasks();
       if(queued.delete("members"))latest.current.onMembers();
     }

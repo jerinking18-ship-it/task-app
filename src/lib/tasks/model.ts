@@ -13,7 +13,7 @@ export function categoryOrder(names: string[]) {
   });
 }
 export type Task = {
-  id: string; title: string; notes: string; completed: boolean; date: string;
+  assignedToId?: string | null; id: string; title: string; notes: string; completed: boolean; date: string;
   time: string; priority: Priority; category: string; reminder: string;
   notification: boolean; email: boolean; repeat: Repeat;
   seriesId: string | null; historyAt: string | null; availableAt: string | null; repeatAnchor: number | null; seriesVersion:string;
@@ -21,7 +21,7 @@ export type Task = {
 };
 export type Category = { id: string; name: string };
 export type TaskFields = {
-  title: string; notes: string | null; status: "active" | "completed";
+  assigned_to_member_id?: string | null; title: string; notes: string | null; status: "active" | "completed";
   due_date: string | null; due_time: string | null;
   priority: "none" | "low" | "medium" | "high"; category_id: string | null;
   weekdays: number[];
@@ -44,7 +44,7 @@ export type TaskAction =
   | { action: "status"; id: string; version: string; status: "active" | "completed" };
 
 export function blankTask(): Task {
-  return { id: "", title: "", notes: "", completed: false, date: "", time: "", priority: "Medium",
+  return { assignedToId:null, id: "", title: "", notes: "", completed: false, date: "", time: "", priority: "Medium",
     category: "", reminder: "Off", notification: false, email: false, repeat: "Off", seriesId:null,historyAt:null,availableAt:null,repeatAnchor:null,seriesVersion:"",createdAt: "", updatedAt: "",completedAt:null,completedById:null,completedByName:null, weekdays: [] };
 }
 export function categoryWeekdays(category: string): number[] {
@@ -57,7 +57,7 @@ export function newTaskDraft(category = ""): Task {
 export function mapTask(row: TaskRow, categories: Category[]): Task {
   const category = row.category_id ? categories.find(c => c.id === row.category_id) : null;
   if (row.category_id && !category) throw new Error("Category data is incomplete. Refresh your tasks.");
-  return { ...blankTask(), id: row.id, title: row.title, notes: row.notes ?? "", completed: row.status === "completed",
+  return { ...blankTask(), assignedToId:row.assigned_to_member_id ?? null, id: row.id, title: row.title, notes: row.notes ?? "", completed: row.status === "completed",
     date: row.due_date ?? "", time: row.due_time?.slice(0, 5) ?? "",
     priority: (row.priority[0].toUpperCase() + row.priority.slice(1)) as Priority,
     category: category?.name ?? "", createdAt: row.created_at, updatedAt: row.updated_at,completedAt:row.completed_at,
@@ -68,7 +68,7 @@ export function mapTask(row: TaskRow, categories: Category[]): Task {
 export function taskFields(task: Task, categories: Category[]): TaskFields {
   const category = task.category ? categories.find(c => c.name === task.category) : null;
   if (task.category && !category) throw new Error("That category is unavailable. Refresh and choose again.");
-  return { title: task.title.trim(), notes: task.notes || null, status: task.completed ? "completed" : "active",
+  return { assigned_to_member_id:task.assignedToId ?? null, title: task.title.trim(), notes: task.notes || null, status: task.completed ? "completed" : "active",
     due_date: task.date || null, due_time: task.time || null,
     priority: task.priority.toLowerCase() as TaskFields["priority"], category_id: category?.id ?? null, weekdays: [...task.weekdays].sort((a,b)=>a-b),repeat_rule:task.repeat.toLowerCase() as TaskFields["repeat_rule"] };
 }
