@@ -5,18 +5,21 @@ import { newTaskDraft, categoryWeekdays, repeatError, MAX_BATCH_TASKS, PRIORITIE
 import TaskRepeat from "./task-repeat";
 import TaskTime from "./task-time";
 import styles from "./task-app.module.css";
+import { templateDrafts, type TemplateItem } from "@/lib/templates/model";
 
 type DraftRow = { key: number; task: Task; details: boolean; notesOpen: boolean; daysCustomized: boolean };
-export default function BulkTaskEditor({ categories, initialCategory, onSave, onClose, onDirty, pending, uncertain }: {
+export default function BulkTaskEditor({ categories, initialCategory, initialTemplate, onSave, onClose, onDirty, pending, uncertain }: {
   categories: string[]; initialCategory: string; onSave: (tasks: Task[], category: string)=>Promise<void>;
+  initialTemplate?: {name:string;items:TemplateItem[]}|null;
   onClose: ()=>void; onDirty: (dirty:boolean)=>void; pending:boolean; uncertain:boolean;
 }) {
   const id=useId();
-  const sequence=useRef(1);
+  const sequence=useRef(initialTemplate?.items.length??1);
   const submitting=useRef(false);
   const appliedDetails=useRef<Pick<Task,"date"|"time"|"weekdays"|"priority"|"repeat">|null>(null);
   const [category,setCategory]=useState(initialCategory);
-  const [rows,setRows]=useState<DraftRow[]>(()=>[{key:0,task:newTaskDraft(initialCategory),details:true,notesOpen:true,daysCustomized:false}]);
+  const [rows,setRows]=useState<DraftRow[]>(()=>(initialTemplate?templateDrafts(initialTemplate.items,initialCategory):[newTaskDraft(initialCategory)])
+    .map((task,index)=>({key:index,task,details:index===0,notesOpen:index===0||!!task.notes,daysCustomized:false})));
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   useEffect(()=>{
@@ -73,7 +76,7 @@ export default function BulkTaskEditor({ categories, initialCategory, onSave, on
     finally {submitting.current=false;}
   }
   return <div className={styles.bulkEditor}>
-    <div className={styles.bulkHeader}><div><p className={styles.editorEyebrow}>MAKE ROOM FOR WHAT MATTERS</p><h2>Add multiple tasks</h2><p>Create separate tasks in one category.</p></div><button type="button" className={styles.iconButton} disabled={pending} aria-label="Close multiple-task editor" onClick={onClose}>×</button></div>
+    <div className={styles.bulkHeader}><div><p className={styles.editorEyebrow}>MAKE ROOM FOR WHAT MATTERS</p><h2>Add multiple tasks</h2>{initialTemplate?<><p className={styles.templateSource}>From template: <strong>{initialTemplate.name}</strong></p><p>{initialTemplate.items.length} tasks copied. Review before saving.</p></>:<p>Create separate tasks in one category.</p>}</div><button type="button" className={styles.iconButton} disabled={pending} aria-label="Close multiple-task editor" onClick={onClose}>×</button></div>
     <form onSubmit={submit} noValidate aria-busy={pending}>
       <fieldset className={styles.formFields} disabled={pending}>
         <label className={`${styles.field} ${styles.bulkCategory}`}>Category<select value={category} onChange={event=>changeCategory(event.target.value)}>{!category && <option value="" disabled>Choose category</option>}{categories.map(name=><option key={name}>{name}</option>)}</select></label>

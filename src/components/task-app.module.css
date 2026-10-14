@@ -1691,6 +1691,9 @@
 .deleteConfirm { flex:1; border:1px solid #ac342f; background:#ac342f; color:white; border-radius:7px; padding:10px; font-size:12px; }
 .confirmContent p { overflow-wrap:anywhere; }
 .bulkDialog { width:700px; border-radius:16px; }
+.templatesButton { display:flex; align-items:center; justify-content:center; gap:8px; flex-shrink:0; min-height:42px; padding:10px 14px; border:1px solid #b9b3a8; border-radius:8px; color:#101c2d; background:#fffdf9; font-size:12px; }
+.templatesButton:hover { background:#f0ebe1; border-color:#8f9bab; }
+.templateSource { margin:10px 0 5px!important; padding:8px 10px; background:#f7f5f0; border-radius:6px; color:#526174!important; overflow-wrap:anywhere; }
 .bulkEditor { padding:28px; background:#fffdf9; border:1px solid #e7dfcf; border-radius:16px; }
 .bulkHeader { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:22px; }
 .bulkHeader h2 { margin:5px 0 6px; font-size:25px; letter-spacing:-.65px; font-weight:600; }
@@ -1729,6 +1732,8 @@
   .headerActions .search { width:100%; max-width:none; }
 }
 @media(max-width:760px) {
+  .templatesAvailable { padding-bottom:170px; }
+  .headerActions .templatesButton { position:fixed; left:16px; right:16px; bottom:calc(max(19px,env(safe-area-inset-bottom)) + 60px); z-index:8; min-height:44px; border-color:#66768c; background:#fffdf9; color:#101c2d; box-shadow:0 0 0 10px #f7f5f0; }
   .headerActions .addButton { left:20px; right:auto; width:116px; padding:0 8px; font-size:12px; }
   .headerActions .bulkButton { left:146px; right:20px; width:calc(100% - 166px); }
   .bulkEditor { padding:20px 16px; }
@@ -1808,6 +1813,7 @@
 @media(max-width:360px){.headerActions .binButton{right:12px}}
 
 .workspace.taskWorkspace{padding-bottom:100px}
+@media(max-width:760px){.workspace.templatesAvailable{padding-bottom:170px}}
 
 
 .timePicker { display:flex; align-items:center; gap:4px; margin-top:6px; min-width:0; }
@@ -1835,3 +1841,22 @@
 .completedClearContent .editorActions button { min-height:44px; flex:none; }
 .binBack svg { display:block; flex-shrink:0; }
 @media(max-width:760px) { .binBack { line-height:0; } .refreshActions { gap:6px; } .completedRefresh .refreshButton { padding:7px 10px; } .completedClearContent h2 { font-size:21px; } }
+
+/* Member history replaces the archived-task History view. */
+.workspace.memberHistoryWorkspace { padding:0 0 36px; position:relative; background:#f7f5f0; }
+.memberHistoryWorkspace .accountBar { position:absolute; top:32px; right:32px; padding:0; background:transparent; z-index:1; }
+.memberHistoryWorkspace .accountBar button { border:1px solid #4d6580; background:#1d2a3d; color:#fff; min-height:44px; border-radius:9px; }
+.memberHistoryWorkspace .header { display:block; background:var(--navy); color:#fff; padding:32px 32px 42px; min-height:136px; }
+.memberHistoryWorkspace .heading { padding-right:110px; }
+.memberHistoryWorkspace .overline,.memberHistoryWorkspace .date { display:none; }
+.memberHistoryWorkspace>section { margin:24px 32px 0; }
+.memberHistoryWorkspace .accountBar [role=status],.memberHistoryWorkspace .accountBar [role=alert] { color:#fff; }
+@media(max-width:760px){
+ .memberHistoryWorkspace .header { padding:24px 16px 30px; min-height:112px; }
+ .memberHistoryWorkspace .header h1 { font-size:24px; white-space:nowrap; letter-spacing:-.6px; }
+ .memberHistoryWorkspace .accountBar,.memberHistoryWorkspace .accountBar:not(:has([role=status],[role=alert])) { top:24px; right:16px; }
+ .memberHistoryWorkspace .accountBar+.header { padding-top:24px; }
+ .memberHistoryWorkspace .accountBar+.header .heading { padding-right:84px; gap:12px; }
+ .memberHistoryWorkspace>section { margin:-12px 0 0; }
+}
+@media(max-width:360px){.memberHistoryWorkspace .header h1 { font-size:20px; }.memberHistoryWorkspace .accountBar+.header .heading { gap:10px; }}

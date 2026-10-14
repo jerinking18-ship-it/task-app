@@ -1,0 +1,45 @@
+.library,.editor { color:#101c2d; }
+.libraryTools { display:flex; gap:12px; align-items:stretch; }
+.libraryTools>button { white-space:nowrap; padding:12px 18px; }
+.search { display:flex; align-items:center; gap:10px; min-width:0; flex:1; border:1px solid #ded7ca; border-radius:8px; background:#fff; padding:0 12px; }
+.search input { min-width:0; width:100%; min-height:44px; border:0; outline:0; background:transparent; color:#101c2d; font:inherit; font-size:14px; }
+.search:focus-within { border-color:#7d8998; }
+.libraryStatus { display:flex; justify-content:space-between; align-items:center; margin:14px 0; color:#7d7e7d; font-size:12px; }
+.cards { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px; }
+.card { background:#fff; border:1px solid #e5dfd4; border-radius:12px; padding:18px; }
+.expanded { border-color:#c5ab70; background:#fffcf6; }
+.cardHeading { width:100%; display:flex; gap:12px; align-items:center; border:0; padding:0; color:#101c2d; background:transparent; text-align:left; }
+.cardHeading>span:nth-child(2) { flex:1; min-width:0; }
+.cardHeading strong { display:block; font-size:16px; font-weight:600; overflow-wrap:anywhere; }
+.cardHeading small { display:block; margin-top:5px; font-size:12px; color:#777d85; }
+.cardHeading>span:last-child { font-size:22px; }
+.templateMark { display:grid; place-items:center; width:38px; height:38px; flex-shrink:0; color:#8d723c; border-radius:10px; background:#f5eddc; }
+.taskPreview { padding:0; margin:20px 0 0; list-style:none; }
+.taskPreview[hidden] { display:none; }
+.taskPreview li { display:flex; gap:12px; margin:14px 0; font-size:13px; }
+.taskPreview li>span { display:grid; place-items:center; border:1px solid #eadfc9; border-radius:50%; width:24px; height:24px; flex-shrink:0; color:#867348; }
+.taskPreview li>div { min-width:0; overflow-wrap:anywhere; }
+.taskPreview strong { font-weight:500; }
+.taskPreview p { font-size:12px; line-height:1.6; color:#7c7e81; white-space:pre-wrap; margin:4px 0 0; }
+.cardActions { display:flex; gap:10px; margin-top:18px; }
+.cardActions>button { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:10px; }
+.libraryHint,.editorNote { font-size:12px; color:#677383; line-height:1.7; }
+.libraryHint { border-top:1px solid #e5dfd4; padding-top:16px; margin:22px 0 0; }
+.editorNote { background:#f7f5f0; border:1px solid #e9e3d7; border-radius:8px; padding:12px; margin:0; }
+.empty { text-align:center; padding:36px 16px; }
+.empty>svg { width:36px; height:36px; color:#a58a50; }
+.empty h3 { font-size:20px; font-weight:600; }
+.empty p { color:#77808a; font-size:13px; line-height:1.7; }
+.empty button { margin-top:10px; padding:12px 18px; }
+.back { display:flex; align-items:center; align-self:flex-start; gap:8px; padding:0; border:0; background:transparent; min-height:36px; font-size:12px; color:#657282; }
+.editor input:focus,.editor textarea:focus { outline:none!important; box-shadow:none!important; border-color:#7d8998!important; }
+.editor .editorActions { position:sticky; bottom:0; background:#fffdf9; padding-bottom:12px; margin-bottom:0; z-index:1; }
+.editorActions>button { flex:1; min-height:44px; }
+@media(max-width:760px) {
+  .libraryTools { flex-direction:column; }
+  .search input { font-size:16px; }
+  .card { padding:14px; }
+  .cardHeading strong { font-size:16px; }
+  .cardActions>button { font-size:12px; }
+  .editor .editorActions { bottom:0; }
+}
