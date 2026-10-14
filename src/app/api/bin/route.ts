@@ -10,14 +10,15 @@ const json = (body: unknown, status=200) => NextResponse.json(body, { status, he
 async function repository() {
   const client = await createClient(); const identity = await verifiedIdentity(client.auth);
   if (!identity) throw new TaskError(401, "Your session has ended. Sign in again to continue.");
-  try { if (!(await readMembers(client)).current) throw new TaskError(403, "Choose your name before viewing Bin."); }
+  let state;
+  try { state=await readMembers(client);if (!state.current || !state.workspace) throw new TaskError(403, "Join your workspace before viewing Bin."); }
   catch (error) {
     if (error instanceof MemberError && error.status === 401) {
       try { await client.auth.signOut({ scope: "local" }); } catch { /* Access is already denied. */ }
     }
     throw error;
   }
-  return new BinRepository(client, identity.userId);
+  return new BinRepository(client, state!.workspace!.ownerId, ["owner","coordinator"].includes(state!.current!.role??""));
 }
 const failed = (error: unknown) => error instanceof TaskError || error instanceof MemberError
   ? json({ message: error.message }, error.status) : json({ message: "We couldn’t confirm this Bin request. Refresh before trying again." },503);
