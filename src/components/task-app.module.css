@@ -1804,7 +1804,7 @@
 .headerActions .binDragReady{position:fixed;right:28px;bottom:28px;width:64px;height:64px;z-index:1002;box-shadow:0 8px 30px #c83d4326;background:#fff5f3;border:2px dashed #c83d43}
 @media(max-width:760px){.headerActions .binDragReady{right:16px;bottom:max(19px,env(safe-area-inset-bottom));width:52px;height:52px}}
 
-@media(max-width:760px){.gestureHelp{font-size:10px}.taskActionsDialog{margin:auto 0 14px;border-radius:22px;padding:20px}.taskActionsDialog>button{min-height:50px}}
+@media(max-width:760px){.gestureHelp{font-size:10px}.taskActionsDialog{margin:auto;border-radius:22px;padding:20px}.taskActionsDialog>button{min-height:50px}}
 
 /* Keep the Bin available at the bottom on every task list, even after scrolling. */
 .headerActions .binButton{position:fixed;right:28px;bottom:28px;z-index:8;width:48px;height:48px;box-shadow:0 5px 18px #101c2d10}
