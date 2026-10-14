@@ -17,3 +17,5 @@
 
 /* Compact per-task actions match the supplied photo; bulk actions remain labelled. */
 .rowActions button{width:44px;height:44px;min-height:44px;padding:0;flex-shrink:0}.rowActions svg{width:21px;height:21px}.rowActions .restoreIcon{background:#fffdf9;border:1px solid #e0dcd3;color:#233b55;box-shadow:0 1px 3px #101c2d05}.rowActions .restoreIcon:hover{background:#efede7;border-color:#d1cbbf}.rowActions .red{width:44px;min-height:44px;border:1px solid #e9c4c7;background:#fbefed;color:#cf3b49;box-shadow:0 1px 3px #b93d4506}.rowActions .red:hover{background:#f8e1dd;border-color:#dba5aa}
+
+.templateLine{display:flex;align-items:center;gap:12px;margin-bottom:12px}.templateLine>span:last-child{min-width:0}.templateLine .notes{margin:0}.templateMark{display:grid;place-items:center;width:38px;height:38px;flex-shrink:0;border-radius:10px;background:#f5eddc;color:#8d723c}.panel>section+section{margin-top:24px;padding-top:1px;border-top:1px solid #e6e2d8}

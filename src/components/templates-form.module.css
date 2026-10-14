@@ -43,3 +43,5 @@
   .cardActions>button { font-size:12px; }
   .editor .editorActions { bottom:0; }
 }
+
+.removeTemplate{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;border:0;border-top:1px solid #e5dfd4;background:transparent;color:#c83d43;margin-top:14px;padding:12px 8px 0;font-size:12px;font-weight:500;cursor:pointer}.removeTemplate:hover{color:#a92f37}.removeTemplate:focus-visible{outline:2px solid #71839b;outline-offset:3px;border-radius:5px}.removeTemplate:disabled{opacity:.5;cursor:wait}
