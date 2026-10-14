@@ -20,7 +20,7 @@ test('roles grant task management only to Owner/Coordinator; status always requi
  assert.equal(members.canManageTasks(null),false);assert.equal(members.canManageTasks({...state,workspace:null}),false);
 });
 test('viewer-relative assignment labels keep completed attribution separate',()=>{
- const task={...tasks.blankTask(),assignedToId:other};assert.equal(assignments.assignmentLabel(task,id,state.members),'Only Sarah can do this');assert.equal(assignments.assignmentLabel(task,other,state.members),'Assigned to me');assert.equal(assignments.assignmentLabel({...task,completed:true},id,state.members),'Assigned to Sarah');assert.equal(assignments.assignmentLabel({...task,assignedToId:null},id,state.members),'Unassigned');
+ const task={...tasks.blankTask(),assignedToId:other};assert.equal(assignments.assignmentLabel(task,id,state.members),'Only Sarah can complete');assert.equal(assignments.assignmentLabel(task,other,state.members),'Assigned to me');assert.equal(assignments.assignmentLabel({...task,completed:true},id,state.members),'Assigned to Sarah');assert.equal(assignments.assignmentLabel({...task,assignedToId:null},id,state.members),'Unassigned');
 });
 test('personal page hides only own expired category work, preserves active future and global lists',()=>{
  const now=new Date('2026-10-12T18:20:01Z');const clock=tasks.accountClock(now,'Asia/Kolkata');const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
