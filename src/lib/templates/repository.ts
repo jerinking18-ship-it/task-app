@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { TaskError } from "@/lib/tasks/repository";
-import { decodeTemplate, type TaskTemplate, type TemplateAction } from "./model";
+import { decodeTemplate, decodeTemplateRemoval, type TaskTemplate, type TemplateMutation } from "./model";
 function check(error: {code?:string}|null) {
   if (!error) return;
   if (["42501","PGRST301","PGRST302"].includes(error.code??"")) throw new TaskError(401,"Your session has ended. Sign in again to continue.");
@@ -17,13 +17,17 @@ export class TemplateRepository {
       if(cursor)query=query.gt("id",cursor);
       const {data,error}=await query;check(error);
       if(!Array.isArray(data))throw new TaskError(503,"Templates could not be loaded completely. Refresh to try again.");
-      const rows=data.map(decodeTemplate);
+      const rows=data.map(value=>decodeTemplate(value));
       for(const row of rows){if(row.id<=cursor)throw new TaskError(503,"Templates changed while loading. Refresh again.");cursor=row.id;templates.push(row);}
       if(rows.length<100)return {templates};
     }
     throw new TaskError(503,"There are too many templates to load completely. No partial list is shown.");
   }
-  async mutate(input:TemplateAction) {
+  async mutate(input:TemplateMutation) {
+    if(input.action==="remove"){
+      const {data,error}=await this.client.rpc("task_app_remove_template",{template_id:input.id,expected_version:input.version,confirmed:input.confirmed});check(error);
+      try{return {removed:decodeTemplateRemoval(data,input)};}catch{throw new TaskError(503,"Template removal could not be confirmed. Refresh before retrying.");}
+    }
     const {data,error}=await this.client.rpc("task_app_save_template",{template_id:input.id,expected_version:input.version,template_name:input.name,template_items:input.items});
     check(error);
     const template=decodeTemplate(data);
