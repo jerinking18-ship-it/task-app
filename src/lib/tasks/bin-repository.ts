@@ -1,12 +1,13 @@
+import { decodeDeletedTemplate } from "@/lib/templates/model";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { decodeBinRow, type BinAction } from "./bin";
+import { decodeBinRow, confirmBinItems, type BinAction } from "./bin";
 import { decodeCategory } from "./validation";
 import { TaskError } from "./repository";
 const columns = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,deleted_at,deleted_by_name";
 function check(error: { code?: string } | null) {
   if (!error) return;
   if (["42501", "PGRST301", "PGRST302"].includes(error.code ?? "")) throw new TaskError(401, "Your session has ended. Sign in again to continue.");
-  if (error.code === "P0012") throw new TaskError(409, "A selected task changed or is no longer in Bin. Refresh and select again. No tasks were changed.");
+  if (error.code === "P0012") throw new TaskError(409, "A selected item changed or is no longer in Bin. Refresh and select again. No items were changed.");
   if (["23514", "22P02"].includes(error.code ?? "")) throw new TaskError(400, "Check your selection and try again.");
   throw new TaskError(503, "We couldn’t confirm this Bin request. Refresh before trying again.");
 }
@@ -32,9 +33,17 @@ export class BinRepository {
   }
   async read() {
     const [tasks, categories] = await Promise.all([this.pages("tasks"), this.pages("categories")]);
-    return { tasks, categories };
+    const {data,error}=await this.client.rpc("task_app_deleted_templates");check(error);
+    if(!Array.isArray(data))throw new TaskError(503,"Bin templates could not be loaded completely. Refresh to try again.");
+    const templates=data.map(decodeDeletedTemplate);
+    if(new Set(templates.map(item=>item.id)).size!==templates.length)throw new TaskError(503,"Bin templates changed while loading. Refresh again.");
+    return { tasks, categories, templates };
   }
   async mutate(input: BinAction) {
+    if(input.items.some(item=>item.kind!==undefined)){
+      const {data,error}=await this.client.rpc("task_app_bin_items",{operation:input.action,selections:input.items.map(item=>({...item,kind:item.kind??"task"})),confirmed:input.confirmed});check(error);
+      try{return confirmBinItems(data,input);}catch{throw new TaskError(503,"Bin changes could not be confirmed. Refresh before retrying.");}
+    }
     const { data, error } = await this.client.rpc("task_app_bin", { operation: input.action, selections: input.items, confirmed: input.confirmed });
     check(error);
     if (!data || data.action !== input.action || !Array.isArray(data.ids) || data.ids.length !== input.items.length
