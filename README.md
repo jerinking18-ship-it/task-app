@@ -129,3 +129,18 @@ no dependencies were installed and no build/tests were executed in this folder.
 Hosted behavior, physical-device sync and real two-account isolation remain
 unverified. Local planning history, private screenshots, installed dependencies
 and generated output are intentionally omitted.
+
+## Reopening completion credit
+
+Migration013 corrects the durable yearly completion total when a task is reopened.
+A reopened occurrence has no completion credit; completing it again restores its
+one original member/year credit. It cannot count twice, even across members or
+years. New repeating occurrences count separately. Bin, permanent purge and
+Completed clear preserve credit for completed occurrences. The migration also
+corrects surviving tasks reopened before deployment without changing task rows
+or erasing credits for already purged tasks. Apply013 once after012.
+
+The offline SQL runner verifies reopen/recomplete races, parallel counter writes,
+rollback, first-member/year attribution and migration preservation. The fictional
+Member history UI fixture mirrors those transitions for browser checks; it does
+not contact a hosted database.
