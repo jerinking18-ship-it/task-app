@@ -18,7 +18,9 @@
     "test:members": "node --test scripts/members.test.mjs",
     "test:bin": "node --test scripts/bin.test.mjs",
     "test:completed": "node --test scripts/completed.test.mjs",
-    "test:sync": "node --test scripts/live-sync.test.mjs"
+    "test:sync": "node --test scripts/live-sync.test.mjs",
+    "test:templates": "node --test scripts/templates.test.mjs",
+    "test:history": "node --test scripts/member-history.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
