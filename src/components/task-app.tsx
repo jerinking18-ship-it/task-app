@@ -6,7 +6,7 @@ import CapitalizedInput from "./capitalized-input";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import styles from "./task-app.module.css";
-import { accountClock, completionAge, inHistory, isAvailable, newestFirst, repeatError, blankTask, newTaskDraft, categoryWeekdays, categoryOrder, MEETING_CATEGORIES, PRIORITIES, WEEKDAYS, isOverdue, type EditScope, type Priority, type Task } from "@/lib/tasks/model";
+import { accountClock, completionAge, inHistory, isAvailable, sortTasksForStatus, repeatError, blankTask, newTaskDraft, categoryWeekdays, categoryOrder, MEETING_CATEGORIES, PRIORITIES, WEEKDAYS, isOverdue, type EditScope, type Priority, type Task } from "@/lib/tasks/model";
 import { displayMemberName } from "@/lib/members/display-name";
 import { taskCoverage, canTakeTask } from "@/lib/members/absence";
 import {assignmentLabel,matchesAssignedTask,isChangedCompletion} from "@/lib/tasks/assignment";
@@ -259,7 +259,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const currentFilters={view,status:displayedStatus,priority,category,search};
   const matches=(task:Task)=>view==="Assigned to me"?matchesAssignedTask(task,members?.current?.id,currentFilters,today,saved?clock.time:"00:00:00",now):matchesCategoryTask(task,currentFilters,today,saved ? clock.time : "00:00:00",now);
   const categoryTasks=tasks.filter(task=>isCategoryTaskVisible(task,now,today,saved ? clock.time : "00:00:00"));
-  const visibleTasks=newestFirst(tasks.filter(matches));
+  const visibleTasks=sortTasksForStatus(tasks.filter(matches),displayedStatus);
   const completedCount=visibleTasks.filter(task=>task.completed).length;
   const remainingCount=visibleTasks.length-completedCount;
   const filtersApplied = search !== "" || priority !== "Any" || category !== "Any" || status !== "All";
