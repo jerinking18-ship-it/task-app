@@ -9,7 +9,7 @@ export default async function SignIn({ searchParams }: PageProps<"/sign-in">) {
   const linkError = query.error === "link";
   const message = linkError ? "That link is invalid, expired, or was opened in a different browser. Request a new link below and open it here."
     : query.notice === "password-updated" ? "Password updated. Sign in with your new password."
-    : query.notice === "profile-left" ? "You’ve left this shared account. Your shared tasks and past completion names were kept."
+    : query.notice === "profile-left" ? "You’ve left this workspace. Your shared tasks and past completion names were kept."
     : query.notice === "signed-out" ? "You’re signed out of this browser." : "";
   return <AuthShell eyebrow="PRAISE THE LORD" title="Sign in to Task App" description="Your tasks, right where you left them."><AuthForm initialMessage={message} initialError={linkError} /></AuthShell>;
 }
