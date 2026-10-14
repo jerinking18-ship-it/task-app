@@ -26,7 +26,7 @@
 .libraryHint,.editorNote { font-size:12px; color:#677383; line-height:1.7; }
 .libraryHint { border-top:1px solid #e5dfd4; padding-top:16px; margin:22px 0 0; }
 .editorNote { background:#f7f5f0; border:1px solid #e9e3d7; border-radius:8px; padding:12px; margin:0; }
-.empty { text-align:center; padding:36px 16px; }
+.empty { display:flex; flex-direction:column; align-items:center; text-align:center; padding:36px 16px; }
 .empty>svg { width:36px; height:36px; color:#a58a50; }
 .empty h3 { font-size:20px; font-weight:600; }
 .empty p { color:#77808a; font-size:13px; line-height:1.7; }
