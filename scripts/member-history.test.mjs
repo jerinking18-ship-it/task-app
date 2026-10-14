@@ -8,7 +8,8 @@ const require=createRequire(import.meta.url);
 function load(file,deps={},globals={}){const exports={};const {outputText}=ts.transpileModule(readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}});vm.runInNewContext(outputText,{exports,Date,Intl,Set,Map,Promise,URL,TextDecoder,Uint8Array,JSON,...globals,require(name){if(name in deps)return deps[name];if(name==='next/server')return require(name);throw Error(name);}});return exports;}
 const tasks=load('../src/lib/tasks/model.ts');
 const validation=load('../src/lib/tasks/validation.ts',{'./model':tasks});
-const model=load('../src/lib/member-history/model.ts',{'@/lib/tasks/model':tasks,'@/lib/tasks/validation':validation});
+const periods=load('../src/lib/tasks/meeting-period.ts',{'./model':tasks});
+const model=load('../src/lib/member-history/model.ts',{'@/lib/tasks/model':tasks,'@/lib/tasks/validation':validation,'@/lib/tasks/meeting-period':periods});
 const errors=load('../src/lib/tasks/repository.ts',{'./model':tasks,'./validation':validation});
 const {MemberHistoryRepository}=load('../src/lib/member-history/repository.ts',{'./model':model,'@/lib/tasks/repository':errors});
 const id='00000000-0000-4000-8000-000000001001',other='00000000-0000-4000-8000-000000001002',taskId='00000000-0000-4000-8000-000000001003';
