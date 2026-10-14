@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { deletionLabel, MAX_BIN_SELECTION, binKey, type BinTask, type BinTemplate, type BinEntry } from "@/lib/tasks/bin";
+import { deletionLabel, newestDeletedFirst, MAX_BIN_SELECTION, binKey, type BinTask, type BinTemplate, type BinEntry } from "@/lib/tasks/bin";
 import {displayMemberName,type NamedMember} from "@/lib/members/display-name";
-import { newestFirst, WEEKDAYS } from "@/lib/tasks/model";
+import { WEEKDAYS } from "@/lib/tasks/model";
 import { useBinDrag } from "@/lib/tasks/use-bin-drag";
 import styles from "./task-bin.module.css";
 function Trash(){return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>;}
@@ -13,7 +13,7 @@ export default function TaskBin({members=[],canManage=true,tasks,templates=[],se
   const [selection,setSelection]=useState<Map<string,string>>(()=>new Map());
   const [selecting,setSelecting]=useState(false);
   const [feedback,setFeedback]=useState('');const all=useRef<HTMLInputElement>(null);
-  const items:BinEntry[]=[...newestFirst(tasks).map(task=>({...task,kind:"task" as const})),...templates];
+  const items:BinEntry[]=[...newestDeletedFirst(tasks).map(task=>({...task,kind:"task" as const})),...newestDeletedFirst(templates)];
   const query=search.trim().toLowerCase();
   const visible=items.filter(item=>!query||[item.title,item.notes,...(item.kind==="task"?[item.category]:item.items.flatMap(task=>[task.title,task.notes]))].some(value=>value.toLowerCase().includes(query)));
   const selected=visible.filter(item=>selection.get(binKey(item))===item.updatedAt);

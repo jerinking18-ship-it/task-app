@@ -123,6 +123,49 @@ test("row mapping preserves dates/versions and rejects missing category joins or
   assert.equal(order[0].id,"b");
 });
 
+test("Completed sorts by the real completion instant, not creation, editing or timestamp formatting",()=>{
+  const base={...model.blankTask(),completed:true};
+  const rows=[
+    {...base,id:"old-created",createdAt:"2026-10-10T00:00:00Z",completedAt:"2026-10-14T13:00:00.123456Z"},
+    {...base,id:"new-created",createdAt:"2026-10-14T00:00:00Z",updatedAt:"2026-10-15T00:00:00Z",completedAt:"2026-10-14T18:29:00+05:30"},
+    {...base,id:"slightly-later",createdAt:"2026-10-11T00:00:00Z",completedAt:"2026-10-14T13:00:00.123457+00:00"},
+    {...base,id:"missing-completion",createdAt:"2026-10-15T00:00:00Z",completedAt:null},
+  ];
+  assert.equal(model.sortTasksForStatus(rows,"Completed").map(t=>t.id).join(","),"slightly-later,old-created,new-created,missing-completion");
+  assert.equal(rows[0].id,"old-created");
+});
+
+test("Overdue uses latest due date then time, including date-only midnight boundaries",()=>{
+  const base=model.blankTask();
+  const rows=[
+    {...base,id:"recently-created",createdAt:"2026-10-14T00:00:00Z",date:"2026-10-10",time:"23:50"},
+    {...base,id:"morning",createdAt:"2026-10-10T00:00:00Z",date:"2026-10-13",time:"05:00"},
+    {...base,id:"evening",createdAt:"2026-10-09T00:00:00Z",date:"2026-10-13",time:"23:50"},
+    {...base,id:"date-only",createdAt:"2026-10-08T00:00:00Z",date:"2026-10-13",time:""},
+    {...base,id:"same-midnight-newer",createdAt:"2026-10-09T00:00:00Z",date:"2026-10-14",time:"00:00"},
+  ];
+  assert.equal(model.sortTasksForStatus(rows,"Overdue").map(t=>t.id).join(","),"same-midnight-newer,date-only,evening,morning,recently-created");
+});
+
+test("All and Active retain creation-time order across offset representations and stable ties",()=>{
+  const base=model.blankTask();
+  const rows=[
+    {...base,id:"older",createdAt:"2026-10-14T18:00:00+05:30",updatedAt:"2026-10-15T00:00:00Z",completedAt:"2026-10-15T00:00:00Z"},
+    {...base,id:"a",createdAt:"2026-10-14T13:00:00Z"},
+    {...base,id:"b",createdAt:"2026-10-14T18:30:00.000000+05:30"},
+  ];
+  for(const status of ["All","Active"])
+    assert.equal(model.sortTasksForStatus(rows,status).map(t=>t.id).join(","),"b,a,older");
+  assert.equal(model.newestFirst(rows).map(t=>t.id).join(","),"b,a,older");
+});
+
+test("equal completion and due times fall back to creation time, then ID",()=>{
+  const base={...model.blankTask(),completed:true,completedAt:"2026-10-14T13:00:00Z",date:"2026-10-13",time:"12:00"};
+  const rows=[{...base,id:"z",createdAt:"2026-10-10T00:00:00Z"},{...base,id:"a",createdAt:"2026-10-12T00:00:00Z"},{...base,id:"b",createdAt:"2026-10-12T00:00:00Z"}];
+  for(const status of ["Completed","Overdue"])
+    assert.equal(model.sortTasksForStatus(rows,status).map(t=>t.id).join(","),"b,a,z");
+});
+
 test("paged reads release only the session owner's due repeats, load beyond 500 rows, and keep owner filters",async()=>{
   const rows=Array.from({length:501},(_,i)=>({...row,id:`00000000-0000-4000-8000-${String(i+1).padStart(12,"0")}`}));
   const f=fixture(call=>{

@@ -22,6 +22,18 @@ test('Bin response keeps deleted/completed metadata and rejects live, malformed,
  const result=bin.decodeBinResponse({tasks:[row],categories:[],templates:[]});assert.equal(result.tasks[0].deletedAt,stamp);assert.equal(result.tasks[0].completedByName,'Example');assert.equal(result.tasks[0].notes,'Notes remain');assert.equal(result.tasks[0].time,'12:55');
  for(const value of [{tasks:[{...row,deleted_at:null}],categories:[],templates:[]},{tasks:[{...row,deleted_by_name:undefined}],categories:[],templates:[]},{tasks:[row,row],categories:[],templates:[]},{tasks:[{...row,category_id:id}],categories:[],templates:[]},{tasks:[{...row,deleted_at:'bad'}],categories:[],templates:[]},{tasks:[],categories:null}])assert.throws(()=>bin.decodeBinResponse(value));
 });
+test('Bin orders by actual deletion time rather than task creation or editing time',()=>{
+ const rows=[
+  {...row,id:'00000000-0000-4000-8000-000000000095',created_at:'2026-10-14T00:00:00Z',updated_at:'2026-10-15T00:00:00Z',deleted_at:'2026-10-14T18:29:00+05:30'},
+  {...row,id:'00000000-0000-4000-8000-000000000093',created_at:'2026-10-10T00:00:00Z',deleted_at:'2026-10-14T13:00:00.123456Z'},
+  {...row,id:'00000000-0000-4000-8000-000000000094',created_at:'2026-10-11T00:00:00Z',deleted_at:'2026-10-14T13:00:00.123457+00:00'},
+ ];
+ const result=bin.decodeBinResponse({tasks:rows,categories:[],templates:[]});
+ assert.equal(result.tasks.map(t=>t.id.slice(-3)).join(','),'094,093,095');
+ assert.equal(bin.newestDeletedFirst(result.tasks).map(t=>t.id.slice(-3)).join(','),'094,093,095');
+ assert.equal(rows[0].id.slice(-3),'095');
+});
+
 test('Deletion label uses actual India time and local midnight age boundaries',()=>{
  assert.equal(bin.deletionLabel('2026-10-13T07:25:00Z',new Date('2026-10-13T08:00:00Z')),'Deleted today · 12:55 PM');
  assert.equal(bin.deletionLabel('2026-10-12T18:29:59Z',new Date('2026-10-12T18:30:00Z')),'Deleted yesterday · 11:59 PM');
