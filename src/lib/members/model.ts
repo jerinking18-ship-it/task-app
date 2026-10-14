@@ -1,11 +1,12 @@
-import { isRecord, timestamp, uuid } from "@/lib/tasks/validation";
+import type {Absence} from "./absence";
+import { isRecord, timestamp, uuid, date } from "@/lib/tasks/validation";
 
 export const MEMBER_LIMIT = 10;
 export type MemberRole = "owner" | "coordinator" | "member";
 export type Workspace = {id:string;ownerId:string;name:string;reservedSeats:number};
 export type Invitation = {id:string;email:string;role:"member"|"coordinator";expiresAt:string};
 export type Member = { role?:MemberRole; id: string; name: string; createdAt: string; lastSeenAt: string; activeUntil?: string | null };
-export type MemberState = { current: Member | null; members: Member[]; serverNow?: string; workspace?:Workspace|null; invitations?:Invitation[] };
+export type MemberState = { absences?:Absence[]; current: Member | null; members: Member[]; serverNow?: string; workspace?:Workspace|null; invitations?:Invitation[] };
 export type MemberAction = { action: "rename"; name: string; previousName: string } | { action: "leave"; confirmed: true };
 
 export function memberName(value: unknown): string | null {
@@ -55,7 +56,23 @@ function decodeState(value: unknown, format: "database" | "api"): MemberState {
       if(!isRecord(i)||!uuid(i.id)||typeof i.email!=="string"||!["member","coordinator"].includes(i.role as string)||!timestamp(expiresAt))throw new Error("Incomplete invitation response.");
       invitations.push({id:i.id,email:i.email,role:i.role as Invitation["role"],expiresAt});}
   }
-  return { ...(workspace===undefined?{}:{workspace}),...(value.invitations===undefined?{}:{invitations}), current, members, ...(serverNow===undefined?{}:{serverNow}) };
+  const absences:Absence[]=[];
+  if(value.absences!==undefined){
+    if(!Array.isArray(value.absences)||value.absences.length>50)throw new Error("Incomplete absence response.");
+    for(const a of value.absences){
+      if(!isRecord(a))throw new Error("Incomplete absence response.");
+      const memberId=format==="database"?a.member_id:a.memberId,categoryId=format==="database"?a.category_id:a.categoryId;
+      const createdAt=format==="database"?a.created_at:a.createdAt,expiresAt=format==="database"?a.expires_at:a.expiresAt;
+      const meetingDate=(format==="database"?a.meeting_date:a.meetingDate)??null;
+      if(!uuid(a.id)||!uuid(memberId)||!members.some(m=>m.id===memberId)||!uuid(categoryId)||typeof a.category!=="string"
+        ||!["Sunday Service","Healing Meeting","Revival Meeting","Special Meeting","Woman's Meeting"].includes(a.category)
+        ||!timestamp(createdAt)||!timestamp(expiresAt)||Date.parse(expiresAt)<=Date.parse(createdAt)
+        ||(a.category==="Special Meeting"?!date(meetingDate):meetingDate!==null))throw new Error("Incomplete absence response.");
+      absences.push({id:a.id,memberId,categoryId,category:a.category,createdAt,expiresAt,meetingDate:meetingDate as string|null});
+    }
+    if(new Set(absences.map(a=>a.memberId+":"+a.categoryId)).size!==absences.length)throw new Error("Duplicate active absence response.");
+  }
+  return { ...(value.absences===undefined?{}:{absences}), ...(workspace===undefined?{}:{workspace}),...(value.invitations===undefined?{}:{invitations}), current, members, ...(serverNow===undefined?{}:{serverNow}) };
 }
 export function memberActive(member:Member,now=new Date()):boolean {
   return !!member.activeUntil && Date.parse(member.activeUntil)>now.getTime();
