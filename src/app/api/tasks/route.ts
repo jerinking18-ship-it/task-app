@@ -10,15 +10,17 @@ function json(body: unknown, status=200) { return NextResponse.json(body,{status
 async function repository() {
   const client = await createClient(); const identity = await verifiedIdentity(client.auth);
   if (!identity) throw new TaskError(401,"Your session has ended. Sign in again to continue.");
+  let owner:string|undefined;
   try {
-    if (!(await readMembers(client)).current) throw new TaskError(403,"Choose your name before saving or viewing tasks.");
+    const state=await readMembers(client);owner=state.workspace?.ownerId;
+    if (!state.current || !owner) throw new TaskError(403,"Join your workspace before saving or viewing tasks.");
   } catch (error) {
     if (error instanceof MemberError && error.status === 401) {
       try { await client.auth.signOut({ scope: "local" }); } catch { /* Fail closed even if cookie cleanup fails. */ }
     }
     throw error;
   }
-  return new TaskRepository(client,identity.userId);
+  return new TaskRepository(client,owner!);
 }
 function failure(error: unknown) {
   if (error instanceof MemberError) return json({message:error.message},error.status);
