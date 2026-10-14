@@ -7,9 +7,10 @@ import ts from 'typescript';
 const require=createRequire(import.meta.url);
 function load(file,deps={},globals={}){const exports={};const {outputText}=ts.transpileModule(readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});vm.runInNewContext(outputText,{exports,Date,Intl,Set,Map,Promise,URL,TextDecoder,Uint8Array,...globals,require(name){if(name in deps)return deps[name];if(name==='next/server')return require(name);throw Error(name);}});return exports;}
 const model=load('../src/lib/tasks/model.ts');const validation=load('../src/lib/tasks/validation.ts',{'./model':model});
-const bin=load('../src/lib/tasks/bin.ts',{'./model':model,'./validation':validation});
+const templateModel=load('../src/lib/templates/model.ts',{'@/lib/tasks/model':model,'@/lib/tasks/validation':validation});
+const bin=load('../src/lib/tasks/bin.ts',{'./model':model,'./validation':validation,'@/lib/templates/model':templateModel});
 const repo=load('../src/lib/tasks/repository.ts',{'./model':model,'./validation':validation});
-const {BinRepository}=load('../src/lib/tasks/bin-repository.ts',{'./bin':bin,'./validation':validation,'./repository':repo});
+const {BinRepository}=load('../src/lib/tasks/bin-repository.ts',{'./bin':bin,'./validation':validation,'./repository':repo,'@/lib/templates/model':templateModel});
 const id='00000000-0000-4000-8000-000000000091',owner='00000000-0000-4000-8000-000000000001',stamp='2026-10-13T07:25:00.123456+00:00';
 const row={id,title:'Example task',notes:'Notes remain',status:'completed',due_date:'2026-10-13',due_time:'12:55:00',priority:'high',category_id:null,weekdays:[2],repeat_rule:'off',series_id:null,created_at:stamp,updated_at:stamp,completed_at:stamp,completed_by_member_id:id,completed_by_name:'Example',deleted_at:stamp,deleted_by_name:'Example'};
 const action={action:'purge',confirmed:true,items:[{id,version:stamp}]};
@@ -18,20 +19,20 @@ test('Bin action requires explicit confirmation, unique bounded versioned select
  for(const value of [{...action,confirmed:false},{...action,confirmed:undefined},{...action,action:'delete'},{...action,owner_id:owner},{...action,items:[]},{...action,items:[action.items[0],action.items[0]]},{...action,items:[{id,version:'bad'}]},{...action,items:[{id,version:stamp,owner_id:owner}]},{...action,items:Array.from({length:1001},(_,i)=>({id:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,version:stamp}))}])assert.equal(bin.validateBinAction(value),null);
 });
 test('Bin response keeps deleted/completed metadata and rejects live, malformed, duplicate and missing-join records',()=>{
- const result=bin.decodeBinResponse({tasks:[row],categories:[]});assert.equal(result.tasks[0].deletedAt,stamp);assert.equal(result.tasks[0].completedByName,'Example');assert.equal(result.tasks[0].notes,'Notes remain');assert.equal(result.tasks[0].time,'12:55');
- for(const value of [{tasks:[{...row,deleted_at:null}],categories:[]},{tasks:[{...row,deleted_by_name:undefined}],categories:[]},{tasks:[row,row],categories:[]},{tasks:[{...row,category_id:id}],categories:[]},{tasks:[{...row,deleted_at:'bad'}],categories:[]},{tasks:[],categories:null}])assert.throws(()=>bin.decodeBinResponse(value));
+ const result=bin.decodeBinResponse({tasks:[row],categories:[],templates:[]});assert.equal(result.tasks[0].deletedAt,stamp);assert.equal(result.tasks[0].completedByName,'Example');assert.equal(result.tasks[0].notes,'Notes remain');assert.equal(result.tasks[0].time,'12:55');
+ for(const value of [{tasks:[{...row,deleted_at:null}],categories:[],templates:[]},{tasks:[{...row,deleted_by_name:undefined}],categories:[],templates:[]},{tasks:[row,row],categories:[],templates:[]},{tasks:[{...row,category_id:id}],categories:[],templates:[]},{tasks:[{...row,deleted_at:'bad'}],categories:[],templates:[]},{tasks:[],categories:null}])assert.throws(()=>bin.decodeBinResponse(value));
 });
 test('Deletion label uses actual India time and local midnight age boundaries',()=>{
  assert.equal(bin.deletionLabel('2026-10-13T07:25:00Z',new Date('2026-10-13T08:00:00Z')),'Deleted today · 12:55 PM');
  assert.equal(bin.deletionLabel('2026-10-12T18:29:59Z',new Date('2026-10-12T18:30:00Z')),'Deleted yesterday · 11:59 PM');
  assert.equal(bin.deletionLabel('2026-10-13T07:25:00Z',new Date('2026-10-16T07:25:00Z')),'Deleted 3 days ago · 12:55 PM');assert.equal(bin.deletionLabel('bad'),'Deletion time unavailable');
 });
-function repositoryFixture(respond){const calls=[];return {calls,repo:new BinRepository({rpc(name,args){calls.push({name,args});return respond({name,args});},from(table){const ops=[];const q={};for(const method of ['select','eq','not','order','limit','gt'])q[method]=(...args)=>{ops.push([method,...args]);return q;};q.then=(resolve,reject)=>Promise.resolve(respond({table,ops})).then(resolve,reject);calls.push({table,ops});return q;}},owner)};}
+function repositoryFixture(respond){const calls=[];return {calls,repo:new BinRepository({rpc(name,args){calls.push({name,args});return name==='task_app_deleted_templates'?{data:[],error:null}:respond({name,args});},from(table){const ops=[];const q={};for(const method of ['select','eq','not','order','limit','gt'])q[method]=(...args)=>{ops.push([method,...args]);return q;};q.then=(resolve,reject)=>Promise.resolve(respond({table,ops})).then(resolve,reject);calls.push({table,ops});return q;}},owner)};}
 test('Bin reads are owner-scoped, exclude live tasks and page completely past500 without partial acceptance',async()=>{
  const rows=Array.from({length:501},(_,i)=>({...row,id:`00000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`}));
  const f=repositoryFixture(c=>({data:c.table==='categories'?[]:c.ops.some(o=>o[0]==='gt')?rows.slice(500):rows.slice(0,500),error:null}));
  const result=await f.repo.read();assert.equal(result.tasks.length,501);
- for(const c of f.calls){assert.ok(c.ops.some(o=>o[0]==='eq'&&o[1]==='owner_id'&&o[2]===owner));if(c.table==='tasks')assert.ok(c.ops.some(o=>o[0]==='not'&&o[1]==='deleted_at'&&o[2]==='is'&&o[3]===null));}
+ for(const c of f.calls.filter(c=>c.table)){assert.ok(c.ops.some(o=>o[0]==='eq'&&o[1]==='owner_id'&&o[2]===owner));if(c.table==='tasks')assert.ok(c.ops.some(o=>o[0]==='not'&&o[1]==='deleted_at'&&o[2]==='is'&&o[3]===null));}
  const broken=repositoryFixture(()=>({data:null,error:{code:'provider-private'}}));await assert.rejects(()=>broken.repo.read(),e=>e.status===503&&!e.message.includes('provider-private'));
 });
 test('Bin mutations use one atomic RPC and verify exact affected ids; stale/foreign selections get safe409',async()=>{
@@ -40,7 +41,7 @@ test('Bin mutations use one atomic RPC and verify exact affected ids; stale/fore
  await assert.rejects(()=>repositoryFixture(()=>({data:null,error:{code:'P0012'}})).repo.mutate(action),e=>e.status===409);
 });
 function routeFixture({signedIn=true,selected=true}={}){let reads=0,writes=0;const route=load('../src/app/api/bin/route.ts',{
- '@/lib/supabase/server':{createClient:async()=>({auth:{}})},'@/lib/auth/flow':{verifiedIdentity:async()=>signedIn?{userId:owner}:null},'@/lib/auth/server':{authOrigin:()=> 'http://127.0.0.1:3003',AUTH_HEADERS:{'Cache-Control':'private, no-store'}},'@/lib/members/server':{MemberError:class extends Error{},readMembers:async()=>({current:selected?{id}:null})},'@/lib/tasks/repository':repo,'@/lib/tasks/bin':bin,'@/lib/tasks/bin-repository':{BinRepository:class{async read(){reads++;return {tasks:[row],categories:[]};}async mutate(input){writes++;return {action:input.action,ids:input.items.map(i=>i.id)};}}}});return {route,counts:()=>({reads,writes})};}
+ '@/lib/supabase/server':{createClient:async()=>({auth:{}})},'@/lib/auth/flow':{verifiedIdentity:async()=>signedIn?{userId:owner}:null},'@/lib/auth/server':{authOrigin:()=> 'http://127.0.0.1:3003',AUTH_HEADERS:{'Cache-Control':'private, no-store'}},'@/lib/members/server':{MemberError:class extends Error{},readMembers:async()=>({current:selected?{id}:null})},'@/lib/tasks/repository':repo,'@/lib/tasks/bin':bin,'@/lib/tasks/bin-repository':{BinRepository:class{async read(){reads++;return {tasks:[row],categories:[],templates:[]};}async mutate(input){writes++;return {action:input.action,ids:input.items.map(i=>i.id)};}}}});return {route,counts:()=>({reads,writes})};}
 function request(body,origin='http://127.0.0.1:3003',type='application/json'){return new Request('http://127.0.0.1:3003/api/bin',{method:'POST',headers:{origin,'Content-Type':type},body:typeof body==='string'?body:JSON.stringify(body)});}
 test('Bin API rejects anonymous/unselected/cross-origin/malformed/oversize actions without data access',async()=>{
  for(const [options,status] of [[{signedIn:false},401],[{selected:false},403]]){const f=routeFixture(options);assert.equal((await f.route.GET()).status,status);assert.equal((await f.route.POST(request(action))).status,status);assert.equal(f.counts().reads+f.counts().writes,0);}
