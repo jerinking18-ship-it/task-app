@@ -5,7 +5,7 @@ export type TemplateItem = { title: string; notes: string };
 export type TaskTemplate = { id: string; name: string; items: TemplateItem[]; created_at: string; updated_at: string };
 export type TemplateRemoveAction = { action:"remove";id:string;version:string;confirmed:true };
 export type TemplateMutation = TemplateAction | TemplateRemoveAction;
-export type DeletedTemplate = TaskTemplate & {deleted_at:string;deleted_by_name:string|null};
+export type DeletedTemplate = TaskTemplate & {deleted_at:string;deleted_by_name:string|null;deleted_by_member_id?:string|null};
 export type TemplateAction = { action: "create" | "update"; id: string; name: string; items: TemplateItem[]; version: string | null };
 const exact = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).every(key => keys.includes(key));
 export function validItems(value: unknown): value is TemplateItem[] {
@@ -37,8 +37,8 @@ export function decodeTemplate(value: unknown,allowDeleted=false): TaskTemplate 
 }
 export function decodeDeletedTemplate(value:unknown):DeletedTemplate {
   const template=decodeTemplate(value,true);
-  if(!isRecord(value)||!timestamp(value.deleted_at)||!(value.deleted_by_name===null||(typeof value.deleted_by_name==="string"&&value.deleted_by_name.trim()&&value.deleted_by_name.length<=50)))throw Error("Incomplete deleted template response.");
-  return {...template,deleted_at:value.deleted_at,deleted_by_name:value.deleted_by_name as string|null};
+  if(!isRecord(value)||!timestamp(value.deleted_at)||!(value.deleted_by_member_id===undefined||value.deleted_by_member_id===null||(uuid(value.deleted_by_member_id)&&typeof value.deleted_by_name==="string"))||!(value.deleted_by_name===null||(typeof value.deleted_by_name==="string"&&value.deleted_by_name.trim()&&value.deleted_by_name.length<=50)))throw Error("Incomplete deleted template response.");
+  return {...template,...(value.deleted_by_member_id===undefined?{}:{deleted_by_member_id:value.deleted_by_member_id as string|null}),deleted_at:value.deleted_at,deleted_by_name:value.deleted_by_name as string|null};
 }
 export function decodeTemplates(value: unknown): TaskTemplate[] {
   if (!isRecord(value) || !Array.isArray(value.templates)) throw Error("Templates could not be loaded completely.");

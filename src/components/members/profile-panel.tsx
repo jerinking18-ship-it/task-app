@@ -92,7 +92,7 @@ export default function ProfilePanel({ state, categories, email, loading, error,
       {editing && <form className={styles.nameForm} onSubmit={submitName} aria-label="Edit your name">
         <label htmlFor="profile-name">Your name</label>
         <CapitalizedInput ref={input} id="profile-name" autoComplete="name" maxLength={50} required disabled={blocked} value={name} onValueChange={value => { setName(value); onDirty(value !== previousName.current); }}/>
-        <p>Previous completion names will stay unchanged.</p>
+        <p>Your updated name appears on past and future activity.</p>
         <div className={styles.formActions}><button type="button" className={styles.cancel} disabled={pending} onClick={cancelEdit}>Cancel</button><button type="submit" className={styles.save} disabled={blocked}>{pending ? "Saving…" : "Save name"}</button></div>
       </form>}
     </div>

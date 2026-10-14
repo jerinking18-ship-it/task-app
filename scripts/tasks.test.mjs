@@ -37,7 +37,7 @@ function fixture(respond) {
   return {repo:new repository.TaskRepository(client,owner),calls,client};
 }
 const op=(call,name)=>call.ops.find(o=>o[0]===name);
-const normal=call=>({data:call.table==="account_settings" ? {timezone:"Asia/Kolkata"} : call.table==="rpc" ? (["task_app_available_coverage","task_app_coverage_origins"].includes(op(call,"rpc")[1])?[]:null) : [],error:null});
+const normal=call=>({data:call.table==="account_settings" ? {timezone:"Asia/Kolkata"} : call.table==="rpc" ? (["task_app_available_coverage","task_app_coverage_origins","task_app_member_names"].includes(op(call,"rpc")[1])?[]:null) : [],error:null});
 
 test("task payload validation rejects unsupported/owner/metadata writes, bad dates, missing fields, and completed creates",()=>{
   assert.equal(validation.validateAction({action:"create",fields:{...fields,title:"  hello  "}}).fields.title,"hello");
@@ -131,7 +131,7 @@ test("paged reads release only the session owner's due repeats, load beyond 500 
   });
   const data=await f.repo.read();assert.equal(data.tasks.length,501);
   for(const call of f.calls) {
-    if(call.table==="rpc") {assert.ok(["task_app_release_my_repeats","task_app_available_coverage","task_app_coverage_origins"].includes(op(call,"rpc")[1]));assert.equal(op(call,"rpc")[2],undefined);continue;}
+    if(call.table==="rpc") {assert.ok(["task_app_release_my_repeats","task_app_available_coverage","task_app_coverage_origins","task_app_member_names"].includes(op(call,"rpc")[1]));assert.equal(op(call,"rpc")[2],undefined);continue;}
     assert.ok(call.ops.some(o=>o[0]==="eq"&&o[1]==="owner_id"&&o[2]===owner));
     assert.equal(!!op(call,"insert"),false);assert.equal(!!op(call,"update"),false);
   }
@@ -206,7 +206,7 @@ test("status uses the atomic owner-checked RPC with original task/version",async
 test("stale edit returns latest owned row as conflict, missing row returns 404, no automatic replay",async()=>{
   const f=fixture(call=>op(call,"rpc")?.[1]==="task_app_mutate" ? {data:null,error:null} : call.table==="tasks" ? {data:{...row,title:"Changed elsewhere"},error:null} : normal(call));
   await assert.rejects(()=>f.repo.mutate({action:"update",id:taskId,version,fields}),e=>e.status===409 && e.latest.title==="Changed elsewhere");
-  assert.equal(f.calls.filter(c=>op(c,"rpc")).length,2);
+  assert.equal(f.calls.filter(c=>op(c,"rpc")).length,3);
   const missing=fixture(call=>call.table==="tasks" ? {data:null,error:null} : normal(call));
   await assert.rejects(()=>missing.repo.mutate({action:"update",id:taskId,version,fields}),e=>e.status===404);
 });
@@ -328,7 +328,7 @@ test("delete marks the retained row and checks original owner/version; all task 
 test("stale delete preserves task and reports saved version for review",async()=>{
   const f=fixture(call=>op(call,"rpc")?.[1]==="task_app_mutate"?{data:null,error:null}:call.table==="tasks"?{data:{...row,title:"New saved title"},error:null}:normal(call));
   await assert.rejects(()=>f.repo.mutate({action:"delete",id:taskId,version}),error=>error.status===409&&error.latest.title==="New saved title");
-  assert.equal(f.calls.filter(call=>op(call,"rpc")).length,2);
+  assert.equal(f.calls.filter(call=>op(call,"rpc")).length,3);
 });
 
 test("new task actions still require authenticated same-origin requests; meeting presets keep approved order",async()=>{
@@ -388,4 +388,12 @@ test("Bin acknowledgement rejects unconfirmed rows and keeps live task version v
   assert.throws(()=>validation.decodeRow({...row,series_version:null}));
   const f=routeFixture(true,call=>op(call,"rpc")?{data:{...row,series_version:null},error:null}:normal(call));
   assert.equal((await f.route.POST(request({action:"status",id:taskId,version,status:"active"}))).status,503);
+});
+
+test("completion author reads use the current scoped profile name, including retained former profiles, without rewriting task rows",async()=>{
+ const done={...row,status:'completed',completed_at:version,completed_by_member_id:taskId,completed_by_name:'Old name'};
+ const f=fixture(call=>call.table==='tasks'?{data:[done],error:null}:op(call,'rpc')?.[1]==='task_app_member_names'?{data:[{id:taskId,name:'Current name'}],error:null}:normal(call));
+ const result=await f.repo.read();assert.equal(result.tasks[0].completed_by_name,'Current name');assert.equal(done.completed_by_name,'Old name');assert.equal(result.tasks[0].updated_at,version);
+ const nameRead=f.calls.find(call=>op(call,'rpc')?.[1]==='task_app_member_names');assert.equal(op(nameRead,'rpc')[2],undefined);assert.equal(f.calls.some(call=>call.table==='account_members'),false);
+ const broken=fixture(call=>op(call,'rpc')?.[1]==='task_app_member_names'?{data:[{id:taskId,name:'One'},{id:taskId,name:'Two'}],error:null}:normal(call));await assert.rejects(()=>broken.repo.read());
 });

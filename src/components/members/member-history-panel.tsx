@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
+import {displayMemberName,type NamedMember} from "@/lib/members/display-name";
 import {CATEGORY_COLORS,completionTime,historyYear,reportSchedule,specialResetLabel,visibleCompletions,yearlyTotal,type HistoryEntry,type MemberHistoryData} from "@/lib/member-history/model";
 import styles from "./member-history.module.css";
 function Mark({clock=false,size=28}:{clock?:boolean;size?:number}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/>{clock?<path d="M12 6v6l4 2"/>:<path d="m7 12 3 3 7-7"/>}</svg>;}
@@ -9,9 +10,9 @@ function Section({category,entries,resetLabel}:{category:string;entries:HistoryE
  {entries.length?<ul className={styles.entries}>{entries.map(entry=><li key={entry.id} className={styles.entry}><Mark size={26}/><div className={styles.entryBody}><h3>{entry.title}</h3>{entry.notes&&<p className={styles.notes}>{entry.notes}</p>}<time className={styles.completedOn} dateTime={entry.completedAt}><Mark clock size={13}/><span>Completed on {completionTime(entry.completedAt)}</span></time></div></li>)}</ul>:<div className={styles.empty}><EmptyMark/><h3>No completions yet</h3><p>Completed {category} tasks will appear here.</p></div>}
  </section>;
 }
-export default function MemberHistoryPanel({data,loading,error,now,currentMemberId,hasSpecialTasks=false,onRefresh}:{data:MemberHistoryData|null;loading:boolean;error:string;now:Date;currentMemberId?:string;hasSpecialTasks?:boolean;onRefresh:()=>void}){
+export default function MemberHistoryPanel({data,loading,error,now,currentMembers=[],currentMemberId,hasSpecialTasks=false,onRefresh}:{currentMembers?:NamedMember[];data:MemberHistoryData|null;loading:boolean;error:string;now:Date;currentMemberId?:string;hasSpecialTasks?:boolean;onRefresh:()=>void}){
  const [selected,setSelected]=useState(currentMemberId??"");
- const members=data?[...data.members].sort((a,b)=>Number(b.id===currentMemberId)-Number(a.id===currentMemberId)):[];
+ const members=data?data.members.map(member=>({...member,name:displayMemberName(member.id,member.name,currentMembers)!})).sort((a,b)=>Number(b.id===currentMemberId)-Number(a.id===currentMemberId)):[];
  const memberId=members.some(member=>member.id===selected)?selected:members.find(member=>member.id===currentMemberId)?.id??members[0]?.id??"";
  const member=members.find(item=>item.id===memberId),year=historyYear(now),schedule=reportSchedule(data,now);
  const entries=visibleCompletions(data,memberId,schedule.category,now);

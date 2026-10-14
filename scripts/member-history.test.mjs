@@ -50,7 +50,7 @@ test('Special completion deadlines stay independent across overlapping days and 
  assert.equal(rows.entries[0].expiresAt,'2026-10-14T18:20:00Z');
 });
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
-const Panel=load('../src/components/members/member-history-panel.tsx',{'react':React,'react/jsx-runtime':require('react/jsx-runtime'),'@/lib/member-history/model':model,'./member-history.module.css':{default:new Proxy({},{get:(_,name)=>String(name)})}}).default;
+const Panel=load('../src/components/members/member-history-panel.tsx',{'@/lib/members/display-name':load('../src/lib/members/display-name.ts'),'react':React,'react/jsx-runtime':require('react/jsx-runtime'),'@/lib/member-history/model':model,'./member-history.module.css':{default:new Proxy({},{get:(_,name)=>String(name)})}}).default;
 function renderHistory(rows,member=id,hasSpecialTasks=false){return renderToStaticMarkup(React.createElement(Panel,{data:rows,now:new Date('2026-10-14T07:25:00Z'),loading:false,error:'',currentMemberId:member,hasSpecialTasks,onRefresh(){}}));}
 test('Report renders only the period category followed by separate Special entries for the selected member',()=>{
  const entry=(memberId,category,title,index)=>({...data.entries[0],id:String(index),memberId,category,title,completedAt:'2026-10-14T07:00:00Z',expiresAt:'2026-10-15T18:20:00Z'});
@@ -88,4 +88,10 @@ test('History reads defer during dirty work, never POST, retain authoritative to
  const blocked=hookFixture({blocked:true});await blocked.settle();assert.equal(blocked.calls.length,0);blocked.cleanup();
  const f=hookFixture();await f.settle();assert.equal(f.states[0].totals[0].count,125);assert.ok(f.calls.every(call=>call.url==='/api/member-history'&&!call.init.method));f.cleanup();
  const expired=hookFixture({status:401});await expired.settle();assert.equal(expired.states[3],true);expired.cleanup();
+});
+
+test('history selector uses accepted current member names even while history data still carries old names',()=>{
+ const html=renderToStaticMarkup(React.createElement(Panel,{data,now:new Date('2026-10-14T07:25:00Z'),loading:false,error:'',currentMemberId:id,currentMembers:[{id,name:'Updated member'}],onRefresh(){}}));
+ assert.match(html,/<option[^>]*>Updated member/);
+ assert.equal(model.yearlyTotal(data,id,new Date('2026-10-14T07:25:00Z')),model.yearlyTotal({...data,members:data.members.map(m=>m.id===id?{...m,name:'Updated member'}:m)},id,new Date('2026-10-14T07:25:00Z')));
 });

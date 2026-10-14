@@ -57,7 +57,7 @@ test('Confirmed template hook removal updates the library only after a complete 
 });
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');const css={default:new Proxy({},{get:(_,key)=>String(key)})};
 const drag=load('../src/lib/tasks/use-bin-drag.ts',{'react':React});
-const TaskBin=load('../src/components/task-bin.tsx',{'react':React,'react/jsx-runtime':require('react/jsx-runtime'),'@/lib/tasks/bin':bin,'@/lib/tasks/model':tasks,'@/lib/tasks/use-bin-drag':drag,'./task-bin.module.css':css}).default;
+const TaskBin=load('../src/components/task-bin.tsx',{'@/lib/members/display-name':load('../src/lib/members/display-name.ts'),'react':React,'react/jsx-runtime':require('react/jsx-runtime'),'@/lib/tasks/bin':bin,'@/lib/tasks/model':tasks,'@/lib/tasks/use-bin-drag':drag,'./task-bin.module.css':css}).default;
 test('Bin renders tasks and templates in distinct sections, hides selection initially and searches template notes',()=>{
  const deleted=bin.decodeBinResponse({tasks:[],categories:[],templates:[removed]}).templates;
  const task={...tasks.blankTask(),id,title:'A deleted task',deletedAt:later,deletedByName:'Daniel'};
@@ -75,4 +75,12 @@ const removeRequest=(body=removal,origin='https://app.example.test')=>new Reques
 test('Template removal API checks session/member/origin/explicit confirmation before the only write',async()=>{
  for(const [opts,status] of [[{signedIn:false},401],[{selected:false},403]]){const f=removalRoute(opts);assert.equal((await f.route.POST(removeRequest())).status,status);assert.equal(f.writes(),0);}
  const f=removalRoute();assert.equal((await f.route.POST(removeRequest(removal,'https://foreign.test'))).status,403);assert.equal((await f.route.POST(removeRequest({...removal,confirmed:false}))).status,400);assert.equal(f.writes(),0);const response=await f.route.POST(removeRequest());assert.equal(response.status,200);assert.match(response.headers.get('cache-control'),/private, no-store/);assert.equal((await response.json()).removed.id,id);assert.equal(f.writes(),1);
+});
+
+test('task and template Bin deletion authors use current identity names without replacing saved attribution',()=>{
+ const task={...tasks.blankTask(),id,title:'Deleted sound notes',deletedAt:later,deletedById:owner,deletedByName:'Old owner'};
+ const template={kind:'template',id:owner,title:'Saved team set',notes:'',items:[{title:'Setup',notes:''}],updatedAt:later,deletedAt:later,deletedById:owner,deletedByName:'Old owner'};
+ const html=renderToStaticMarkup(React.createElement(TaskBin,{members:[{id:owner,name:'Current owner'}],tasks:[task],templates:[template],search:'',now:new Date(later),loaded:true,loading:false,pending:false,error:'',expired:false,needsMember:false,onRefresh(){},async onRestore(){},onPurge(){}}));
+ assert.equal((html.match(/by Current owner/g)||[]).length,2);assert.doesNotMatch(html,/by Old owner/);
+ assert.equal(task.deletedByName,'Old owner');assert.equal(template.deletedByName,'Old owner');
 });
