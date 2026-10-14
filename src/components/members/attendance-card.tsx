@@ -4,15 +4,16 @@ import { decodeMemberResponse, type MemberState } from "@/lib/members/model";
 import { activeAbsences } from "@/lib/members/absence";
 import { date } from "@/lib/tasks/validation";
 import type { Category } from "@/lib/tasks/model";
-import { MEETING_CATEGORIES } from "@/lib/tasks/model";
 import { requestWorkspace } from "@/lib/workspace/client";
 import styles from "./attendance.module.css";
+
+const ATTENDANCE_CATEGORY_ORDER = ["Sunday Service", "Healing Meeting", "Woman's Meeting", "Revival Meeting", "Special Meeting"];
 
 export default function AttendanceCard({state,categories,now,disabled,onSaved,onPending,onRefresh}:{
  state:MemberState;categories:Category[];now:Date;disabled:boolean;onSaved:(state:MemberState)=>void;
  onPending:(pending:boolean)=>void;onRefresh:()=>void;
 }){
- const options=categories.filter(c=>MEETING_CATEGORIES.includes(c.name));
+ const options=ATTENDANCE_CATEGORY_ORDER.flatMap(name=>categories.filter(category=>category.name===name));
  const [categoryId,setCategoryId]=useState("");const selected=options.find(c=>c.id===categoryId)??options[0];
  const [meetingDate,setMeetingDate]=useState("");const [confirm,setConfirm]=useState(false);const [pending,setPending]=useState(false);const [problem,setProblem]=useState("");
  const busy=useRef(false);const modal=useRef<HTMLDialogElement>(null);const trigger=useRef<HTMLButtonElement>(null);
