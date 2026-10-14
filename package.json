@@ -20,7 +20,9 @@
     "test:completed": "node --test scripts/completed.test.mjs",
     "test:sync": "node --test scripts/live-sync.test.mjs",
     "test:templates": "node --test scripts/templates.test.mjs",
-    "test:history": "node --test scripts/member-history.test.mjs"
+    "test:history": "node --test scripts/member-history.test.mjs",
+    "test:workspace": "node --test scripts/workspace.test.mjs",
+    "test:workspace:sql": "python3 supabase/tests/workspace_assignments.py"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
