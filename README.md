@@ -35,6 +35,16 @@ Migration018 adds a read-only, verified-workspace member-name lookup, including 
 
 Completed filters show a compact Changed tag when the actual completion author is the helper who took the occurrence from a different original assignee. The tag uses a dark navy border and text with a light navy fill. Ordinary self-completions and unfinished tasks do not show it. Assigned to and Completed by stay separate.
 
+## Meeting fines and centered dialogs
+
+Migration019 adds a private fine ledger and prospective activation. Eligible unfinished occurrences create one ₹50 fine each at the meeting cutoff in India time: Sunday Service Monday05:00, Healing Meeting Thursday05:00, Woman's Meeting Friday05:00, Revival Meeting Saturday05:00, and Special Meeting the next day05:00. The responsible assignee is captured at cutoff. Matching absence with an unclaimed task and tasks already in Bin are excluded. Late completion or task deletion does not erase an issued fine; reopening an on-time completion after cutoff does not create a retroactive fine.
+
+Fines sits below Assigned to me. Only the Owner and Coordinators can read or manage financial records. Members see an access-restricted screen; API/RPC checks prevent data access. Outstanding/Paid/Cancelled totals remain all-time. Mark paid records a received payment manually; cancellation requires a reason and records the manager and server time. There is no online payment or automatic fine-record purge.
+
+Apply migration019 inactive, deploy the matching client, then separately run the reviewed Cron installer to activate prospectively. Existing001–018 must never be replayed. The new job assesses every minute; authorized reads also catch up. Browser table access and private admin helpers remain denied. Existing records and function grants are preserved.
+
+Task, template, Users and financial popup dialogs use explicit viewport centering and height-limited scrolling. The navigation drawer keeps its existing left-side placement.
+
 ## Data and authorization
 
 Stable workspace owner_id partitions data independently of the current Owner role. Server/RPC checks derive identity and workspace from the verified Auth session. RLS limits shared reads; browser table mutations and legacy identity-picker/mutation function execution are revoked. Checked RPCs enforce current role, assignment, versions, category boundaries, invitation seats and ownership transfer. Private realtime invalidations refresh authorized devices without broadcasting task content.
@@ -61,6 +71,8 @@ npm run build
 npm run test:workspace:sql
 npm run test:absence
 npm run test:absence:sql
+npm run test:fines
+npm run test:fines:sql
 ```
 
 The Node suite uses local fixtures, no real credentials. The workspace SQL runner uses an already-installed `postgres:16-alpine` Docker image with `--pull=never`, no network/ports/persistent volume and removes its disposable container. It tests the actual migrations and forbidden database access using fictional Auth/session identities. **Never run local Auth fixtures or earlier reset scripts against hosted Supabase.**
@@ -69,6 +81,6 @@ For isolated browser QA, `node scripts/workspace-ui-fixture.mjs` creates disposa
 
 ## Release boundary
 
-Keep private planning, memory, screenshots, bootstrap identity details, database exports and environment values out of the public release. For this release, apply only reviewed new migration018 after checking existing migration017 and function fingerprints; never replay applied001–017, Owner bootstrap or any completed fresh-data reset. Protected initial Owner setup must preserve the existing verified account/password and refuse unexpected mappings or data. Read-only schema/privilege verification is in `supabase/verification/20261014_workspace_assignment_schema_checks.sql` and `supabase/verification/20261014_absence_coverage_schema_checks.sql` and `supabase/verification/20261014_coverage_original_assignee_checks.sql`.
+Keep private planning, memory, screenshots, bootstrap identity details, database exports and environment values out of the public release. For this release, apply only reviewed new migration019 after checking existing migration018 and function fingerprints; never replay applied001–018, Owner bootstrap or any completed fresh-data reset. Protected initial Owner setup must preserve the existing verified account/password and refuse unexpected mappings or data. Read-only schema/privilege verification is in `supabase/verification/20261014_workspace_assignment_schema_checks.sql` and `supabase/verification/20261014_absence_coverage_schema_checks.sql` and `supabase/verification/20261014_coverage_original_assignee_checks.sql`.
 
 Hosted database/access changes, real invitations/account tests and Vercel publication require explicit approval. Local tests are evidence of local behavior, not proof of live email delivery, cross-device behavior or a hosted deployment.
