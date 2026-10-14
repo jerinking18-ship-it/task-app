@@ -4,7 +4,7 @@ import { verifiedIdentity } from "@/lib/auth/flow";
 import { authOrigin, AUTH_HEADERS } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { memberAction } from "@/lib/members/model";
-import { chooseMember, leaveMember, MemberError, readMembers, renameMember } from "@/lib/members/server";
+import { leaveMember, MemberError, readMembers, renameMember } from "@/lib/members/server";
 
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: AUTH_HEADERS });
 async function clientForRequest() {
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     let value: unknown;
     try { value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { return json({ message: "Invalid member details." }, 400); }
     const action = memberAction(value);
-    if (!action) return json({ message: "Enter a name between 1 and 50 characters, or choose an existing member." }, 400);
+    if (!action) return json({ message: "Enter a name between 1 and 50 characters." }, 400);
     if (action.action === "rename") return json(await renameMember(client, action.name, action.previousName));
     if (action.action === "leave") {
       await leaveMember(client);
@@ -51,6 +51,6 @@ export async function POST(request: Request) {
       try { await client.auth.signOut({ scope: "local" }); } catch { /* Other linked app sessions remain revoked. */ }
       return json({ left: true, redirectTo: "/sign-in?notice=profile-left" });
     }
-    return json(await chooseMember(client, action));
+    return json({message:"Use your personal workspace invitation to join."},403);
   } catch (error) { return failed(error, client); }
 }
