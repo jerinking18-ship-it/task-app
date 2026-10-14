@@ -34,15 +34,16 @@ export function regularSchedule(now:Date){
   const resetAt=new Date(next.toISOString().slice(0,10)+"T23:50:00+05:30").toISOString();
   return {category,resetAt,label:"Clears "+RESET_LABELS[category]+" · 11:50 PM IST"};
 }
+// Special Meeting has its own section; it never replaces the regular period.
 export function reportSchedule(data:MemberHistoryData|null,now:Date){
   const regular=regularSchedule(now),time=now.getTime();
-  const windows=[...(data?.specialWindows??[])].sort((a,b)=>a.startsAt.localeCompare(b.startsAt));
-  const merged:SpecialWindow[]=[];
-  for(const window of windows){const previous=merged.at(-1);if(previous&&Date.parse(window.startsAt)<=Date.parse(previous.endsAt)){if(window.endsAt>previous.endsAt)previous.endsAt=window.endsAt;}else merged.push({...window});}
-  const special=merged.find(window=>Date.parse(window.startsAt)<=time&&time<Date.parse(window.endsAt));
-  const future=merged.find(window=>Date.parse(window.startsAt)>time);
-  const resetAt=special?.endsAt??regular.resetAt;
-  const boundary=future&&Date.parse(future.startsAt)<Date.parse(resetAt)?future.startsAt:resetAt;
-  return {category:special?"Special Meeting":regular.category,resetAt,boundary,
-    label:special?"Clears "+new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Kolkata",weekday:"long",month:"short",day:"numeric"}).format(new Date(resetAt))+" · 11:50 PM IST":regular.label};
+  const specialExpiry=(data?.entries??[]).filter(entry=>entry.category==="Special Meeting"&&Date.parse(entry.completedAt)<=time)
+    .map(entry=>Date.parse(entry.expiresAt)).filter(expiry=>expiry>time);
+  const boundary=new Date(Math.min(Date.parse(regular.resetAt),...specialExpiry)).toISOString();
+  return {...regular,boundary};
+}
+export function specialResetLabel(entries:HistoryEntry[]){
+  if(!entries.length)return "Completed tasks clear at their scheduled 11:50 PM IST reset.";
+  const next=Math.min(...entries.map(entry=>Date.parse(entry.expiresAt)));
+  return "Next clears "+new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Kolkata",weekday:"long",month:"short",day:"numeric"}).format(new Date(next))+" · 11:50 PM IST";
 }
