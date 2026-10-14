@@ -3,12 +3,14 @@ import type { Category, Dataset, TaskAction, TaskRow } from "./model";
 import { MEETING_CATEGORIES } from "./model";
 import { decodeCategory, decodeRow, timestamp } from "./validation";
 
-const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name";
+const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,assigned_to_member_id";
 export class TaskError extends Error {
   constructor(public status: number, message: string, public latest?: TaskRow, public categories?: Category[], public future?:TaskRow[]) { super(message); }
 }
 function check(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code === "P0403") throw new TaskError(403,"Your current role or assignment does not allow this action. Refresh to see current permissions.");
+  if(error.code === "P0409") throw new TaskError(409,"This item changed. Refresh and review the current details before trying again.");
   if (["PGRST301","PGRST302","42501"].includes(error.code ?? "")) throw new TaskError(401,"Your session is unavailable. Sign in again to continue.");
   if (["23514","23503","23502","22007"].includes(error.code ?? "")) throw new TaskError(400,"Check the task details and category, then try again.");
   throw new TaskError(503,"We couldn’t confirm this request. Refresh to check saved data before trying again.");
@@ -50,45 +52,21 @@ export class TaskRepository {
     for(const task of tasks) if(task.series_id && (!versions.has(task.series_id) || task.updated_at>versions.get(task.series_id)!)) versions.set(task.series_id,task.updated_at);
     return {timezone,tasks:tasks.map(task=>({...task,series_version:task.series_id?versions.get(task.series_id):task.updated_at})),categories};
   }
-  private async category(name: string): Promise<Category> {
-    // Re-read names instead of an UPDATE-based upsert; category UPDATE is forbidden.
-    const existing = (await this.pages("categories",decodeCategory)).find(c => c.name.toLowerCase() === name.toLowerCase());
-    if (existing) return existing;
-    const {data,error} = await this.client.from("categories").insert({name}).select("id,name").single();
-    if (error?.code === "23505") {
-      const match = (await this.pages("categories",decodeCategory)).find(c => c.name.toLowerCase() === name.toLowerCase());
-      if (match) return match;
-    }
-    check(error); return decodeCategory(data);
-  }
   async mutate(input: TaskAction): Promise<Record<string,unknown>> {
-    if (input.action === "setup") {
-      const existing = await this.timezone();
-      if (existing) return {timezone:existing};
-      const {data,error} = await this.client.from("account_settings").insert({timezone:input.timezone}).select("timezone").single();
-      if (error?.code === "23505") {
-        const timezone = await this.timezone(); if (timezone) return {timezone};
-      }
+    if (input.action==="setup" || input.action==="bootstrap" || input.action==="category") {
+      const {data,error}=await this.client.rpc("task_app_setup",{operation:input.action,category_name:input.action==="category"?input.name:null});
       check(error);
-      if (data?.timezone !== input.timezone) throw new TaskError(503,"We couldn’t confirm your account setup. Refresh before retrying.");
+      if(input.action==="bootstrap")return {categories:await this.pages("categories",decodeCategory)};
+      if(input.action==="category")return {category:decodeCategory(data?.category)};
+      if(data?.timezone!=="Asia/Kolkata")throw new TaskError(503,"Workspace setup could not be confirmed. Refresh before retrying.");
       return {timezone:data.timezone};
     }
-    if (!await this.timezone()) throw new TaskError(409,"Confirm your account timezone before saving tasks.");
-    if (input.action === "bootstrap") {
-      for (const name of MEETING_CATEGORIES) await this.category(name);
-      return {categories:await this.pages("categories",decodeCategory)};
-    }
-    if (input.action === "category") return {category:await this.category(input.name)};
-    if (input.action === "create") {
-      const {data,error} = await this.client.from("tasks").insert(input.fields).select(TASK_COLUMNS).single();
-      check(error); return {task:decodeRow(data)};
-    }
-    if (input.action === "create_many") {
-      // A single INSERT statement is atomic under PostgreSQL/RLS, including all category joins.
-      const {data,error} = await this.client.from("tasks").insert(input.fields).select(TASK_COLUMNS);
-      check(error);
-      if (!Array.isArray(data) || data.length !== input.fields.length) throw new TaskError(503,"We couldn’t confirm all tasks. Refresh and review saved data before trying again.");
-      return {tasks:data.map(decodeRow)};
+    if(input.action==="create" || input.action==="create_many") {
+      const fields=input.action==="create"?[input.fields]:input.fields;
+      if(fields.some(field=>!field.assigned_to_member_id))throw new TaskError(400,"Choose an assigned member for every task.");
+      const {data,error}=await this.client.rpc("task_app_create_tasks",{task_fields:fields});check(error);
+      if(!Array.isArray(data)||data.length!==fields.length)throw new TaskError(503,"Refresh and review saved tasks before trying again.");
+      const tasks=data.map(decodeRow);return input.action==="create"?{task:tasks[0]}:{tasks};
     }
     const {data,error} = await this.client.rpc("task_app_mutate",{
       task_id:input.id,expected_version:input.version,operation:input.action,

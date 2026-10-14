@@ -16,7 +16,7 @@ export default async function Account({ searchParams }: PageProps<"/account">) {
     if (error instanceof MemberError && error.status === 401) redirect("/sign-in");
     /* Recover other failures through the member step. */
   }
-  if (!members?.current) redirect("/account/member");
+  if (!members?.current || !members.workspace) redirect("/account/member");
   const query = await searchParams;
-  return <TaskApp saved accountId={identity.userId} today={new Date().toISOString().slice(0, 10)} initialMembers={members} accountEmail={identity.email} passwordUpdated={query.password === "updated"} />;
+  return <TaskApp saved accountId={members.workspace.ownerId} today={new Date().toISOString().slice(0, 10)} initialMembers={members} accountEmail={identity.email} passwordUpdated={query.password === "updated"} />;
 }

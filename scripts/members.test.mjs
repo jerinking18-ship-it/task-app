@@ -31,7 +31,8 @@ test("member input trims/collapses spaces, accepts Unicode names, rejects contro
   assert.equal(model.memberAction({ action: "create", name: "Grace", owner_id: id }), null);
   assert.equal(model.memberAction({ action: "select", id, session_id: id }), null);
   assert.equal(model.memberAction({ action: "select", id: "invalid" }), null);
-  assert.deepEqual(JSON.parse(JSON.stringify(model.memberAction({ action: "create", name: " Grace " }))), { action: "create", name: "Grace" });
+  assert.equal(model.memberAction({ action: "create", name: " Grace " }),null);
+  assert.equal(model.memberAction({action:"select",id}),null);
 });
 test("member decoder rejects partial, duplicate, foreign current member and over-capacity responses", () => {
   const result = model.decodeMembers(state); assert.equal(result.current.name, "Grace");
@@ -56,15 +57,10 @@ test("completion attribution is read-only metadata, preserved in mapping and omi
   assert.equal("completed_by_name" in fields, false);
   assert.equal(validation.validateAction({ action: "update", id, version: stamp, fields: { ...fields, completed_by_name: "Other" } }), null);
 });
-test("member RPC supplies only selection data and sanitizes database error responses", async () => {
-  const calls = []; const client = { rpc: async (name, args) => { calls.push({ name, args }); return { data: state, error: null }; } };
-  assert.equal((await server.chooseMember(client, { action: "create", name: "Grace" })).current.name, "Grace");
-  assert.deepEqual(JSON.parse(JSON.stringify(calls[0])), { name: "task_app_choose_member", args: { member_id: null, member_name: "Grace" } });
-  await server.chooseMember(client, { action: "select", id });
-  assert.equal(calls[1].args.member_name, null); assert.equal(calls[1].args.member_id, id);
-  for (const [code, status] of [["P0010", 409], ["23505", 409], ["23514", 400], ["42501", 401], ["unexpected", 503]]) {
-    await assert.rejects(() => server.readMembers({ rpc: async () => ({ data: null, error: { code, message: "private-provider-data" } }) }), error => error.status === status && !error.message.includes("private-provider-data"));
-  }
+test("member reads sanitize provider errors; legacy profile-picker helper is absent",async()=>{
+ assert.equal(server.chooseMember,undefined);
+ for(const [code,status]of [["P0010",409],["23505",409],["23514",400],["42501",401],["P0403",403],["P0409",409],["unexpected",503]]){
+ await assert.rejects(()=>server.readMembers({rpc:async()=>({data:null,error:{code,message:"private-provider-data"}})}),error=>error.status===status&&!error.message.includes("private-provider-data"));}
 });
 function fixture({ signedIn = true, data = state, error = null, signOutFails = false } = {}) {
   const calls = [];
@@ -88,13 +84,10 @@ test("member API denies anonymous requests and wrong-origin/media/oversize/inval
     [request("x".repeat(4097)), 413], [request("{"), 400], [request({ action: "create", name: "Grace", owner_id: id }), 400]]) assert.equal((await f.route.POST(req)).status, status);
   assert.equal(f.calls.length, 0);
 });
-test("member API returns private no-store profile responses and useful cap conflicts", async () => {
-  const f = fixture();
-  const read = await f.route.GET(); assert.equal(read.status, 200); assert.match(read.headers.get("cache-control"), /private, no-store/);
-  const selected = await f.route.POST(request({ action: "select", id })); assert.equal(selected.status, 200);
-  const full = fixture({ error: { code: "P0010" }, data: null });
-  const response = await full.route.POST(request({ action: "create", name: "Eleventh" }));
-  assert.equal(response.status, 409); assert.match((await response.json()).message, /10-member limit/);
+test("member API returns private profile responses and denies obsolete create/select requests",async()=>{
+ const f=fixture();const read=await f.route.GET();assert.equal(read.status,200);assert.match(read.headers.get("cache-control"),/private, no-store/);
+ for(const action of [{action:"select",id},{action:"create",name:"Other"}])assert.equal((await f.route.POST(request(action))).status,400);
+ assert.equal(f.calls.filter(call=>call.name==="task_app_choose_member").length,0);
 });
 test("task API requires a selected member before task reads or writes", async () => {
   let reads = 0;
@@ -119,7 +112,7 @@ test("account and member pages verify authentication, gate unselected sessions a
       "next/navigation": { redirect:path=>{throw Error(`redirect:${path}`);} },
       "@/lib/supabase/server": { createClient:async()=>({auth:{}}) },
       "@/lib/auth/flow": { verifiedIdentity:async()=>signedIn ? {userId:id,sessionId:id} : null },
-      "@/lib/members/server": { MemberError:server.MemberError, readMembers:async()=>{memberReads++;return {current,members:model.decodeMembers(state).members};} },
+      "@/lib/members/server": { MemberError:server.MemberError, readMembers:async()=>{memberReads++;return {current,members:model.decodeMembers(state).members,workspace:current?{ownerId:id}:null};} },
       "@/components/task-app": {default:"task-app"},
       "@/components/auth/auth-shell": {default:"auth-shell"},
       "@/components/members/member-form": {default:"member-form"},
@@ -187,7 +180,7 @@ test("a committed profile leave remains successful if browser cookie cleanup fai
 });
 
 
-test("browser decodes actual member GET, create, select and rename API responses", async () => {
+test("browser decodes member GET and own-name rename API responses", async () => {
   for (const data of [{ current: null, members: [] }, { current: null, members: [member] }, state]) {
     const response = await fixture({ data }).route.GET();
     assert.equal(response.status, 200);
@@ -200,8 +193,7 @@ test("browser decodes actual member GET, create, select and rename API responses
       assert.equal(decoded.members[0].lastSeenAt, stamp);
     }
   }
-  for (const action of [{ action: "create", name: "Grace" }, { action: "select", id },
-    { action: "rename", name: "Grace Mary", previousName: "Grace" }]) {
+  for (const action of [{ action: "rename", name: "Grace Mary", previousName: "Grace" }]) {
     const savedMember = { ...member, name: action.action === "rename" ? "Grace Mary" : "Grace",
       created_at: "2026-10-13T12:55:00.123456+05:30", last_seen_at: "2026-10-13T07:25:00.654321+00:00" };
     const response = await fixture({ data: { members: [savedMember], current: savedMember } }).route.POST(request(action));

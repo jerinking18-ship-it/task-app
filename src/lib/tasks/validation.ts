@@ -10,7 +10,8 @@ function date(v: unknown) {
     && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0,10) === v;
 }
 export function validFields(v: unknown): v is TaskFields {
-  return isRecord(v) && keys(v, ["title","notes","status","due_date","due_time","priority","category_id","weekdays","repeat_rule"])
+  return isRecord(v) && keys(v, ["title","notes","status","due_date","due_time","priority","category_id","weekdays","repeat_rule","assigned_to_member_id"])
+    && (v.assigned_to_member_id === undefined || v.assigned_to_member_id === null || uuid(v.assigned_to_member_id))
     && typeof v.title === "string" && v.title.trim().length > 0 && v.title.trim().length <= 200
     && (v.notes === null || (typeof v.notes === "string" && v.notes.length <= 4000))
     && ["active","completed"].includes(v.status as string)
@@ -59,7 +60,7 @@ export function decodeRow(v: unknown): TaskRow {
     || !(v.completed_at === null || timestamp(v.completed_at))) throw new Error("Incomplete task response.");
   // PostgreSQL returns time with seconds; the first stage edits minute precision.
   const time = typeof v.due_time === "string" && /^([01]\d|2[0-3]):[0-5]\d:00(?:\.0+)?$/.test(v.due_time) ? v.due_time.slice(0,5) : v.due_time;
-  const fields = { title:v.title, notes:v.notes, status:v.status, due_date:v.due_date,
+  const fields = { ...(v.assigned_to_member_id===undefined?{}:{assigned_to_member_id:v.assigned_to_member_id as string|null}), title:v.title, notes:v.notes, status:v.status, due_date:v.due_date,
     due_time:time, priority:v.priority, category_id:v.category_id, weekdays:v.weekdays,
     ...(v.repeat_rule!==undefined ? {repeat_rule:v.repeat_rule} : {}) };
   if (!validFields(fields) || (v.status === "completed") !== (v.completed_at !== null)) throw new Error("Incomplete task response.");

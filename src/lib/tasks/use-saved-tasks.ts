@@ -27,7 +27,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     try {
       const response=await fetch("/api/tasks",{cache:"no-store",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});
       const body:unknown=await response.json();
-      if(!response.ok) { if(response.status===401) setExpired(true); if(response.status===403) setNeedsMember(true); throw new Error(isRecord(body) && typeof body.message==="string" ? body.message : "Unable to load saved tasks."); }
+      if(!response.ok) { if(response.status===401) setExpired(true);  throw new Error(isRecord(body) && typeof body.message==="string" ? body.message : "Unable to load saved tasks."); }
       const next=decodeDataset(body);
       // Validate category joins before accepting a complete dataset.
       next.tasks.forEach(row=>mapTask(row,next.categories));
@@ -84,7 +84,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
       if(!isRecord(body)) throw new SaveError("The save response was incomplete. Refresh before retrying.");
       if(!response.ok) {
         if(response.status===401) setExpired(true);
-        if(response.status===403) setNeedsMember(true);
+        
         const categories=Array.isArray(body.categories) ? body.categories.map(decodeCategory) : state.current.data?.categories ?? [];
         if(Array.isArray(body.categories)) setData(current=>current ? {...current,categories} : current);
         const latest=body.latest ? mapTask(decodeRow(body.latest),categories) : undefined;
@@ -157,7 +157,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     try {
       const response=await fetch("/api/completed",snapshot?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...snapshot,confirmed:true}),signal:AbortSignal.timeout(20000)}:{cache:"no-store",signal:AbortSignal.timeout(15000)});
       const body:unknown=await response.json();
-      if(!response.ok){if(response.status===401)setExpired(true);if(response.status===403)setNeedsMember(true);throw new SaveError(isRecord(body)&&typeof body.message==="string"?body.message:"Unable to confirm completed tasks. Close and refresh before trying again.",response.status);}
+      if(!response.ok){if(response.status===401)setExpired(true);throw new SaveError(isRecord(body)&&typeof body.message==="string"?body.message:"Unable to confirm completed tasks. Close and refresh before trying again.",response.status);}
       if(snapshot){decodeCompletedPurge(body,snapshot);setDeferred(true);return snapshot;}
       return decodeCompletedSnapshot(body);
     } catch(reason){throw reason instanceof SaveError?reason:new SaveError("We couldn’t confirm this request. Close and refresh before trying again.");}

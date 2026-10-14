@@ -1,10 +1,12 @@
 import { isRecord, timestamp, uuid } from "@/lib/tasks/validation";
 
 export const MEMBER_LIMIT = 10;
-export type Member = { id: string; name: string; createdAt: string; lastSeenAt: string; activeUntil?: string | null };
-export type MemberState = { current: Member | null; members: Member[]; serverNow?: string };
-export type MemberChoice = { action: "create"; name: string } | { action: "select"; id: string };
-export type MemberAction = MemberChoice | { action: "rename"; name: string; previousName: string } | { action: "leave"; confirmed: true };
+export type MemberRole = "owner" | "coordinator" | "member";
+export type Workspace = {id:string;ownerId:string;name:string;reservedSeats:number};
+export type Invitation = {id:string;email:string;role:"member"|"coordinator";expiresAt:string};
+export type Member = { role?:MemberRole; id: string; name: string; createdAt: string; lastSeenAt: string; activeUntil?: string | null };
+export type MemberState = { current: Member | null; members: Member[]; serverNow?: string; workspace?:Workspace|null; invitations?:Invitation[] };
+export type MemberAction = { action: "rename"; name: string; previousName: string } | { action: "leave"; confirmed: true };
 
 export function memberName(value: unknown): string | null {
   if (typeof value !== "string" || /[\p{Cc}\p{Cf}]/u.test(value)) return null;
@@ -18,12 +20,7 @@ export function memberAction(value: unknown): MemberAction | null {
     const name = memberName(value.name); const previousName = memberName(value.previousName);
     return name && previousName ? { action: "rename", name, previousName } : null;
   }
-  if (value.action === "create" && Object.keys(value).every(key => ["action", "name"].includes(key))) {
-    const name = memberName(value.name);
-    return name ? { action: "create", name } : null;
-  }
-  return value.action === "select" && uuid(value.id) && Object.keys(value).every(key => ["action", "id"].includes(key))
-    ? { action: "select", id: value.id } : null;
+  return null;
 }
 function decodeMember(value: unknown, format: "database" | "api"): Member {
   if (!isRecord(value)) throw new Error("Incomplete member response.");
@@ -32,17 +29,33 @@ function decodeMember(value: unknown, format: "database" | "api"): Member {
   const activeUntil = (format === "database" ? value.active_until : value.activeUntil) ?? null;
   if (!uuid(value.id) || memberName(value.name) !== value.name
     || !timestamp(createdAt) || !timestamp(lastSeenAt) || (activeUntil!==null&&!timestamp(activeUntil))) throw new Error("Incomplete member response.");
-  return { id: value.id, name: value.name as string, createdAt, lastSeenAt, activeUntil };
+  if(value.role!==undefined && !["owner","coordinator","member"].includes(value.role as string))throw new Error("Incomplete member role.");
+  return { ...(value.role===undefined?{}:{role:value.role as MemberRole}), id: value.id, name: value.name as string, createdAt, lastSeenAt, activeUntil };
 }
 function decodeState(value: unknown, format: "database" | "api"): MemberState {
   if (!isRecord(value) || !Array.isArray(value.members) || value.members.length > MEMBER_LIMIT) throw new Error("Incomplete members response.");
   const members = value.members.map(member => decodeMember(member, format));
   if (new Set(members.map(member => member.id)).size !== members.length) throw new Error("Incomplete members response.");
   const current = value.current === null ? null : decodeMember(value.current, format);
-  if (current && !members.some(member => member.id === current.id && member.name === current.name)) throw new Error("Incomplete members response.");
+  if (current && !members.some(member => member.id === current.id && member.name === current.name && member.role === current.role)) throw new Error("Incomplete members response.");
   const serverNow = format === "database" ? value.server_now : value.serverNow;
   if(serverNow!==undefined&&!timestamp(serverNow))throw new Error("Incomplete member response.");
-  return { current, members, ...(serverNow===undefined?{}:{serverNow}) };
+  let workspace:Workspace|null|undefined;
+  if(value.workspace!==undefined && value.workspace!==null){
+    const w=value.workspace;const ownerId=isRecord(w)?(format==="database"?w.owner_id:w.ownerId):null;
+    const reservedSeats=isRecord(w)?(format==="database"?w.reserved_seats:w.reservedSeats):null;
+    if(!isRecord(w)||!uuid(w.id)||!uuid(ownerId)||typeof w.name!=="string"||!w.name.trim()||!Number.isInteger(reservedSeats)||Number(reservedSeats)<0||Number(reservedSeats)+members.length>MEMBER_LIMIT)throw new Error("Incomplete workspace response.");
+    if(!current || members.some(member=>!member.role))throw new Error("Incomplete verified workspace membership.");
+    workspace={id:w.id,ownerId,name:w.name,reservedSeats:Number(reservedSeats)};
+  }else workspace=value.workspace===null?null:undefined;
+  const invitations:Invitation[]=[];
+  if(value.invitations!==undefined){
+    if(!Array.isArray(value.invitations)||value.invitations.length>MEMBER_LIMIT)throw new Error("Incomplete invitations response.");
+    for(const i of value.invitations){const expiresAt=isRecord(i)?(format==="database"?i.expires_at:i.expiresAt):null;
+      if(!isRecord(i)||!uuid(i.id)||typeof i.email!=="string"||!["member","coordinator"].includes(i.role as string)||!timestamp(expiresAt))throw new Error("Incomplete invitation response.");
+      invitations.push({id:i.id,email:i.email,role:i.role as Invitation["role"],expiresAt});}
+  }
+  return { ...(workspace===undefined?{}:{workspace}),...(value.invitations===undefined?{}:{invitations}), current, members, ...(serverNow===undefined?{}:{serverNow}) };
 }
 export function memberActive(member:Member,now=new Date()):boolean {
   return !!member.activeUntil && Date.parse(member.activeUntil)>now.getTime();
@@ -64,3 +77,11 @@ export function memberSeen(value: string, now = new Date()): string {
   const time = new Intl.DateTimeFormat("en-US", { ...options, hour: "numeric", minute: "2-digit", hour12: true }).format(date);
   return `Last seen ${label}, ${time}`;
 }
+
+export function canManageTasks(state:MemberState|null):boolean {
+ return !!state?.workspace && (state.current?.role==="owner" || state.current?.role==="coordinator");
+}
+export function canChangeTaskStatus(state:MemberState|null,assignedToId?:string|null):boolean {
+ return !!state?.workspace && !!assignedToId && state.current?.id===assignedToId;
+}
+export function roleLabel(role?:MemberRole):string {return role==="owner"?"Owner":role==="coordinator"?"Coordinator":"Member";}

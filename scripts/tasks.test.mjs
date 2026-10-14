@@ -20,7 +20,7 @@ const owner="00000000-0000-4000-8000-000000000001";
 const taskId="00000000-0000-4000-8000-000000000010";
 const catId="00000000-0000-4000-8000-000000000020";
 const version="2026-10-12T09:00:00.000000+00:00";
-const fields={title:"A task",notes:null,status:"active",due_date:null,due_time:null,priority:"none",category_id:null,weekdays:[]};
+const fields={assigned_to_member_id:taskId,title:"A task",notes:null,status:"active",due_date:null,due_time:null,priority:"none",category_id:null,weekdays:[]};
 const row={...fields,id:taskId,created_at:version,updated_at:version,completed_at:null};
 function fixture(respond) {
   const calls=[];
@@ -183,13 +183,13 @@ test("an open app refreshes once at India midnight, preserves dirty drafts and c
   }
 });
 
-test("create returns committed row and sends only allowed fields",async()=>{
-  const f=fixture(call=>op(call,"insert") ? {data:row,error:null} : normal(call));
-  const result=await f.repo.mutate({action:"create",fields});assert.equal(result.task.id,taskId);
-  const insert=f.calls.find(c=>op(c,"insert"));assert.equal(insert.table,"tasks");
-  assert.equal("owner_id" in op(insert,"insert")[1],false);assert.ok(op(insert,"select"));
-  const bad=fixture(call=>op(call,"insert") ? {data:null,error:null} : normal(call));
-  await assert.rejects(()=>bad.repo.mutate({action:"create",fields}));
+test("create sends one checked RPC with assignee and validates committed row",async()=>{
+ const f=fixture(call=>op(call,"rpc")?.[1]==="task_app_create_tasks"?{data:[row],error:null}:normal(call));
+ const result=await f.repo.mutate({action:"create",fields});assert.equal(result.task.id,taskId);
+ assert.equal(f.calls.length,1);assert.equal(op(f.calls[0],"rpc")[2].task_fields[0].assigned_to_member_id,taskId);
+ assert.equal("owner_id" in op(f.calls[0],"rpc")[2],false);
+ const bad=fixture(()=>({data:[],error:null}));await assert.rejects(()=>bad.repo.mutate({action:"create",fields}));
+ const missing=fixture(normal);await assert.rejects(()=>missing.repo.mutate({action:"create",fields:{...fields,assigned_to_member_id:null}}),error=>error.status===400);assert.equal(missing.calls.length,0);
 });
 
 test("status uses the atomic owner-checked RPC with original task/version",async()=>{
@@ -211,43 +211,24 @@ test("stale edit returns latest owned row as conflict, missing row returns 404, 
   await assert.rejects(()=>missing.repo.mutate({action:"update",id:taskId,version,fields}),e=>e.status===404);
 });
 
-test("category duplicate race re-reads the owned winner without update/upsert",async()=>{
-  let reads=0;
-  const f=fixture(call=>{
-    if(call.table!=="categories") return normal(call);
-    if(op(call,"insert")) return {data:null,error:{code:"23505"}};
-    reads++;return {data:reads===1 ? [] : [{id:catId,name:"Work"}],error:null};
-  });
-  const result=await f.repo.mutate({action:"category",name:"work"});assert.equal(result.category.id,catId);
-  assert.equal(f.calls.filter(c=>op(c,"insert")).length,1);assert.equal(f.calls.some(c=>op(c,"update")),false);
+test("category creation uses checked workspace RPC without direct table writes",async()=>{
+ const f=fixture(()=>({data:{category:{id:catId,name:"Work"}},error:null}));
+ assert.equal((await f.repo.mutate({action:"category",name:"Work"})).category.id,catId);
+ assert.equal(f.calls.length,1);assert.equal(op(f.calls[0],"rpc")[1],"task_app_setup");assert.equal(op(f.calls[0],"rpc")[2].category_name,"Work");
 });
 
-test("setup duplicate race reuses saved setting, unconfigured accounts cannot create tasks",async()=>{
-  let reads=0;
-  const f=fixture(call=>{
-    if(op(call,"insert")) return {data:null,error:{code:"23505"}};
-    return {data:++reads===1 ? null : {timezone:"Asia/Kolkata"},error:null};
-  });
-  assert.equal((await f.repo.mutate({action:"setup",timezone:"Asia/Kolkata"})).timezone,"Asia/Kolkata");
-  const empty=fixture(()=>({data:null,error:null}));
-  await assert.rejects(()=>empty.repo.mutate({action:"create",fields}),e=>e.status===409);
-  assert.equal(empty.calls.some(c=>op(c,"insert")),false);
+test("setup uses fixed timezone through workspace RPC and reports permission denial",async()=>{
+ const f=fixture(()=>({data:{timezone:"Asia/Kolkata"},error:null}));
+ assert.equal((await f.repo.mutate({action:"setup",timezone:"Asia/Kolkata"})).timezone,"Asia/Kolkata");
+ const forbidden=fixture(()=>({data:null,error:{code:"P0403"}}));await assert.rejects(()=>forbidden.repo.mutate({action:"setup",timezone:"Asia/Kolkata"}),error=>error.status===403);
 });
 
-test("starter initialization creates only missing categories and is idempotent",async()=>{
-  const categories=[{id:catId,name:"work"}]; let inserts=0;
-  const f=fixture(call=>{
-    if(call.table!=="categories") return normal(call);
-    if(op(call,"insert")) {
-      const value=op(call,"insert")[1];assert.deepEqual(Object.keys(value),["name"]);
-      const category={id:`00000000-0000-4000-8000-${String(100+inserts++).padStart(12,"0")}`,name:value.name};
-      categories.push(category);return {data:category,error:null};
-    }
-    return {data:categories,error:null};
-  });
-  await f.repo.mutate({action:"bootstrap"});await f.repo.mutate({action:"bootstrap"});
-  assert.equal(inserts,5);assert.equal(categories.length,6);
-  assert.equal(f.calls.some(c=>c.table==="tasks"),false);
+test("bootstrap loads complete workspace categories after atomic server initialization",async()=>{
+ const categories=[{id:catId,name:"Sunday Service"}];
+ const f=fixture(call=>({data:call.table==="categories"?categories:{timezone:"Asia/Kolkata"},error:null}));
+ const result=await f.repo.mutate({action:"bootstrap"});assert.equal(result.categories[0].id,catId);
+ assert.equal(f.calls[0].table,"rpc");assert.equal(op(f.calls[0],"rpc")[1],"task_app_setup");
+ assert.ok(f.calls.filter(call=>call.table==="categories").every(call=>op(call,"eq")[2]===owner));assert.equal(f.calls.some(call=>op(call,"insert")),false);
 });
 
 function routeFixture(signedIn=true,respond=normal) {
@@ -257,7 +238,7 @@ function routeFixture(signedIn=true,respond=normal) {
     "@/lib/auth/flow":{verifiedIdentity:async()=>signedIn ? {userId:owner} : null},
     "@/lib/auth/server":{authOrigin:()=>"http://127.0.0.1:3003",AUTH_HEADERS:{"Cache-Control":"private, no-store, max-age=0"}},
     "@/lib/tasks/repository":repository,"@/lib/tasks/validation":validation,
-    "@/lib/members/server":{readMembers:async()=>({current:{id:"fixture-member"}}),MemberError:class extends Error{}},
+    "@/lib/members/server":{readMembers:async()=>({current:{id:"fixture-member",role:"owner"},workspace:{ownerId:owner}}),MemberError:class extends Error{}},
   });return {...f,route};
 }
 const request=(body,origin="http://127.0.0.1:3003",type="application/json")=>new Request("http://127.0.0.1:3003/api/tasks",{
@@ -317,19 +298,12 @@ test("bulk payload validates every independent task, bounds count, common catego
   assert.equal(validation.validateAction({action:"create_many",fields:[fields],owner_id:owner}),null);
 });
 
-test("bulk save uses one atomic array insert and returns all committed rows, without per-row retries",async()=>{
-  const drafts=[{...fields,title:"First",notes:"One"},{...fields,title:"Second",notes:"Two",weekdays:[1,4]}];
-  const rows=drafts.map((field,i)=>({...row,...field,id:i?catId:taskId}));
-  const f=fixture(call=>op(call,"insert")?{data:rows,error:null}:normal(call));
-  const result=await f.repo.mutate({action:"create_many",fields:drafts});
-  assert.equal(result.tasks.length,2);assert.equal(result.tasks[1].notes,"Two");
-  const inserts=f.calls.filter(call=>op(call,"insert"));assert.equal(inserts.length,1);
-  assert.equal(op(inserts[0],"insert")[1],drafts);
-  for(const response of [{data:[rows[0]],error:null},{data:null,error:{code:"23503"}}]) {
-    const bad=fixture(call=>op(call,"insert")?response:normal(call));
-    await assert.rejects(()=>bad.repo.mutate({action:"create_many",fields:drafts}));
-    assert.equal(bad.calls.filter(call=>op(call,"insert")).length,1);
-  }
+test("bulk save uses one checked atomic RPC, rejects partial confirmations without replay",async()=>{
+ const drafts=[{...fields,title:"First",notes:"One"},{...fields,title:"Second",notes:"Two",weekdays:[1,4]}];
+ const rows=drafts.map((field,i)=>({...row,...field,id:i?catId:taskId}));
+ const f=fixture(()=>({data:rows,error:null}));const result=await f.repo.mutate({action:"create_many",fields:drafts});
+ assert.equal(result.tasks.length,2);assert.equal(result.tasks[1].notes,"Two");assert.equal(f.calls.length,1);assert.equal(op(f.calls[0],"rpc")[2].task_fields,drafts);
+ for(const response of [{data:[rows[0]],error:null},{data:null,error:{code:"23503"}}]){const bad=fixture(()=>response);await assert.rejects(()=>bad.repo.mutate({action:"create_many",fields:drafts}));assert.equal(bad.calls.length,1);}
 });
 
 test("delete marks the retained row and checks original owner/version; all task reads and writes exclude deleted rows",async()=>{

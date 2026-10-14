@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { verifiedIdentity } from "@/lib/auth/flow";
 import { MemberError, readMembers } from "@/lib/members/server";
 
-export const metadata: Metadata = { title: "Choose your name · BGM Task App", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Join workspace · BGM Task App", robots: { index: false, follow: false } };
 export default async function MemberStep() {
   let client; let signedIn = false;
   try { client = await createClient(); signedIn = !!await verifiedIdentity(client.auth); } catch { /* Fail closed. */ }
@@ -16,8 +16,8 @@ export default async function MemberStep() {
     if (error instanceof MemberError && error.status === 401) redirect("/sign-in");
     /* The form offers an explicit retry for temporary failures. */
   }
-  if (state?.current) redirect("/account");
-  return <AuthShell eyebrow="PRAISE THE LORD" title="Who is using this device?" description="Add your name so completed tasks show who finished them.">
-    <MemberForm initialState={state}/>
+  if (state?.current && state.workspace) redirect("/account");
+  return <AuthShell eyebrow="PRAISE THE LORD" title="Join your workspace" description="Use your personal verified email and workspace invitation.">
+    <MemberForm initialState={state} signedIn/>
   </AuthShell>;
 }

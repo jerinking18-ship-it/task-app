@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import styles from "./task-app.module.css";
 import { accountClock, completionAge, inHistory, isAvailable, repeatError, blankTask, newTaskDraft, categoryWeekdays, categoryOrder, MEETING_CATEGORIES, PRIORITIES, WEEKDAYS, isOverdue, type EditScope, type Priority, type Task } from "@/lib/tasks/model";
+import {assignmentLabel,matchesAssignedTask} from "@/lib/tasks/assignment";
 import { isCategoryTaskVisible, matchesCategoryTask } from "@/lib/tasks/meeting-period";
 import { SaveError, useSavedTasks } from "@/lib/tasks/use-saved-tasks";
 import AccountControls from "./auth/account-controls";
@@ -13,6 +14,7 @@ import { useTemplates } from "@/lib/templates/use-templates";
 import type { TaskTemplate, TemplateItem } from "@/lib/templates/model";
 import TaskRepeat from "./task-repeat";
 import TaskTime from "./task-time";
+import TaskAssignee from "./task-assignee";
 import TaskBin from "./task-bin";
 import { useLiveSync } from "@/lib/tasks/use-live-sync";
 import { useBin } from "@/lib/tasks/use-bin";
@@ -23,12 +25,14 @@ import UsersPanel from "./members/users-panel";
 import MemberHistoryPanel from "./members/member-history-panel";
 import { useMemberHistory } from "@/lib/member-history/use-member-history";
 import ProfilePanel from "./members/profile-panel";
-import { decodeMemberResponse, type MemberState } from "@/lib/members/model";
-type View = "All tasks" | "Today" | "Overdue" | "Completed" | "Member history" | "Users" | "My profile" | "Bin";
-type IconName = "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "back" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning" | "trash" | "history" | "active" | "users" | "templates";
+import { decodeMemberResponse, canManageTasks, canChangeTaskStatus, type MemberState, type Member } from "@/lib/members/model";
+type View = "All tasks" | "Today" | "Overdue" | "Completed" | "Member history" | "Users" | "Assigned to me" | "My profile" | "Bin";
+type IconName = "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "back" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning" | "trash" | "history" | "active" | "users" | "templates" | "person" | "lock";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
+    person: <><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></>,
+    lock: <><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></>,
     templates: <><path d="m12 3 10 5-10 5L2 8l10-5ZM2 12l10 5 10-5M2 16l10 5 10-5"/></>,
     users: <><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2"/></>,
     active: <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></>,
@@ -125,7 +129,7 @@ function ResponsiveEditor({children,mobile,label,onClose}:{children:ReactNode;mo
     onCancel={event=>{event.preventDefault();onClose();}} onClick={event=>{if(mobile && event.target===event.currentTarget)onClose();}}>{children}</dialog>;
 }
 
-export default function TaskApp({ today: initialToday, accountControls, saved = false, passwordUpdated = false, initialMembers = null, accountEmail = null, accountId }: { today: string; accountControls?: ReactNode; saved?: boolean; passwordUpdated?: boolean; initialMembers?: MemberState | null; accountEmail?: string | null; accountId?: string }) {
+export default function TaskApp({ today: initialToday, accountControls, saved = false, passwordUpdated = false, initialMembers = null, initialView = "All tasks", accountEmail = null, accountId }: { today: string; accountControls?: ReactNode; saved?: boolean; passwordUpdated?: boolean; initialMembers?: MemberState | null; initialView?: View; accountEmail?: string | null; accountId?: string }) {
   const [dirty,setDirty]=useState(false);
   const endingSession=useRef(false);
   const storage=useSavedTasks(saved,dirty);
@@ -138,7 +142,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   useEffect(()=>{const timer=window.setInterval(()=>setNow(new Date()),1000); return ()=>clearInterval(timer);},[]);
   const clock=accountClock(now,saved && storage.timezone ? storage.timezone : "UTC");
   const today=saved ? clock.date : initialToday;
-  const [view, setView] = useState<View>("All tasks");
+  const [view, setView] = useState<View>(initialView);
   const [previewBin,setPreviewBin]=useState<BinTask[]>([]);
   const binButton=useRef<HTMLButtonElement>(null);
   const binTitle=useRef<HTMLHeadingElement>(null);
@@ -153,6 +157,8 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const completedReturn=useRef(false);
   const [status, setStatus] = useState("Active");
   const [members, setMembers] = useState(initialMembers);
+  const canManage=!saved||canManageTasks(members);
+  const canStatus=(task:Task)=>!saved||canChangeTaskStatus(members,task.assignedToId);
   const memberStamp=useRef(initialMembers?.serverNow?Date.parse(initialMembers.serverNow):0);
   const [memberOffset,setMemberOffset]=useState(()=>initialMembers?.serverNow?Date.parse(initialMembers.serverNow)-Date.now():0);
   const acceptMembers=useCallback((next:MemberState)=>{
@@ -174,7 +180,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
       if (response.status === 401) { navigateAfterSignOut("/sign-in"); return; }
       if (!response.ok) throw new Error(typeof body?.message === "string" ? body.message : "Unable to load account members.");
       const next = decodeMemberResponse(body);
-      if (!next.current) throw new Error("Choose your name again to continue. Sign out, then sign in again.");
+      if (!next.current || !next.workspace) { acceptMembers(next); throw new Error("Your workspace membership is no longer available. Sign out to continue."); }
       if (!controller.signal.aborted) acceptMembers(next);
     } catch (error) {
       if (!controller.signal.aborted) setMembersError(error instanceof Error ? error.message : "Unable to connect. Please refresh.");
@@ -190,6 +196,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const [priority, setPriority] = useState("Any");
   const [category, setCategory] = useState("Any");
   const [search, setSearch] = useState("");
+  const [usersSearch,setUsersSearch]=useState("");
   const [editing, setEditing] = useState<Task | null>(() => saved ? null : sampleTasks(initialToday)[0]);
   const [editorVersion,setEditorVersion]=useState(0);
   const [bulkCategory,setBulkCategory]=useState<string|null>(null);
@@ -198,7 +205,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const [removeTemplate,setRemoveTemplate]=useState<TaskTemplate|null>(null);
   const [removeTemplateError,setRemoveTemplateError]=useState("");
   const removeTemplateFocus=useRef<HTMLElement|null>(null);
-  const templates=useTemplates(saved&&templatesOpen,dirty);
+  const templates=useTemplates(saved&&canManage&&templatesOpen,dirty);
   const [deleteTask,setDeleteTask]=useState<Task|null>(null);
   const [deleteError,setDeleteError]=useState("");
   const [deleteConflict,setDeleteConflict]=useState<Task|null>(null);
@@ -231,7 +238,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     }
   },[clearCompleted,busy,storage.loading,storage.deferred]);
   useEffect(()=>{if(view==="Bin")binTitle.current?.focus({preventScroll:true});},[view]);
-  const drag=useBinDrag(binButton,busy||dirty||!!deleteTask||!!purgeTasks||!!removeTemplate||clearCompleted||(saved&&(!storage.ready||storage.expired)),askDelete,openEditor);
+  const drag=useBinDrag(binButton,!canManage||busy||dirty||!!deleteTask||!!purgeTasks||!!removeTemplate||clearCompleted||(saved&&(!storage.ready||storage.expired)),askDelete,openEditor);
   useEffect(()=>{drag.cancel();},[view,status,priority,category,search]);
   useEffect(()=>{if(saved)void bin.refresh();},[saved,storage.tasks.length,bin.refresh]);
   useEffect(()=>{
@@ -252,7 +259,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const displayedStatus=view==="Overdue"?"Overdue":view==="Completed"?"Completed":status;
   const statusOptions=view==="Overdue"?["Overdue"]:view==="Completed"?["Completed"]:["Active","Completed","Overdue","All"];
   const currentFilters={view,status:displayedStatus,priority,category,search};
-  const matches=(task:Task)=>matchesCategoryTask(task,currentFilters,today,saved ? clock.time : "00:00:00",now);
+  const matches=(task:Task)=>view==="Assigned to me"?matchesAssignedTask(task,members?.current?.id,currentFilters,today,saved?clock.time:"00:00:00",now):matchesCategoryTask(task,currentFilters,today,saved ? clock.time : "00:00:00",now);
   const categoryTasks=tasks.filter(task=>isCategoryTaskVisible(task,now,today,saved ? clock.time : "00:00:00"));
   const visibleTasks=tasks.filter(matches);
   const completedCount=visibleTasks.filter(task=>task.completed).length;
@@ -265,6 +272,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   const overdueEmpty = (status==="Overdue" || view==="Overdue") && !search && priority==="Any" && category==="Any";
   const filteredEmpty = filtersApplied && !categoryEmpty && !activeEmpty && !overdueEmpty && !periodEmpty;
   const navigationCounts: Partial<Record<View, number>> = {
+    "Assigned to me":tasks.filter(task=>task.assignedToId===members?.current?.id && !task.completed && !inHistory(task,now) && isCategoryTaskVisible(task,now,today,saved?clock.time:"00:00:00")).length,
     "All tasks": tasks.filter(task => !inHistory(task, now)).length,
     Today: tasks.filter(task => !task.completed && task.date === today).length,
     Overdue: tasks.filter(task => isOverdue(task, today, saved ? clock.time : "00:00:00")).length,
@@ -296,8 +304,9 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   function navigateAfterSignOut(url:string) { endingSession.current=true; window.location.assign(url); }
   function finishEditor() {setDirty(false); setEditing(null); setMobileEditor(false); restoreFocus();}
   function closeEditor() {requestAction(finishEditor);}
-  function newTask() {openEditor(newTaskDraft(category==="Any"?"":category));}
+  function newTask() {if(!canManage)return;openEditor(newTaskDraft(category==="Any"?"":category));}
   function openBulk() {
+    if(!canManage)return;
     if(busy || (saved && !storage.ready)) return;
     if(!saved) {requestAction(()=>window.location.assign("/sign-in"));return;}
     returnFocus.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
@@ -305,6 +314,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   }
   function finishBulk() {setDirty(false);setBulkCategory(null);setBulkTemplate(null);restoreFocus();}
   function openTemplates() {
+    if(!canManage)return;
     if(busy || (saved && !storage.ready))return;
     if(!saved){requestAction(()=>window.location.assign("/sign-in"));return;}
     const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null;
@@ -326,7 +336,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     finishBulk();setMessage(`${results.length} ${results.length===1?"task":"tasks"} created`);
   }
   function askDelete(task:Task) {
-    if(busy) return;
+    if(!canManage||busy) return;
     const trigger=drag.held||drag.drag?drag.origin.current:document.activeElement;
     drag.cancel();
     deleteFocus.current=trigger instanceof HTMLElement?trigger:null;
@@ -351,13 +361,17 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     }
   }
   function chooseView(next: View) {
+    if(saved && next==="Assigned to me"){
+      if(view===next){setMenuOpen(false);return;}
+      requestAction(()=>window.location.assign("/account/assigned-to-me"));return;
+    }
     if (next === "My profile" && view === next) { setMenuOpen(false); return; }
     const change = () => { if (next === "Users" || next === "My profile" || next === "Bin" || next === "Member history" || view === "Bin" || view === "My profile") { finishEditor(); setBulkCategory(null); } setView(next); resetFilters(); setStatus(next === "Completed" ? "Completed" : next === "Overdue" ? "Overdue" : next === "Member history" ? "All" : "Active"); setMenuOpen(false); };
     if (next === "Users" || next === "My profile" || next === "Bin" || next === "Member history" || view === "Bin" || view === "My profile" || busy) requestAction(change); else change();
   }
   function openBin(){drag.cancel();chooseView("Bin");void bin.refresh();}
   function askClearCompleted() {
-    if(busy || !saved || !storage.ready) return;
+    if(!canManage || busy || !saved || !storage.ready) return;
     completedFocus.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
     requestAction(()=>{
       finishEditor();setBulkCategory(null);setClearCompleted(true);setCompletedSnapshot(null);setCompletedError("");
@@ -405,7 +419,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   }
   async function toggleTask(id: string, confirmedReopen?: Task) {
     const task = confirmedReopen ?? tasks.find((item) => item.id === id);
-    if (!task || busy || (saved && (!storage.ready || storage.expired)) || (dirty && editing?.id===id)) return;
+    if (!task || !canStatus(task) || busy || (saved && (!storage.ready || storage.expired)) || (dirty && editing?.id===id)) return;
     if(task.completed && !confirmedReopen) {
       reopenFocus.current=document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setReopenTask(task); return;
@@ -424,6 +438,7 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     setMessage(task.completed ? "Task reopened in this preview" : "Task completed in this preview");
   }
   async function saveTask(task: Task, scope:EditScope="this") {
+    if(!canManage)throw new SaveError("Your current role cannot save task details.",403);
     if(!saved && !task.id) {requestAction(()=>window.location.assign("/sign-in")); return;}
     if(saved) {
       await storage.save(task,scope);
@@ -447,24 +462,25 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     return <>
       <div className={styles.brand}><span className={styles.brandMark}><Icon name="check" size={23} /></span><span>BGM Task<span className={styles.brandDot}>.</span></span>{mobile && <button className={styles.menuClose} aria-label="Close navigation" onClick={() => setMenuOpen(false)}><Icon name="close" /></button>}</div>
       <nav aria-label="Task views" className={styles.navigation}>{navItems.map((item) => <button key={item.view} className={`${styles.navItem} ${view === item.view ? styles.navActive : ""} ${view==="Member history" && item.view==="Member history"?styles.historySelected:""}`} onClick={() => chooseView(item.view)} aria-current={view === item.view ? "page" : undefined}><Icon name={item.icon} /><span>{item.view}</span>{navigationCounts[item.view] !== undefined && <span className={styles.navCount}>{saved && !storage.hasData ? "…" : navigationCounts[item.view]}</span>}</button>)}</nav>
-      {(saved || members) && <nav aria-label="Account" className={styles.memberNavigation}><button className={`${styles.navItem} ${view === "Users" ? styles.navActive : ""}`} aria-current={view === "Users" ? "page" : undefined} onClick={() => chooseView("Users")}><Icon name="users"/><span>Users</span><span className={styles.navCount}>{members ? `${members.members.length}/10` : "…"}</span></button></nav>}
+      {(saved || members) && <nav aria-label="Account" className={styles.memberNavigation}><button className={`${styles.navItem} ${view === "Users" ? styles.navActive : ""}`} aria-current={view === "Users" ? "page" : undefined} onClick={() => chooseView("Users")}><Icon name="users"/><span>Users</span><span className={styles.navCount}>{members ? `${members.members.length}/10` : "…"}</span></button><button className={`${styles.navItem} ${styles.assignedNav} ${view === "Assigned to me" ? styles.navActive : ""}`} aria-current={view === "Assigned to me" ? "page" : undefined} onClick={() => chooseView("Assigned to me")}><Icon name="person"/><span>Assigned to me</span><span className={styles.navCount}>{navigationCounts["Assigned to me"]??0}</span></button></nav>}
       <div className={styles.categorySection}><p className={styles.eyebrow}>Categories</p><nav aria-label="Categories">{categories.map((name) => <button key={name} className={`${styles.categoryNav} ${category === name ? styles.categoryActive : ""}`} onClick={() => { const change=()=>{ if(view === "My profile") finishEditor(); resetFilters(); setStatus("Active"); setCategory(name); setView("All tasks"); setMenuOpen(false); }; if(view === "My profile" || busy) requestAction(change); else change(); }} aria-pressed={category === name}><span className={`${styles.dot} ${categoryClass(name)}`} />{name}<span className={styles.categoryCount}>{categoryTasks.filter((task) => task.category === name).length}</span></button>)}</nav></div>
       <div className={styles.sidebarFooter}>{members?.current && <button type="button" className={styles.profileLink} aria-label={`Open My profile for ${members.current.name}`} aria-current={view === "My profile" ? "page" : undefined} onClick={() => chooseView("My profile")}/>}<span className={styles.footerMark}>{members?.current ? Array.from(members.current.name)[0]?.toLocaleUpperCase() : <Icon name="check" size={16} />}</span><div>{members?.current ? <><strong>{members.current.name}</strong><span>Your member profile</span></> : <>A little more clarity.<span>One task at a time.</span></>}</div></div>
     </>;
   }
-  const editor = editing && <TaskEditor key={`${editing.id || "new"}-${editorVersion}`} task={editing} categories={categories} onSave={saveTask} onClose={closeEditor} onCategory={addCategory} onDirty={setDirty} saved={saved} pending={busy} uncertain={storage.uncertain} onLatest={openEditor} onDelete={askDelete} />;
+  const editor = editing && <TaskEditor key={`${editing.id || "new"}-${editorVersion}`} task={editing} currentMemberId={members?.current?.id} members={members?.members??[]} canManage={canManage} canStatus={canStatus(editing)} categories={categories} onSave={saveTask} onClose={closeEditor} onCategory={addCategory} onDirty={setDirty} saved={saved} pending={busy} uncertain={storage.uncertain} onLatest={openEditor} onDelete={askDelete} />;
   return <div className={styles.app}>
     <a className={styles.skipLink} href="#task-content">Skip to tasks</a>
     <aside className={styles.sidebar}>{sidebar()}</aside>
     {menuOpen && <Modal label="Navigation" onClose={() => setMenuOpen(false)} className={styles.menuDialog}><div className={styles.drawer}>{sidebar(true)}</div></Modal>}
-    <main id="task-content" className={`${styles.workspace} ${!["Bin","Users","My profile","Member history"].includes(view)?styles.taskWorkspace:""} ${!["Bin","Member history","Users","My profile"].includes(view)?styles.templatesAvailable:""} ${view==="Bin"?styles.binWorkspace:view==="Member history"?styles.memberHistoryWorkspace:view==="Users"?styles.usersWorkspace:view==="My profile"?styles.profileWorkspace:""}`}>
+    <main id="task-content" className={`${styles.workspace} ${!["Bin","Users","My profile","Member history"].includes(view)?styles.taskWorkspace:""} ${!["Bin","Member history","Users","My profile"].includes(view)?canManage?styles.templatesAvailable:"":""} ${view==="Bin"?styles.binWorkspace:view==="Member history"?styles.memberHistoryWorkspace:view==="Users"?styles.usersWorkspace:view==="My profile"?styles.profileWorkspace:""}`}>
       {(saved || accountControls) && <div className={styles.accountBar}>{saved ? <AccountControls passwordUpdated={passwordUpdated} beforeSignOut={beforeSignOut} blocked={busy} onPendingChange={setAccountPending} onSignedOut={navigateAfterSignOut} /> : accountControls}</div>}
       <header className={styles.header}>
-        <div className={styles.heading}>{view==="Bin"&&<button className={styles.binBack} disabled={busy} onClick={()=>{chooseView("All tasks");window.requestAnimationFrame(()=>binButton.current?.focus());}} aria-label="Back to tasks"><Icon name="back" size={21}/><span>Back to tasks</span></button>}<button className={styles.mobileMenu} aria-label="Open navigation" onClick={() => setMenuOpen(true)}><Icon name="menu" size={23} /></button><div><p className={styles.overline}>YOUR SPACE, YOUR PACE</p><h1 ref={view==="Bin"?binTitle:undefined} tabIndex={view==="Bin"?-1:undefined}>{category !== "Any" ? (view === "All tasks" ? category || "Uncategorized" : `${view} · ${category || "Uncategorized"}`) : view === "All tasks" ? "All tasks" : view}</h1><p className={styles.date}>{view==="Member history"?"Completed work by member":view==="Users"?"Members sharing this account":view==="My profile"?"Your profile and shared account":new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date(`${today}T12:00:00`))}</p></div></div>
-        {view!=="Users" && view!=="My profile" && view!=="Member history" && <div className={styles.headerActions}><label className={styles.search}><Icon name="search" size={19} /><span className={styles.srOnly}>{view==="Bin"?"Search deleted items":"Search tasks"}</span><input type="search" placeholder={view==="Bin"?"Search deleted items…":"Search your tasks…"} value={search} onChange={(event) => setSearch(event.target.value)} /></label>{view!=="Bin" && <><button className={styles.templatesButton} aria-label="Open templates" title="Templates" disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={openTemplates}><Icon name="templates" size={21}/></button><button className={styles.addButton} disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={newTask}><Icon name="plus" size={19} />Add task</button><button className={`${styles.addButton} ${styles.bulkButton}`} disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={openBulk}><Icon name="plus" size={19} />Add multiple tasks</button></>}{view!=="Bin"&&<button ref={binButton} className={`${styles.binButton} ${drag.drag?styles.binDragReady:""} ${drag.drag?.over?styles.binDropActive:""}`} aria-label={`Open Bin${saved&&!bin.loaded?"":` (${binTasks.length+(saved?bin.templates.length:0)} ${binTasks.length+(saved?bin.templates.length:0)===1?"item":"items"})`}`} title={drag.drag?"Release to move to Bin":"Open Bin"} disabled={busy} onClick={openBin}><Icon name="trash" size={21}/><span className={styles.binCount}>{saved&&!bin.loaded?"…":binTasks.length+(saved?bin.templates.length:0)}</span></button>}</div>}
+        <div className={styles.heading}>{view==="Bin"&&<button className={styles.binBack} disabled={busy} onClick={()=>{chooseView("All tasks");window.requestAnimationFrame(()=>binButton.current?.focus());}} aria-label="Back to tasks"><Icon name="back" size={21}/><span>Back to tasks</span></button>}<button className={styles.mobileMenu} aria-label="Open navigation" onClick={() => setMenuOpen(true)}><Icon name="menu" size={23} /></button><div><p className={styles.overline}>YOUR SPACE, YOUR PACE</p><h1 ref={view==="Bin"?binTitle:undefined} tabIndex={view==="Bin"?-1:undefined}>{category !== "Any" ? (view === "All tasks" ? category || "Uncategorized" : `${view} · ${category || "Uncategorized"}`) : view === "All tasks" ? "All tasks" : view}</h1><p className={styles.date}>{view==="Member history"?"Completed work by member":view==="My profile"?"Your profile and workspace":new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date(`${today}T12:00:00`))}</p></div></div>
+        {view==="Users"&&<div className={styles.headerActions}><label className={styles.search}><Icon name="search" size={19}/><span className={styles.srOnly}>Search members</span><input type="search" placeholder="Search members…" value={usersSearch} onChange={e=>setUsersSearch(e.target.value)}/></label></div>}
+        {view!=="Users" && view!=="My profile" && view!=="Member history" && <div className={styles.headerActions}><label className={styles.search}><Icon name="search" size={19} /><span className={styles.srOnly}>{view==="Bin"?"Search deleted items":"Search tasks"}</span><input type="search" placeholder={view==="Bin"?"Search deleted items…":"Search your tasks…"} value={search} onChange={(event) => setSearch(event.target.value)} /></label>{view!=="Bin" && canManage && <><button className={styles.templatesButton} aria-label="Open templates" title="Templates" disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={openTemplates}><Icon name="templates" size={21}/></button><button className={styles.addButton} disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={newTask}><Icon name="plus" size={19} />Add task</button><button className={`${styles.addButton} ${styles.bulkButton}`} disabled={busy || (saved && (!storage.ready || storage.expired))} onClick={openBulk}><Icon name="plus" size={19} />Add multiple tasks</button></>}{view!=="Bin"&&<button ref={binButton} className={`${styles.binButton} ${drag.drag?styles.binDragReady:""} ${drag.drag?.over?styles.binDropActive:""}`} aria-label={`Open Bin${saved&&!bin.loaded?"":` (${binTasks.length+(saved&&canManage?bin.templates.length:0)} ${binTasks.length+(saved&&canManage?bin.templates.length:0)===1?"item":"items"})`}`} title={drag.drag?"Release to move to Bin":"Open Bin"} disabled={busy} onClick={openBin}><Icon name="trash" size={21}/><span className={styles.binCount}>{saved&&!bin.loaded?"…":binTasks.length+(saved&&canManage?bin.templates.length:0)}</span></button>}</div>}
       </header>
-      {view!=="Users" && view!=="My profile" && view!=="Bin" && view!=="Member history" && (saved ? <div className={styles.previewNotice}><span className={styles.previewDot} />My saved tasks<span className={styles.noticeDivider}>·</span><span>{storage.timezone ? "India time · Mumbai" : storage.hasData ? "Account setup" : storage.loading ? "Loading account…" : "Account unavailable"}</span><div className={`${styles.refreshActions} ${view==="Completed"?styles.completedRefresh:""}`}><button className={styles.refreshButton} disabled={storage.loading || busy} onClick={()=>void storage.refresh()}>{storage.loading ? "Refreshing…" : "Refresh"}</button>{view==="Completed"&&<button className={styles.clearCompletedButton} aria-label="Delete all completed tasks" title="Delete all completed tasks" disabled={busy||storage.loading||!storage.ready||storage.expired} onClick={askClearCompleted}><Icon name="trash" size={21}/></button>}</div></div> : <div className={styles.previewNotice}><span className={styles.previewDot} />Design preview<span className={styles.noticeDivider}>·</span><span>Sample tasks. Changes reset on refresh.</span><Link href="/sign-in" className={styles.signInLink}>Sign in <span aria-hidden="true">↗</span></Link></div>)}
-      {view==="Member history" ? <MemberHistoryPanel data={history.data} loading={history.loading} error={history.error} now={historyNow} currentMemberId={members?.current?.id} hasSpecialTasks={tasks.some(task=>task.category==="Special Meeting")} onRefresh={()=>void history.refresh()}/> : view==="Bin" ? <TaskBin tasks={binTasks} templates={saved?bin.templates:[]} search={search} now={now} loaded={!saved||bin.loaded} loading={bin.loading} pending={busy} error={bin.error} expired={bin.expired} needsMember={bin.needsMember} onRefresh={()=>void bin.refresh()} onRestore={restoreBin} onPurge={askPurge}/> : view==="My profile" ? <ProfilePanel state={members} email={accountEmail} loading={membersLoading} error={membersError} disabled={busy} now={memberNow} onRefresh={()=>void refreshMembers()} onUsers={()=>chooseView("Users")} onSaved={acceptMembers} onDirty={setDirty} onPending={setAccountPending} beforeSignOut={beforeSignOut} onSignedOut={navigateAfterSignOut}/> : view==="Users" ? <UsersPanel state={members} loading={membersLoading} error={membersError} onRefresh={()=>void refreshMembers()} now={memberNow}/> : <div className={`${styles.content} ${editing ? styles.withEditor : ""}`}>
+      {view!=="Users" && view!=="My profile" && view!=="Bin" && view!=="Member history" && (saved ? <div className={styles.previewNotice}><span className={styles.previewDot} />{members?.workspace?.name??"My saved tasks"}<span className={styles.noticeDivider}>·</span><span>{storage.timezone ? "India time · Mumbai" : storage.hasData ? "Account setup" : storage.loading ? "Loading account…" : "Account unavailable"}</span><div className={`${styles.refreshActions} ${view==="Completed"?styles.completedRefresh:""}`}><button className={styles.refreshButton} disabled={storage.loading || busy} onClick={()=>void storage.refresh()}>{storage.loading ? "Refreshing…" : "Refresh"}</button>{view==="Completed"&&canManage&&<button className={styles.clearCompletedButton} aria-label="Delete all completed tasks" title="Delete all completed tasks" disabled={busy||storage.loading||!storage.ready||storage.expired} onClick={askClearCompleted}><Icon name="trash" size={21}/></button>}</div></div> : <div className={styles.previewNotice}><span className={styles.previewDot} />Design preview<span className={styles.noticeDivider}>·</span><span>Sample tasks. Changes reset on refresh.</span><Link href="/sign-in" className={styles.signInLink}>Sign in <span aria-hidden="true">↗</span></Link></div>)}
+      {view==="Member history" ? <MemberHistoryPanel data={history.data} loading={history.loading} error={history.error} now={historyNow} currentMemberId={members?.current?.id} hasSpecialTasks={tasks.some(task=>task.category==="Special Meeting")} onRefresh={()=>void history.refresh()}/> : view==="Bin" ? <TaskBin canManage={canManage} tasks={binTasks} templates={saved&&canManage?bin.templates:[]} search={search} now={now} loaded={!saved||bin.loaded} loading={bin.loading} pending={busy} error={bin.error} expired={bin.expired} needsMember={bin.needsMember} onRefresh={()=>void bin.refresh()} onRestore={restoreBin} onPurge={askPurge}/> : view==="My profile" ? <ProfilePanel state={members} email={accountEmail} loading={membersLoading} error={membersError} disabled={busy} now={memberNow} onRefresh={()=>void refreshMembers()} onUsers={()=>chooseView("Users")} onSaved={acceptMembers} onDirty={setDirty} onPending={setAccountPending} beforeSignOut={beforeSignOut} onSignedOut={navigateAfterSignOut}/> : view==="Users" ? <UsersPanel search={usersSearch} state={members} loading={membersLoading} error={membersError} onRefresh={()=>void refreshMembers()} onSaved={acceptMembers} now={memberNow}/> : <div className={`${styles.content} ${editing ? styles.withEditor : ""}`}>
         <section className={styles.taskSection} aria-label="Tasks">
           {saved && <>
             {storage.deferred && <p className={styles.inlineNotice} role="status">Refresh queued. Finish editing or saving to load updates.</p>}
@@ -475,17 +491,17 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
           </>}
           {(!saved || storage.ready) && <>
           <div className={styles.toolbar}><div className={styles.tabs} aria-label="Task status">{statusOptions.map((item) => <button key={item} className={displayedStatus === item ? styles.tabActive : ""} onClick={() => chooseStatus(item)} aria-pressed={displayedStatus === item}>{item}</button>)}</div><button className={`${styles.mobileFilter} ${filtersOpen ? styles.filterActive : ""}`} aria-label="Toggle priority and category filters" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><Icon name="filter" /></button><div className={`${styles.filters} ${filtersOpen ? styles.filtersVisible : ""}`}><label><span className={styles.srOnly}>Filter by priority</span><select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="Any">Priority</option>{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></label><label><span className={styles.srOnly}>Filter by category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="Any">Category</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label></div></div>
-          <p id="task-gesture-help" className={styles.gestureHelp}>Tap to edit · Hold and drag to Bin</p>
+          <p id="task-gesture-help" className={styles.gestureHelp}>{canManage?"Tap to edit · Hold and drag to Bin":"Tap to view · Complete only tasks assigned to you"}</p>
           <div className={styles.listHeading}><span>{visibleTasks.length} {visibleTasks.length === 1 ? "task" : "tasks"}</span><span className={styles.taskCounts}>{(displayedStatus==="All" || displayedStatus==="Completed") && <span className={styles.completedTasks}><Icon name="check" size={14}/>{completedCount} {completedCount===1?"task":"tasks"} done</span>}{displayedStatus!=="Completed" && <span className={styles.remainingTasks}><Icon name="warning" size={14}/>{remainingCount} left to do!</span>}</span></div>
-          {visibleTasks.length ? <ul className={styles.taskList}>{visibleTasks.map((task) => <li key={task.id} className={`${styles.taskRow} ${editing?.id === task.id ? styles.selected : ""} ${task.completed ? styles.completed : ""} ${drag.drag?.task.id===task.id?styles.dragSource:""}`} ><label className={styles.taskCheck}><input type="checkbox" checked={task.completed} disabled={busy || (saved && storage.expired) || (dirty && editing?.id === task.id)} onChange={() => void toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`} /><span><Icon name="check" size={15} /></span></label><button className={`${styles.taskDetails} ${task.completed && task.completedAt ? styles.taskDetailsWithCompletion : ""}`} {...drag.handle(task)} aria-label={`Edit ${task.title}`} aria-describedby="task-gesture-help"><span className={styles.taskText}><span className={styles.taskHeading}><span className={styles.taskTitle}>{task.title}</span><TaskStatus task={task} today={today} time={saved ? clock.time : "00:00:00"}/></span><span className={styles.taskNote}>{task.notes || "No notes added"}</span></span><span className={styles.taskMeta}>{task.category && <span className={styles.categoryLabel}><span className={`${styles.dot} ${categoryClass(task.category)}`} />{task.category}</span>}{task.priority !== "None" && <span className={`${styles.badge} ${styles[task.priority.toLowerCase()]}`}>{task.priority}</span>}{task.completed ? <CompletionAge value={task.completedAt} now={now}/> : <span className={`${styles.dueDate} ${isOverdue(task,today,saved ? clock.time : "00:00:00") ? styles.overdue : ""}`}>{task.date ? <><Icon name="calendar" size={13} />{task.date === today ? "Today" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(`${task.date}T12:00:00`))}{task.time && <span className={styles.dueTime}>{new Intl.DateTimeFormat("en", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(new Date(`${task.date}T${task.time}Z`))}</span>}</> : "No due date"}</span>}{task.weekdays.length>0 && <span className={styles.weekdayMeta}>{task.weekdays.map(day=>WEEKDAYS[day].slice(0,3)).join(" · ")}</span>}{task.repeat !== "Off" && <span title={`Repeats ${task.repeat.toLowerCase()}`}><Icon name="repeat" size={14} /></span>}</span>{task.completed && (status==="Completed" || status==="All") && <span className={styles.completionBlock}><CompletedBy name={task.completedByName}/><CompletionTime value={task.completedAt}/></span>}<span className={styles.rowChevron}><Icon name="chevron" size={17} /></span></button></li>)}</ul> : <div className={styles.empty}><div className={styles.emptyIcon}><Icon name={filteredEmpty ? "search" : "check"} size={29} /></div><h2>{periodEmpty ? (status==="All" ? "All clear for this meeting period" : `No ${status.toLowerCase()} tasks in this meeting period`) : overdueEmpty ? "All caught up" : activeEmpty ? (tasks.length ? "No active tasks" : "No tasks yet") : categoryEmpty ? `No tasks in ${category || "Uncategorized"} yet` : filtersApplied ? "No tasks found" : view === "Overdue" ? "All caught up" : view === "Completed" ? "Small wins start here" : saved && !tasks.length ? "No tasks yet" : "A little room for something new"}</h2><p>{periodEmpty ? "Tasks from earlier periods are still saved in the main Completed and Overdue pages." : overdueEmpty ? "You don’t have any overdue tasks in this view." : activeEmpty ? (tasks.length ? "You’re all caught up. Add a task or select All to review completed tasks." : "Add a task and take the first step.") : categoryEmpty ? "Add your first task to this category." : filtersApplied ? "Try another search or adjust your filters." : view === "Overdue" ? "You don’t have any overdue tasks. Enjoy the breathing room." : view === "Completed" ? "Your completed tasks will appear here." : "Add a task and take the first step."}</p><button className={styles.emptyAction} onClick={filteredEmpty ? resetFilters : newTask}>{filteredEmpty ? "Clear filters" : "Add a task"}<Icon name={filteredEmpty ? "close" : "plus"} size={16} /></button></div>}
+          {visibleTasks.length ? <ul className={styles.taskList}>{visibleTasks.map((task) => <li key={task.id} className={`${styles.taskRow} ${editing?.id === task.id ? styles.selected : ""} ${task.completed ? styles.completed : ""} ${drag.drag?.task.id===task.id?styles.dragSource:""}`} ><label className={`${styles.taskCheck} ${saved&&!canStatus(task)?styles.lockedCheck:""}`} title={saved&&!canStatus(task)?assignmentLabel(task,members?.current?.id,members?.members??[]):undefined}><input type="checkbox" checked={task.completed} disabled={!canStatus(task) || busy || (saved && storage.expired) || (dirty && editing?.id === task.id)} onChange={() => void toggleTask(task.id)} aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`} /><span><Icon name={saved&&!canStatus(task)?"lock":"check"} size={15} /></span></label><button className={`${styles.taskDetails} ${task.completed && task.completedAt ? styles.taskDetailsWithCompletion : ""}`} {...(canManage?drag.handle(task):{onClick:()=>openEditor(task)})} aria-label={`${canManage?"Edit":"View"} ${task.title}`} aria-describedby="task-gesture-help"><span className={styles.taskText}><span className={styles.taskHeading}><span className={styles.taskTitle}>{task.title}</span><TaskStatus task={task} today={today} time={saved ? clock.time : "00:00:00"}/></span><span className={styles.taskNote}>{task.notes || "No notes added"}</span></span><span className={styles.taskMeta}>{task.category && <span className={styles.categoryLabel}><span className={`${styles.dot} ${categoryClass(task.category)}`} />{task.category}</span>}{task.priority !== "None" && <span className={`${styles.badge} ${styles[task.priority.toLowerCase()]}`}>{task.priority}</span>}{task.completed ? <CompletionAge value={task.completedAt} now={now}/> : <span className={`${styles.dueDate} ${isOverdue(task,today,saved ? clock.time : "00:00:00") ? styles.overdue : ""}`}>{task.date ? <><Icon name="calendar" size={13} />{task.date === today ? "Today" : new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(`${task.date}T12:00:00`))}{task.time && <span className={styles.dueTime}>{new Intl.DateTimeFormat("en", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }).format(new Date(`${task.date}T${task.time}Z`))}</span>}</> : "No due date"}</span>}{saved&&<span className={styles.assignmentLabel}><Icon name={task.assignedToId===members?.current?.id?"person":"lock"} size={14}/>{assignmentLabel(task,members?.current?.id,members?.members??[])}</span>}{task.weekdays.length>0 && <span className={styles.weekdayMeta}>{task.weekdays.map(day=>WEEKDAYS[day].slice(0,3)).join(" · ")}</span>}{task.repeat !== "Off" && <span title={`Repeats ${task.repeat.toLowerCase()}`}><Icon name="repeat" size={14} /></span>}</span>{task.completed && (status==="Completed" || status==="All") && <span className={styles.completionBlock}><CompletedBy name={task.completedByName}/><CompletionTime value={task.completedAt}/></span>}<span className={styles.rowChevron}><Icon name="chevron" size={17} /></span></button></li>)}</ul> : <div className={styles.empty}><div className={styles.emptyIcon}><Icon name={filteredEmpty ? "search" : "check"} size={29} /></div><h2>{periodEmpty ? (status==="All" ? "All clear for this meeting period" : `No ${status.toLowerCase()} tasks in this meeting period`) : overdueEmpty ? "All caught up" : activeEmpty ? (tasks.length ? "No active tasks" : "No tasks yet") : categoryEmpty ? `No tasks in ${category || "Uncategorized"} yet` : filtersApplied ? "No tasks found" : view === "Overdue" ? "All caught up" : view === "Completed" ? "Small wins start here" : saved && !tasks.length ? "No tasks yet" : "A little room for something new"}</h2><p>{periodEmpty ? "Tasks from earlier periods are still saved in the main Completed and Overdue pages." : overdueEmpty ? "You don’t have any overdue tasks in this view." : activeEmpty ? (tasks.length ? "You’re all caught up. Add a task or select All to review completed tasks." : "Add a task and take the first step.") : categoryEmpty ? "Add your first task to this category." : filtersApplied ? "Try another search or adjust your filters." : view === "Overdue" ? "You don’t have any overdue tasks. Enjoy the breathing room." : view === "Completed" ? "Your completed tasks will appear here." : "Add a task and take the first step."}</p>{(filteredEmpty||canManage)&&<button className={styles.emptyAction} onClick={filteredEmpty ? resetFilters : newTask}>{filteredEmpty ? "Clear filters" : "Add a task"}<Icon name={filteredEmpty ? "close" : "plus"} size={16} /></button>}</div>}
           </>}
           <p className={styles.listFooter}><span className={styles.smallLine} />A clear space for everything on your mind.</p>
         </section>
         {editing && <ResponsiveEditor mobile={mobileEditor} label={editing.id?"Edit task":"Add task"} onClose={closeEditor}>{editor}</ResponsiveEditor>}
       </div>}
     </main>
-    {templatesOpen && <Modal label="Templates" onClose={()=>requestAction(finishTemplates)} className={styles.bulkDialog}><TemplatesForm store={templates} onRemove={askRemoveTemplate} onUse={useTemplate} onClose={()=>requestAction(finishTemplates)} onDirty={setDirty} requestAction={requestAction}/></Modal>}
-    {bulkCategory!==null && <Modal label="Add multiple tasks" onClose={()=>requestAction(finishBulk)} className={styles.bulkDialog}><BulkTaskEditor categories={categories} initialCategory={bulkCategory} initialTemplate={bulkTemplate} onSave={saveMany} onClose={()=>requestAction(finishBulk)} onDirty={setDirty} pending={busy} uncertain={storage.uncertain}/></Modal>}
+    {templatesOpen && canManage && <Modal label="Templates" onClose={()=>requestAction(finishTemplates)} className={styles.bulkDialog}><TemplatesForm store={templates} onRemove={askRemoveTemplate} onUse={useTemplate} onClose={()=>requestAction(finishTemplates)} onDirty={setDirty} requestAction={requestAction}/></Modal>}
+    {bulkCategory!==null && <Modal label="Add multiple tasks" onClose={()=>requestAction(finishBulk)} className={styles.bulkDialog}><BulkTaskEditor categories={categories} initialCategory={bulkCategory} currentMemberId={members?.current?.id} members={members?.members??[]} canManage={canManage} initialTemplate={bulkTemplate} onSave={saveMany} onClose={()=>requestAction(finishBulk)} onDirty={setDirty} pending={busy} uncertain={storage.uncertain}/></Modal>}
     {drag.held && <Modal label="Task actions" onClose={closeTaskActions} className={styles.taskActionsDialog}><div className={styles.taskActionsTitle}><span>Task actions</span><h2>{drag.held.title}</h2><p>Hold and move a task to drag it to Bin.</p></div><button data-autofocus="true" onClick={()=>{if(drag.held)openEditor(drag.held);}}><Icon name="list" size={19}/>Edit task</button><button className={styles.taskActionsRed} onClick={()=>{if(drag.held)askDelete(drag.held);}}><Icon name="trash" size={19}/>Move to Bin</button><button className={styles.taskActionsCancel} onClick={closeTaskActions}>Cancel</button></Modal>}
     {deleteTask && <Modal label="Move task to Bin?" onClose={cancelDelete} className={styles.confirmDialog}><div className={styles.confirmContent}><p className={styles.editorEyebrow}>MOVE TO BIN</p><h2>Move task to Bin?</h2><p>“{deleteTask.title}”</p><p>You can restore this task from Bin.</p>{deleteTask.seriesId && <p>Future repeats will stop. Tasks already created stay in your list with Repeat off. Restoring can resume the schedule.</p>}{deleteError&&<p className={styles.error} role="alert">{deleteError}</p>}{deleteConflict&&<button type="button" className={styles.cancelButton} onClick={()=>{setDeleteTask(null);openEditor(deleteConflict);}}>Review saved task</button>}<div className={styles.editorActions}><button className={styles.cancelButton} disabled={busy} data-autofocus="true" onClick={cancelDelete}>Cancel</button><button className={styles.deleteConfirm} disabled={busy || !!deleteConflict} onClick={()=>void confirmDelete()}>{busy?"Moving…":"Move to Bin"}</button></div></div></Modal>}
     {clearCompleted && <Modal label="Delete all completed tasks?" onClose={cancelClearCompleted} className={styles.confirmDialog}><div className={`${styles.confirmContent} ${styles.completedClearContent}`}><span className={styles.completedClearIcon}><Icon name="trash" size={28}/></span><h2>Delete all completed tasks?</h2>{!completedSnapshot&&!completedError?<p role="status">Checking all completed tasks…</p>:completedSnapshot?.count===0?<p>There are no completed tasks to delete.</p>:completedSnapshot&&<><p>Permanently delete all <strong>{completedSnapshot.count}</strong> completed {completedSnapshot.count===1?"task":"tasks"} from this account and the database.</p><p>They will not move to Bin. This cannot be undone.</p><p className={styles.completedClearHint}>Active tasks, archived repeats and future repeats stay unchanged. Yearly totals are kept.</p></>}{completedError&&<p className={styles.error} role="alert">{completedError}</p>}<div className={styles.editorActions}><button ref={completedCancel} className={styles.cancelButton} data-autofocus="true" disabled={busy} onClick={cancelClearCompleted}>{completedError?"Close":"Cancel"}</button><button className={styles.deleteConfirm} disabled={busy||!completedSnapshot?.count||!!completedError} onClick={()=>void confirmClearCompleted()}>{busy&&completedSnapshot?"Deleting…":"Delete permanently"}</button></div>{completedError&&<button className={styles.cancelButton} disabled={busy} onClick={()=>{cancelClearCompleted();void storage.refresh();}}>Close and refresh</button>}</div></Modal>}
@@ -498,8 +514,9 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   </div>;
 }
 
-function TaskEditor({ task, categories, onSave, onClose, onCategory, onDirty, saved, pending, uncertain, onLatest, onDelete }: { task: Task; categories: string[]; onSave: (task: Task,scope?:EditScope) => Promise<void>; onClose: () => void; onCategory: (name: string) => Promise<string>; onDirty:(dirty:boolean)=>void; saved:boolean; pending:boolean; uncertain:boolean; onLatest:(task:Task)=>void; onDelete:(task:Task)=>void }) {
+function TaskEditor({ task, currentMemberId, members, canManage, canStatus, categories, onSave, onClose, onCategory, onDirty, saved, pending, uncertain, onLatest, onDelete }: { task: Task; currentMemberId?:string; members:Member[];canManage:boolean;canStatus:boolean;categories: string[]; onSave: (task: Task,scope?:EditScope) => Promise<void>; onClose: () => void; onCategory: (name: string) => Promise<string>; onDirty:(dirty:boolean)=>void; saved:boolean; pending:boolean; uncertain:boolean; onLatest:(task:Task)=>void; onDelete:(task:Task)=>void }) {
   const [draft, setDraft] = useState(task);
+  const [confirmSave,setConfirmSave]=useState(false);
   const [scope,setScope]=useState<EditScope>("this");
   const [error, setError] = useState("");
   const [newCategory, setNewCategory] = useState("");
@@ -511,7 +528,7 @@ function TaskEditor({ task, categories, onSave, onClose, onCategory, onDirty, sa
   const priorityRef = useRef<HTMLSelectElement>(null);
   useEffect(()=>{onDirty(JSON.stringify(draft)!==JSON.stringify(task) || !!newCategory || scope!=="this");},[draft,task,newCategory,scope,onDirty]);
   useEffect(()=>()=>onDirty(false),[onDirty]);
-  function update<K extends keyof Task>(key: K, value: Task[K]) { setDraft((current) => ({ ...current, [key]: value })); }
+  function update<K extends keyof Task>(key: K, value: Task[K]) {setConfirmSave(false); setDraft((current) => ({ ...current, [key]: value })); }
   function changeCategory(category:string) {
     setDraft(current=>({...current,category,...(!task.id?{weekdays:categoryWeekdays(category)}:{})}));
   }
@@ -521,8 +538,16 @@ function TaskEditor({ task, categories, onSave, onClose, onCategory, onDirty, sa
     if (draft.priority === "None") { setError("Choose a priority before saving."); priorityRef.current?.focus(); return; }
     if (draft.time && !draft.date) { setError("Choose a date to go with the time."); return; }
     const repeatIssue=repeatError(draft); if(repeatIssue){setError(repeatIssue);return;}
+    if(!draft.assignedToId || !members.some(member=>member.id===draft.assignedToId)){setError("Choose an assigned member before saving.");return;}
+    if(!canManage){setError("Your role can view task details but cannot edit them.");return;}
+    if(task.completed && draft.assignedToId!==task.assignedToId){setError("The current assignee must reopen this task before it can be reassigned.");return;}
     if(pending || conflict || (saved && !task.id && uncertain)) return;
-    setError("");
+    if(task.id && (draft.assignedToId!==task.assignedToId || (task.completed&&!draft.completed))){setConfirmSave(true);return;}
+    await commit();
+  }
+  async function commit(){
+    if(pending||!canManage)return;
+    setError("");setConfirmSave(false);
     try {await onSave(draft,scope);} catch(e) {
       setError(e instanceof Error ? e.message : "Unable to save. Your changes are still here.");
       if(e instanceof SaveError && e.latest) {setConflict(e.latest);setFutureConflict(e.future??[]);}
@@ -538,27 +563,31 @@ function TaskEditor({ task, categories, onSave, onClose, onCategory, onDirty, sa
     } catch(e) {setError(e instanceof Error ? e.message : "Category saving failed. Please try again.");}
   }
   return <div className={styles.editor}>
-    <div className={styles.editorHeader}><div><span className={styles.editorEyebrow}>{task.id ? "THE DETAILS" : "A FRESH START"}</span><h2>{task.id ? "Edit task" : "Add task"}</h2></div><button disabled={pending} type="button" className={styles.iconButton} aria-label="Close editor" onClick={onClose}><Icon name="close" size={19} /></button></div>
+    <div className={styles.editorHeader}><div><span className={styles.editorEyebrow}>{task.id ? "THE DETAILS" : "A FRESH START"}</span><h2>{task.id ? (canManage?"Edit task":"Task details") : "Add task"}</h2></div><button disabled={pending} type="button" className={styles.iconButton} aria-label="Close editor" onClick={onClose}><Icon name="close" size={19} /></button></div>
     <form onSubmit={submit} className={styles.editorForm} noValidate aria-busy={pending}>
-      <fieldset disabled={pending} className={styles.formFields}>
+      <fieldset disabled={pending||!canManage} className={styles.formFields}>
       {task.historyAt && <p className={styles.editorHint}>Completed: {historyDate(task.completedAt)} · In history: {historyDate(task.historyAt)} · Deletes: {historyDate(task.historyAt,30)}</p>}
       <label className={styles.field}>Title <span className={styles.required}>*</span><input ref={titleRef} name="title" value={draft.title} onChange={(event) => { update("title", event.target.value); setError(""); }} placeholder="What would you like to do?" maxLength={200} required aria-invalid={!!error && !draft.title.trim()} aria-describedby={error ? "editor-error" : undefined} autoFocus={!task.id} data-autofocus={!task.id} /></label>
       <label className={styles.field}>Notes <span className={styles.optional}>optional</span><textarea name="notes" value={draft.notes} onChange={(event) => update("notes", event.target.value)} placeholder="A few helpful details…" rows={3} maxLength={4000} /></label>
+      <TaskAssignee currentMemberId={currentMemberId} originalValue={task.assignedToId} value={draft.assignedToId} members={members} onChange={id=>update("assignedToId",id)} disabled={!!task.completed}/>
       <div className={styles.editorDivider} />
-      <label className={styles.property}><span><Icon name="check" size={17} />Status</span><select name="status" disabled={!task.id} value={draft.completed ? "Completed" : "Active"} onChange={(event) => update("completed", event.target.value === "Completed")}><option>Active</option><option>Completed</option></select></label>
+      <label className={styles.property}><span><Icon name="check" size={17} />Status</span><select name="status" disabled={!task.id||!canStatus} value={draft.completed ? "Completed" : "Active"} onChange={(event) => update("completed", event.target.value === "Completed")}><option>Active</option><option>Completed</option></select></label>
       <div className={styles.dateFields}><label className={styles.field}><span><Icon name="calendar" size={16} />Due date</span><input type="date" name="date" value={draft.date} onInput={event=>{update("date",event.currentTarget.value);if(!event.currentTarget.value)update("time","");}} onChange={(event) => { update("date", event.target.value); if (!event.target.value) update("time", ""); }} /></label><div className={styles.field}><span><Icon name="clock" size={16} />Time <span className={styles.optional}>optional</span></span><TaskTime value={draft.time} onChange={value=>update("time",value)}/></div></div>
       <TaskRepeat task={{...draft,repeatAnchor:draft.date===task.date?task.repeatAnchor:null}} onChange={rule=>update("repeat",rule)} onDaysChange={days=>update("weekdays",days)}/>
       <label className={styles.property}><span><span className={styles.priorityGlyph}>⚑</span>Priority</span><select ref={priorityRef} name="priority" value={draft.priority === "None" ? "" : draft.priority} onChange={(event) => update("priority", event.target.value as Priority)}>{draft.priority === "None" && <option value="" disabled>Choose priority</option>}{PRIORITIES.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label className={styles.property}><span><span className={`${styles.dot} ${categoryClass(draft.category)}`} />Category</span><select ref={categoryRef} name="category" value={draft.category} onChange={(event) => { if (event.target.value === "__new") setAddingCategory(true); else changeCategory(event.target.value); }}>{!draft.category && <option value="" disabled>Choose category</option>}{categories.map((name) => <option key={name}>{name}</option>)}<option value="__new">+ New category</option></select></label>
       {addingCategory && <div className={styles.newCategory}><label className={styles.srOnly} htmlFor="new-category">New category name</label><input id="new-category" value={newCategory} maxLength={40} onChange={(event) => setNewCategory(event.target.value)} placeholder="Category name" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCategory(); } }} /><button type="button" onClick={addCategory}>Add</button><button type="button" aria-label="Cancel new category" onClick={() => setAddingCategory(false)}><Icon name="close" size={15} /></button></div>}
       <div className={styles.editorDivider} />
-      {task.seriesId && <><label className={styles.property}><span>Apply changes to</span><select value={scope} onChange={event=>setScope(event.target.value as EditScope)}><option value="this">This task only</option><option value="future">This and future tasks</option></select></label><p className={styles.editorHint}>Status changes affect this task only. Future changes update pending schedules and later active tasks; completed history stays unchanged. To stop scheduled repeats, choose This and future tasks, then Off.</p></>}
+      {task.seriesId && <><label className={styles.property}><span>Apply changes to</span><select value={scope} onChange={event=>setScope(event.target.value as EditScope)}><option value="this">This task only</option><option value="future">This and future tasks</option></select></label><p className={styles.editorHint}>Assignment and status changes affect this task only. Future changes update pending schedules and later active tasks; completed history stays unchanged. To stop scheduled repeats, choose This and future tasks, then Off.</p></>}
       {error && <p id="editor-error" className={styles.error} role="alert">{error}</p>}
       {saved && !task.id && uncertain && <p className={styles.error} role="alert">Saving could not be confirmed. Your draft is kept here. Close the editor when ready, then refresh and review your saved tasks before creating another.</p>}
       {conflict && <div className={styles.conflict}><h3>Latest saved version</h3><dl><dt>Title</dt><dd>{conflict.title}</dd><dt>Notes</dt><dd>{conflict.notes || "None"}</dd><dt>Status</dt><dd>{conflict.completed ? "Completed" : "Active"}</dd><dt>Due</dt><dd>{conflict.date || "None"} {conflict.time} · India time</dd><dt>Days</dt><dd>{conflict.weekdays.map(day=>WEEKDAYS[day]).join(", ") || "None"}</dd><dt>Repeat</dt><dd>{conflict.repeat}</dd><dt>Priority / category</dt><dd>{conflict.priority} / {conflict.category || "None"}</dd></dl>{futureConflict.length>0 && <><h3>Later active tasks</h3>{futureConflict.map(item=><dl key={item.id}><dt>Title / notes</dt><dd>{item.title}<br/>{item.notes || "No notes added"}</dd><dt>Due / repeat</dt><dd>{item.date} {item.time} · {item.repeat} · {item.weekdays.map(day=>WEEKDAYS[day]).join(", ")}</dd><dt>Priority / category</dt><dd>{item.priority} / {item.category || "Uncategorized"}</dd></dl>)}</>}<button type="button" onClick={()=>onLatest(conflict)}>Use saved version</button><button type="button" onClick={()=>{setDraft(current=>({...current,updatedAt:conflict.updatedAt,seriesVersion:conflict.seriesVersion}));setConflict(null);setFutureConflict([]);setError("Reviewed. Your draft is kept; save when ready.");}}>Keep my draft after review</button></div>}
-      {task.id && <button type="button" className={styles.deleteButton} disabled={!!conflict} onClick={()=>onDelete(task)}><Icon name="trash" size={17}/>Move to Bin</button>}
-      <div className={styles.editorActions}><button type="button" className={styles.cancelButton} onClick={onClose}>Cancel</button><button disabled={!!conflict || (saved && !task.id && uncertain)} type="submit" className={styles.saveButton}><Icon name="check" size={17} />{pending ? "Saving…" : task.id ? "Save changes" : "Create task"}</button></div>
+      {canManage && task.id && <button type="button" className={styles.deleteButton} disabled={!!conflict} onClick={()=>onDelete(task)}><Icon name="trash" size={17}/>Move to Bin</button>}
+
       </fieldset>
+      {!canManage&&<p className={styles.editorHint}>Your role can view task details. Use the task checkbox to complete or reopen work assigned to you.</p>}
+      <div className={styles.editorActions}><button type="button" className={styles.cancelButton} disabled={pending} onClick={onClose}>Cancel</button>{canManage&&<button disabled={pending || !!conflict || (saved && !task.id && uncertain)} type="submit" className={styles.saveButton}><Icon name="check" size={17} />{pending ? "Saving…" : task.id ? "Save changes" : "Create task"}</button>}</div>
     </form>
+    {confirmSave&&<Modal label={draft.assignedToId!==task.assignedToId?"Reassign this task?":"Reopen this task?"} onClose={()=>{if(!pending)setConfirmSave(false);}} className={styles.confirmDialog}><div className={styles.confirmContent}><p className={styles.editorEyebrow}>TASK ASSIGNMENT</p><h2>{draft.assignedToId!==task.assignedToId?"Reassign this task?":"Reopen this task?"}</h2>{draft.assignedToId!==task.assignedToId?<><p className={styles.reassignTitle}>{task.title}</p><div className={styles.reassignPeople}>{[task.assignedToId,draft.assignedToId].map((id,index)=><Fragment key={index}>{index===1&&<span className={styles.reassignArrow} aria-hidden="true">→</span>}<div><span className={`${styles.reassignAvatar} ${index===1?styles.reassignNew:""}`} aria-hidden="true">{Array.from(members.find(m=>m.id===id)?.name??"?")[0]?.toLocaleUpperCase()}</span><strong>{members.find(m=>m.id===id)?.name??"Previous member"}</strong></div></Fragment>)}</div><p>Only <strong>{members.find(m=>m.id===draft.assignedToId)?.name??"the new assignee"}</strong> will be able to complete or reopen this task.</p><p className={styles.editorHint}>It moves to their Assigned to me list. Future repeat assignments stay unchanged.</p></>:<p>This task will become active again. Its next scheduled occurrence stays unchanged.</p>}<div className={styles.editorActions}><button type="button" data-autofocus="true" className={styles.cancelButton} disabled={pending} onClick={()=>setConfirmSave(false)}>Cancel</button><button type="button" className={`${styles.saveButton} ${draft.assignedToId!==task.assignedToId?styles.reassignConfirm:""}`} disabled={pending||!canManage} onClick={()=>void commit()}>{pending?"Saving…":draft.assignedToId!==task.assignedToId?"Reassign task":"Reopen task"}</button></div></div></Modal>}
   </div>;
 }

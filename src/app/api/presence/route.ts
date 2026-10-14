@@ -18,7 +18,7 @@ export async function POST(request:Request) {
     const input=presenceInput(value);if(!input)return json({message:"Invalid activity request."},400);
     const client=await createClient();if(!await verifiedIdentity(client.auth))return json({message:"Your session has ended. Sign in again to continue."},401);
     const {data,error}=await client.rpc("task_app_presence",{tab_id:input.tabId,is_active:input.active,client_sequence:input.sequence});
-    if(error){if(["42501","PGRST301","PGRST302"].includes(error.code??""))throw new MemberError(401,"Your session has ended. Sign in again to continue.");throw new MemberError(503,"Activity could not be updated. Reconnecting automatically.");}
+    if(error){if(["42501","PGRST301","PGRST302","P0403"].includes(error.code??""))throw new MemberError(401,"Your session has ended. Sign in again to continue.");throw new MemberError(503,"Activity could not be updated. Reconnecting automatically.");}
     return json(decodeMembers(data));
   }catch(error){return error instanceof MemberError?json({message:error.message},error.status):json({message:"Activity could not be updated. Reconnecting automatically."},503);}
 }

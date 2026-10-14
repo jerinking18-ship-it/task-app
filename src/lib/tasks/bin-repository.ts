@@ -3,16 +3,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { decodeBinRow, confirmBinItems, type BinAction } from "./bin";
 import { decodeCategory } from "./validation";
 import { TaskError } from "./repository";
-const columns = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,deleted_at,deleted_by_name";
+const columns = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,deleted_at,deleted_by_name,assigned_to_member_id";
 function check(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code === "P0403") throw new TaskError(403,"Your current role or assignment does not allow this action. Refresh to see current permissions.");
+  if(error.code === "P0409") throw new TaskError(409,"This item changed. Refresh and review the current details before trying again.");
   if (["42501", "PGRST301", "PGRST302"].includes(error.code ?? "")) throw new TaskError(401, "Your session has ended. Sign in again to continue.");
   if (error.code === "P0012") throw new TaskError(409, "A selected item changed or is no longer in Bin. Refresh and select again. No items were changed.");
   if (["23514", "22P02"].includes(error.code ?? "")) throw new TaskError(400, "Check your selection and try again.");
   throw new TaskError(503, "We couldn’t confirm this Bin request. Refresh before trying again.");
 }
 export class BinRepository {
-  constructor(private client: SupabaseClient, private owner: string) {}
+  constructor(private client: SupabaseClient, private owner: string, private templatesAllowed = true) {}
   private async pages(table: "tasks" | "categories") {
     const rows: unknown[] = []; const seen = new Set<string>(); let cursor = "";
     for (let page = 0; page < 200; page++) {
@@ -33,6 +35,7 @@ export class BinRepository {
   }
   async read() {
     const [tasks, categories] = await Promise.all([this.pages("tasks"), this.pages("categories")]);
+    if(!this.templatesAllowed)return {tasks,categories,templates:[]};
     const {data,error}=await this.client.rpc("task_app_deleted_templates");check(error);
     if(!Array.isArray(data))throw new TaskError(503,"Bin templates could not be loaded completely. Refresh to try again.");
     const templates=data.map(decodeDeletedTemplate);

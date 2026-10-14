@@ -17,7 +17,7 @@ export async function verifiedIdentity(auth: AuthApi) {
   const claims = claimsData?.claims;
   if (claimsError || !claims || typeof claims.sub !== "string" || typeof claims.session_id !== "string") return null;
   const { data, error } = await auth.getUser();
-  if (error || !data.user || data.user.id !== claims.sub) return null;
+  if (error || !data.user || data.user.id !== claims.sub || !data.user.email || !data.user.email_confirmed_at) return null;
   return { userId: claims.sub, sessionId: claims.session_id, email: data.user.email ?? null };
 }
 

@@ -20,7 +20,7 @@ export function useBin(enabled: boolean, blocked: boolean) {
     try {
       const response=await fetch('/api/bin',{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});
       const body:unknown=await response.json();
-      if(!response.ok){if(response.status===401)setExpired(true);if(response.status===403)setNeedsMember(true);throw Error(isRecord(body)&&typeof body.message==='string'?body.message:'Unable to load Bin.');}
+      if(!response.ok){if(response.status===401)setExpired(true);throw Error(isRecord(body)&&typeof body.message==='string'?body.message:'Unable to load Bin.');}
       const next=decodeBinResponse(body);
       if(alive.current && seq===sequence.current){setTasks(next.tasks);setTemplates(next.templates);setLoaded(true);setExpired(false);setNeedsMember(false);}
     } catch(reason){if(alive.current && seq===sequence.current && !controller.signal.aborted)setError(reason instanceof Error?reason.message:'Unable to load Bin.');}
@@ -39,7 +39,7 @@ export function useBin(enabled: boolean, blocked: boolean) {
       const input:BinAction={action,confirmed:true,items:selected.map(task=>({kind:task.kind,id:task.id,version:task.updatedAt}))};
       const response=await fetch('/api/bin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input),signal:AbortSignal.timeout(20000)});
       const body:unknown=await response.json();
-      if(!response.ok){if(response.status===401)setExpired(true);if(response.status===403)setNeedsMember(true);throw Error(isRecord(body)&&typeof body.message==='string'?body.message:'Unable to confirm Bin changes.');}
+      if(!response.ok){if(response.status===401)setExpired(true);throw Error(isRecord(body)&&typeof body.message==='string'?body.message:'Unable to confirm Bin changes.');}
       confirmBinItems(body,input);
       setTasks(current=>current.filter(task=>!selected.some(item=>item.kind==="task"&&item.id===task.id)));
       setTemplates(current=>current.filter(template=>!selected.some(item=>item.kind==="template"&&item.id===template.id)));

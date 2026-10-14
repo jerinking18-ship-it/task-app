@@ -31,7 +31,7 @@ function fixture(overrides = {}) {
   const calls = [];
   const auth = {
     async getClaims() { return { data: { claims: { sub: identity.userId, session_id: identity.sessionId } }, error: null }; },
-    async getUser() { return { data: { user: { id: identity.userId } }, error: null }; },
+    async getUser() { return { data: { user: { id: identity.userId, email:"person@example.test", email_confirmed_at:"2026-10-14T00:00:00Z" } }, error: null }; },
     async signInWithPassword(input) { calls.push(["password", input]); return { error: null }; },
     async signUp(input) { calls.push(["signup", input]); return { data: { user: { id: "fixture-user" }, session: null }, error: null }; },
     async signInWithOtp(input) { calls.push(["email-link", input]); return { error: null }; },
@@ -97,7 +97,7 @@ test("signup reports safe weak-password, disabled/provider and rate-limit failur
 });
 
 test("immediate signup sessions require verified identity before account access", async () => {
-  const signUp = async () => ({ data: { user: { id: identity.userId }, session: { access_token: "fixture-token-never-return" } }, error: null });
+  const signUp = async () => ({ data: { user: { id: identity.userId, email:"person@example.test", email_confirmed_at:"2026-10-14T00:00:00Z" }, session: { access_token: "fixture-token-never-return" } }, error: null });
   const input = { action: "signup", email: "new@example.com", password: "fixture-only" };
   const good = fixture({ signUp });
   const reply = await flow.runAuthAction(input, good.deps);
@@ -247,10 +247,16 @@ test("callback ignores external destinations and caller-supplied recovery types"
 });
 
 test("profile email comes only from the verified current Auth user", async () => {
-  const f=fixture({getUser:async()=>({data:{user:{id:identity.userId,email:"team@example.com"}},error:null})});
+  const f=fixture({getUser:async()=>({data:{user:{id:identity.userId,email:"team@example.com",email_confirmed_at:"2026-10-14T00:00:00Z"}},error:null})});
   const verified=await flow.verifiedIdentity(f.deps.auth);
   assert.equal(verified.email,"team@example.com");
   assert.equal(verified.userId,identity.userId);
   const missing=await flow.verifiedIdentity(fixture().deps.auth);
-  assert.equal(missing.email,null);
+  assert.equal(missing.email,"person@example.test");
+});
+
+
+test("personal workspace login rejects unverified or missing email identities",async()=>{
+ for(const user of [{id:identity.userId,email:"person@example.test",email_confirmed_at:null},{id:identity.userId,email_confirmed_at:"2026-10-14T00:00:00Z"}]){
+ const f=fixture({getUser:async()=>({data:{user},error:null})});assert.equal(await flow.verifiedIdentity(f.deps.auth),null);}
 });

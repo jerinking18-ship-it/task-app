@@ -3,6 +3,8 @@ import { decodeCompletedPurge, decodeCompletedSnapshot, type CompletedPurge } fr
 import { TaskError } from "./repository";
 function check(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code === "P0403") throw new TaskError(403,"Your current role or assignment does not allow this action. Refresh to see current permissions.");
+  if(error.code === "P0409") throw new TaskError(409,"This item changed. Refresh and review the current details before trying again.");
   if (["42501", "PGRST301", "PGRST302"].includes(error.code ?? "")) throw new TaskError(401, "Your session has ended. Sign in again to continue.");
   if (error.code === "P0013") throw new TaskError(409, "Completed tasks changed since you opened this confirmation. Close and review again. Nothing was deleted.");
   throw new TaskError(503, "Deletion could not be confirmed. Close and refresh before trying again.");

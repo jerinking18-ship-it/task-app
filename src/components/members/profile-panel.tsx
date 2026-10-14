@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import AccountControls from "@/components/auth/account-controls";
-import { decodeMemberResponse, MEMBER_LIMIT, memberName, memberSeen, memberActive, type MemberState } from "@/lib/members/model";
+import { decodeMemberResponse, MEMBER_LIMIT, memberName, memberSeen, memberActive, roleLabel, type MemberState } from "@/lib/members/model";
 import { isRecord } from "@/lib/tasks/validation";
 import styles from "./profile.module.css";
 
@@ -96,8 +96,9 @@ export default function ProfilePanel({ state, email, loading, error, disabled, n
     {!leaving && (problem || error) && <div className={styles.feedback} role="alert"><p>{problem || error}</p>{expired ? <a href="/sign-in">Sign in again</a> : !editing && <button disabled={blocked || loading} onClick={onRefresh}>{loading ? "Refreshing…" : "Refresh profile"}</button>}</div>}
     {feedback && <p className={styles.success} role="status">{feedback}</p>}
     <div className={styles.sections}>
-      <section className={styles.card} aria-label="Shared account"><h2>Shared account</h2>
-        <div className={styles.detail}><ProfileIcon><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m3 5 9 7 9-7"/></ProfileIcon><div><span>Shared email</span><p className={styles.email}>{email || "Email unavailable. Refresh this page."}</p></div></div>
+      <section className={styles.card} aria-label="Workspace account"><h2>Your account</h2>
+        <div className={styles.detail}><ProfileIcon><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m3 5 9 7 9-7"/></ProfileIcon><div><span>Personal sign-in email</span><p className={styles.email}>{email || "Email unavailable. Refresh this page."}</p></div></div>
+        <div className={styles.detail}><ProfileIcon><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 9h8M8 15h8"/></ProfileIcon><div><span>Workspace</span><p>{state.workspace?.name??"Workspace"} · {roleLabel(member.role)}</p></div></div>
         <div className={styles.memberSummary}><div><span>Members</span><p>{state.members.length} of {MEMBER_LIMIT}</p></div><button disabled={blocked} onClick={onUsers}>View users {chevron}</button></div>
         <div className={styles.capacity} role="progressbar" aria-label="Member spaces used" aria-valuemin={0} aria-valuemax={MEMBER_LIMIT} aria-valuenow={state.members.length}><span style={{ width: `${state.members.length * 10}%` }}/></div>
       </section>
@@ -107,9 +108,9 @@ export default function ProfilePanel({ state, email, loading, error, disabled, n
       </section>
     </div>
     <div className={styles.signOutRow}><AccountControls label="Sign out this device" beforeSignOut={beforeSignOut} blocked={blocked} onPendingChange={onPending} onSignedOut={onSignedOut}/>{chevron}</div>
-    <div className={styles.leaveSection}><button ref={leaveButton} disabled={blocked || editing} onClick={() => { setProblem(""); setLeaving(true); }}>Leave this account</button><p>Shared tasks and past completion names will stay.</p></div>
+    <div className={styles.leaveSection}><button ref={leaveButton} disabled={blocked || editing || member.role==="owner"} onClick={() => { setProblem(""); setLeaving(true); }}>Leave this workspace</button><p>{member.role==="owner"?"Transfer ownership in Users before leaving.":"Shared tasks, assignments and past completion names will stay."}</p></div>
     {leaving && <dialog ref={dialog} aria-labelledby="leave-profile-title" aria-describedby="leave-profile-description" className={styles.leaveDialog} onCancel={event => { event.preventDefault(); if (!busy.current) setLeaving(false); }} onClick={event => { if (event.target === event.currentTarget && !busy.current) setLeaving(false); }}>
-      <div className={styles.confirmation}><h2 id="leave-profile-title">Leave this account?</h2><p id="leave-profile-description">Your profile will be removed. Devices using it will be signed out when they next connect. Shared tasks and past completion names will stay.</p>
+      <div className={styles.confirmation}><h2 id="leave-profile-title">Leave this workspace?</h2><p id="leave-profile-description">Your profile will be removed. Devices using it will be signed out when they next connect. Shared tasks and past completion names will stay.</p>
         {problem && <p className={styles.dialogError} role="alert">{problem}</p>}
         {expired && <a href="/sign-in">Sign in again</a>}
         <div className={styles.formActions}><button ref={cancelButton} className={styles.cancel} disabled={pending} onClick={() => setLeaving(false)}>Cancel</button><button className={styles.leaveConfirm} disabled={blocked} onClick={() => void confirmLeave()}>{pending ? "Leaving…" : "Leave account"}</button></div>

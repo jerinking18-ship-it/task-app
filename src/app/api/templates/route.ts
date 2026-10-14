@@ -10,9 +10,10 @@ const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:AUT
 async function repository() {
   const client=await createClient();const identity=await verifiedIdentity(client.auth);
   if(!identity)throw new TaskError(401,"Your session has ended. Sign in again to continue.");
-  try { if(!(await readMembers(client)).current)throw new TaskError(403,"Choose your name before viewing or saving templates."); }
+  let state;
+  try {state=await readMembers(client);if(!state.current || !state.workspace || !["owner","coordinator"].includes(state.current.role??""))throw new TaskError(403,"Only Owners and Coordinators can access templates."); }
   catch(error){if(error instanceof MemberError && error.status===401){try{await client.auth.signOut({scope:"local"});}catch{/* Fail closed. */}}throw error;}
-  return new TemplateRepository(client,identity.userId);
+  return new TemplateRepository(client,state!.workspace!.ownerId);
 }
 function failure(error:unknown){return error instanceof TaskError || error instanceof MemberError ? json({message:error.message},error.status)
   : json({message:"We couldn’t confirm this template request. Refresh before trying again."},503);}
