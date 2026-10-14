@@ -1142,6 +1142,9 @@
 }
 
 .dialog {
+  position:fixed;
+  inset:0;
+  height:fit-content;
   padding:0;
   border:0;
   max-height:calc(100dvh - 32px);
@@ -1923,3 +1926,8 @@
   letter-spacing:.1px;
   white-space:nowrap
 }
+
+/* Fines is a separate page; existing task layouts stay unchanged. */
+.workspace.finesWorkspace{padding:0 0 30px;background:#f7f5f0;position:relative}.finesWorkspace .header{display:block;background:var(--navy);color:white;padding:32px 36px 30px}.finesWorkspace .overline{display:none}.finesWorkspace .header h1{font-weight:500;font-size:30px;letter-spacing:-.8px}.finesWorkspace .date{color:#93a0b2;font-size:12px;margin-top:9px}.finesWorkspace .accountBar{position:absolute;top:32px;right:36px;padding:0;z-index:1}.finesWorkspace .accountBar button{border:1px solid #4d6580;background:#1d2a3d;color:white;min-height:44px;border-radius:9px}.finesWorkspace .heading{padding-right:100px}.finesWorkspace .headerActions{margin-top:24px}.finesWorkspace .search{height:43px;max-width:450px;width:100%;border:1px solid #4d6580;background:#1d2a3d;color:#a6b2c2;border-radius:8px}.finesWorkspace .search input{color:white}.finesWorkspace .search input::placeholder{color:#a6b2c2}.finesWorkspace .headerActions:after{display:none}
+@media(max-width:760px){.finesWorkspace .header{padding:24px 20px 36px;min-height:0;margin-bottom:-15px}.finesWorkspace .header h1{font-size:27px}.finesWorkspace .accountBar,.finesWorkspace .accountBar:not(:has([role=status],[role=alert])){top:24px;right:20px}.finesWorkspace .accountBar+.header{padding-top:24px}.finesWorkspace .heading{gap:13px;padding-right:82px}.finesWorkspace .date{font-size:11px;color:#9faec1}.finesWorkspace .headerActions{margin-top:27px;display:block;max-width:none}.finesWorkspace .search{height:45px;max-width:none;border-color:#475c76;border-radius:10px}.finesWorkspace .mobileMenu{border-color:#475c76}.finesWorkspace .headerActions:after{display:none}}
+.finesWorkspace .headerActions{justify-content:flex-start}

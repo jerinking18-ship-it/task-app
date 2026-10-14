@@ -24,7 +24,9 @@
     "test:workspace": "node --test scripts/workspace.test.mjs",
     "test:workspace:sql": "python3 supabase/tests/workspace_assignments.py",
     "test:absence": "node --test scripts/absence.test.mjs",
-    "test:absence:sql": "python3 supabase/tests/absence_coverage.py"
+    "test:absence:sql": "python3 supabase/tests/absence_coverage.py",
+    "test:fines": "node --test scripts/fines.test.mjs",
+    "test:fines:sql": "python3 supabase/tests/meeting_fines.py"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
