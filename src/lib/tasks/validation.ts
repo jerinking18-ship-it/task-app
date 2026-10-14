@@ -71,6 +71,10 @@ export function decodeRow(v: unknown): TaskRow {
     || !(v.available_at===undefined || v.available_at===null || timestamp(v.available_at))
     || !(v.repeat_anchor_day===undefined || v.repeat_anchor_day===null || (Number.isInteger(v.repeat_anchor_day) && Number(v.repeat_anchor_day)>=1 && Number(v.repeat_anchor_day)<=31))) throw new Error("Incomplete repeat response.");
   if(v.repeat_rule && v.repeat_rule!=="off" && (!uuid(v.series_id) || (v.repeat_rule==="monthly" && !v.repeat_anchor_day))) throw new Error("Incomplete repeat response.");
+  const origin=v.claim_origin;
+  if(origin!==undefined&&origin!==null&&(!isRecord(origin)||!uuid(origin.member_id)||!uuid(origin.taken_by_member_id)
+    ||origin.member_id===origin.taken_by_member_id||origin.taken_by_member_id!==v.assigned_to_member_id
+    ||typeof origin.member_name!=="string"||!origin.member_name.trim()||origin.member_name.length>50))throw new Error("Incomplete original assignee response.");
   const coverage=v.coverage;
   if(coverage!==undefined&&coverage!==null&&(!isRecord(coverage)||!uuid(coverage.absence_id)||!uuid(coverage.member_id)
     ||coverage.member_id!==v.assigned_to_member_id||typeof coverage.member_name!=="string"||!coverage.member_name.trim()
@@ -78,7 +82,7 @@ export function decodeRow(v: unknown): TaskRow {
   const completedById=v.completed_by_member_id ?? null, completedByName=v.completed_by_name ?? null;
   if (!((completedById===null && completedByName===null) || (v.status==="completed" && uuid(completedById)
     && typeof completedByName==="string" && completedByName.trim().length>0 && completedByName.length<=50))) throw new Error("Incomplete completion member response.");
-  return { ...fields, ...(coverage===undefined?{}:{coverage:coverage as TaskRow["coverage"]}), id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
+  return { ...fields, ...(origin===undefined?{}:{claim_origin:origin as TaskRow["claim_origin"]}), ...(coverage===undefined?{}:{coverage:coverage as TaskRow["coverage"]}), id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
     completed_by_member_id:completedById as string|null,completed_by_name:completedByName as string|null,
     series_id:v.series_id as string|null|undefined,history_at:v.history_at as string|null|undefined,available_at:v.available_at as string|null|undefined,repeat_anchor_day:v.repeat_anchor_day as number|null|undefined,series_version:v.series_version as string|undefined };
 }
