@@ -2,8 +2,8 @@ import { decodeDeletedTemplate } from "@/lib/templates/model";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decodeBinRow, confirmBinItems, type BinAction } from "./bin";
 import { decodeCategory } from "./validation";
-import { TaskError } from "./repository";
-const columns = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,deleted_at,deleted_by_name,assigned_to_member_id";
+import { TaskError,readMemberNames } from "./repository";
+const columns = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,deleted_at,deleted_by_name,deleted_by_member_id,assigned_to_member_id";
 function check(error: { code?: string } | null) {
   if (!error) return;
   if(error.code === "P0403") throw new TaskError(403,"Your current role or assignment does not allow this action. Refresh to see current permissions.");
@@ -34,11 +34,12 @@ export class BinRepository {
     throw new TaskError(503, "Bin is too large to load completely. No partial list is shown.");
   }
   async read() {
-    const [tasks, categories] = await Promise.all([this.pages("tasks"), this.pages("categories")]);
+    const [rawTasks,categories,names] = await Promise.all([this.pages("tasks"),this.pages("categories"),readMemberNames(this.client)]);
+    const tasks=rawTasks.map(value=>{const task=decodeBinRow(value);return {...task,completed_by_name:task.completed_by_member_id?names.get(task.completed_by_member_id)??task.completed_by_name:task.completed_by_name,deleted_by_name:task.deleted_by_member_id?names.get(task.deleted_by_member_id)??task.deleted_by_name:task.deleted_by_name};});
     if(!this.templatesAllowed)return {tasks,categories,templates:[]};
     const {data,error}=await this.client.rpc("task_app_deleted_templates");check(error);
     if(!Array.isArray(data))throw new TaskError(503,"Bin templates could not be loaded completely. Refresh to try again.");
-    const templates=data.map(decodeDeletedTemplate);
+    const templates=data.map(value=>{const item=decodeDeletedTemplate(value);return {...item,deleted_by_name:item.deleted_by_member_id?names.get(item.deleted_by_member_id)??item.deleted_by_name:item.deleted_by_name};});
     if(new Set(templates.map(item=>item.id)).size!==templates.length)throw new TaskError(503,"Bin templates changed while loading. Refresh again.");
     return { tasks, categories, templates };
   }

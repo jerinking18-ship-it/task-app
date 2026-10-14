@@ -1,8 +1,9 @@
+import {displayMemberName} from "@/lib/members/display-name";
 import type {Member} from "@/lib/members/model";
 import {matchesTask,type Filters,type Task} from "./model";
 import {isCategoryTaskVisible} from "./meeting-period";
 export function assignmentLabel(task:Task,currentId:string|undefined,members:Member[]):string {
- if(task.completed&&task.claimOrigin&&task.claimOrigin.takenById===task.assignedToId)return `Assigned to ${task.claimOrigin.memberName}`;
+ if(task.completed&&task.claimOrigin&&task.claimOrigin.takenById===task.assignedToId)return `Assigned to ${displayMemberName(task.claimOrigin.memberId,task.claimOrigin.memberName,members)}`;
  if(task.assignedToId&&task.assignedToId===currentId)return "Assigned to me";
  if(!task.assignedToId)return "Unassigned";
  const name=members.find(member=>member.id===task.assignedToId)?.name;
@@ -10,4 +11,9 @@ export function assignmentLabel(task:Task,currentId:string|undefined,members:Mem
 }
 export function matchesAssignedTask(task:Task,currentId:string|undefined,filters:Filters,date:string,time:string,now:Date):boolean {
  return !!currentId&&task.assignedToId===currentId&&isCategoryTaskVisible(task,now,date,time)&&matchesTask(task,filters,date,time,now);
+}
+
+export function isChangedCompletion(task:Task):boolean {
+ const origin=task.claimOrigin;
+ return !!(task.completed && origin && task.completedById===origin.takenById && task.assignedToId===origin.takenById && origin.memberId!==task.completedById);
 }

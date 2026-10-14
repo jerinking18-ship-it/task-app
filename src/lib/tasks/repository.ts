@@ -15,6 +15,23 @@ function check(error: { code?: string } | null) {
   if (["23514","23503","23502","22007"].includes(error.code ?? "")) throw new TaskError(400,"Check the task details and category, then try again.");
   throw new TaskError(503,"We couldn’t confirm this request. Refresh to check saved data before trying again.");
 }
+// Resolve historical authors through a verified workspace-scoped RPC. The
+// underlying directory stays private, including retained former profiles.
+export async function readMemberNames(client:SupabaseClient):Promise<Map<string,string>> {
+  const {data,error}=await client.rpc("task_app_member_names");check(error);
+  if(!Array.isArray(data)||data.length>100000)throw new TaskError(503,"Member names could not be loaded completely. Refresh to try again.");
+  const names=new Map<string,string>();
+  for(const member of data){
+    if(!isRecord(member)||!uuid(member.id)||typeof member.name!=="string"||!member.name.trim()||member.name.length>50||names.has(member.id))
+      throw new TaskError(503,"Member names changed while loading. Refresh again.");
+    names.set(member.id,member.name);
+  }
+  return names;
+}
+function withCompletionName(row:TaskRow,names:Map<string,string>):TaskRow {
+  const current=row.completed_by_member_id?names.get(row.completed_by_member_id):undefined;
+  return current?{...row,completed_by_name:current}:row;
+}
 export class TaskRepository {
   constructor(private client: SupabaseClient, private owner: string) {}
   async timezone(): Promise<Dataset["timezone"]> {
@@ -56,14 +73,15 @@ export class TaskRepository {
     return origins;
   }
   private async withOrigin(row:TaskRow):Promise<TaskRow> {
-    const origin=(await this.origins()).get(row.id);
-    return decodeRow({...row,claim_origin:origin?.version===row.updated_at?origin.origin:null});
+    const [origins,names]=await Promise.all([this.origins(),readMemberNames(this.client)]);
+    const origin=origins.get(row.id);
+    return decodeRow({...withCompletionName(row,names),claim_origin:origin?.version===row.updated_at?origin.origin:null});
   }
   async read(): Promise<Dataset> {
     // Owner-scoped, server-clock catch-up also covers a delayed Cron run. Before
     // midnight this is a no-op. Failed maintenance must never show a partial list.
     const {error}=await this.client.rpc("task_app_release_my_repeats"); check(error);
-    const [timezone,tasks,categories] = await Promise.all([this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory)]);
+    const [timezone,tasks,categories,names] = await Promise.all([this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory),readMemberNames(this.client)]);
     const [{data:coverage,error:coverageError},origins]=await Promise.all([this.client.rpc("task_app_available_coverage"),this.origins()]);check(coverageError);
     if(!Array.isArray(coverage))throw new TaskError(503,"Task availability could not be confirmed. Refresh before continuing.");
     const released=new Map<string,{version:string;coverage:NonNullable<TaskRow["coverage"]>}>();
@@ -73,7 +91,7 @@ export class TaskRepository {
         throw new TaskError(503,"Task availability could not be loaded completely. Refresh before continuing.");
       released.set(value.task_id,{version:value.version,coverage:{absence_id:value.absence_id,member_id:value.member_id,member_name:value.member_name,expires_at:value.expires_at}});
     }
-    const decorated=tasks.map(task=>{const entry=released.get(task.id),origin=origins.get(task.id);return decodeRow({...task,coverage:entry&&entry.version===task.updated_at?entry.coverage:null,claim_origin:origin?.version===task.updated_at?origin.origin:null});});
+    const decorated=tasks.map(task=>{const entry=released.get(task.id),origin=origins.get(task.id);return decodeRow({...withCompletionName(task,names),coverage:entry&&entry.version===task.updated_at?entry.coverage:null,claim_origin:origin?.version===task.updated_at?origin.origin:null});});
     const versions=new Map<string,string>();
     for(const task of tasks) if(task.series_id && (!versions.has(task.series_id) || task.updated_at>versions.get(task.series_id)!)) versions.set(task.series_id,task.updated_at);
     return {timezone,tasks:decorated.map(task=>({...task,series_version:task.series_id?versions.get(task.series_id):task.updated_at})),categories};
