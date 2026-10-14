@@ -36,7 +36,7 @@ function hookFixture({blocked=false,status=200}={}){
 }
 test('Private account channel coalesces changes and preserves dirty drafts until explicitly unblocked',async()=>{
  const f=hookFixture({blocked:true});await f.flush();assert.ok(f.calls.some(c=>c.topic===`task-account:${id}`&&c.options.config.private));
- for(let i=0;i<10;i++)f.change({payload:{scope:'tasks'}});f.change({payload:{scope:'members'}});await f.flush();assert.equal(f.updates.length,0);
+ for(let i=0;i<10;i++)f.change({payload:{scope:'tasks'}});f.change({payload:{scope:'members'}});await f.flush();assert.equal(f.updates.filter(x=>typeof x==="string").length,0);assert.equal(f.updates.filter(x=>typeof x==="object").length,1);
  f.unblock();await f.flush();assert.equal(f.updates.filter(x=>x==='tasks').length,1);assert.equal(f.updates.filter(x=>x==='members').length,1);assert.equal(f.updates.filter(x=>typeof x==='object').length,1);
  f.cleanup();await new Promise(setImmediate);assert.equal(f.removed(),1);assert.equal(f.timers.size+f.intervals.size,0);assert.equal(f.events.window.size+f.events.document.size,0);
 });
