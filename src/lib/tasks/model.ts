@@ -92,7 +92,7 @@ export function inHistory(task: Task, now: Date): boolean {
 export function isAvailable(task: Task, now: Date): boolean {
   return !task.availableAt || Date.parse(task.availableAt)<=now.getTime();
 }
-export function newestFirst(tasks: Task[]): Task[] {
+export function newestFirst<T extends Task>(tasks: T[]): T[] {
   return [...tasks].sort((a,b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }
 export function accountClock(now: Date, timezone: string) {
