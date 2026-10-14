@@ -4,19 +4,21 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { newTaskDraft, categoryWeekdays, repeatError, MAX_BATCH_TASKS, PRIORITIES, type Priority, type Task } from "@/lib/tasks/model";
 import TaskRepeat from "./task-repeat";
 import TaskTime from "./task-time";
+import TaskAssignee from "./task-assignee";
+import type {Member} from "@/lib/members/model";
 import styles from "./task-app.module.css";
 import { templateDrafts, type TemplateItem } from "@/lib/templates/model";
 
 type DraftRow = { key: number; task: Task; details: boolean; notesOpen: boolean; daysCustomized: boolean };
-export default function BulkTaskEditor({ categories, initialCategory, initialTemplate, onSave, onClose, onDirty, pending, uncertain }: {
-  categories: string[]; initialCategory: string; onSave: (tasks: Task[], category: string)=>Promise<void>;
+export default function BulkTaskEditor({ categories, currentMemberId, members, canManage=true, initialCategory, initialTemplate, onSave, onClose, onDirty, pending, uncertain }: {
+  categories: string[]; currentMemberId?:string; members:Member[];canManage?:boolean;initialCategory: string; onSave: (tasks: Task[], category: string)=>Promise<void>;
   initialTemplate?: {name:string;items:TemplateItem[]}|null;
   onClose: ()=>void; onDirty: (dirty:boolean)=>void; pending:boolean; uncertain:boolean;
 }) {
   const id=useId();
   const sequence=useRef(initialTemplate?.items.length??1);
   const submitting=useRef(false);
-  const appliedDetails=useRef<Pick<Task,"date"|"time"|"weekdays"|"priority"|"repeat">|null>(null);
+  const appliedDetails=useRef<Pick<Task,"date"|"time"|"weekdays"|"priority"|"repeat"|"assignedToId">|null>(null);
   const [category,setCategory]=useState(initialCategory);
   const [rows,setRows]=useState<DraftRow[]>(()=>(initialTemplate?templateDrafts(initialTemplate.items,initialCategory):[newTaskDraft(initialCategory)])
     .map((task,index)=>({key:index,task,details:index===0,notesOpen:index===0||!!task.notes,daysCustomized:false})));
@@ -37,7 +39,7 @@ export default function BulkTaskEditor({ categories, initialCategory, initialTem
     setError("");setNotice("");
   }
   function applyDetails(source:Task) {
-    const details={date:source.date,time:source.time,weekdays:[...source.weekdays],priority:source.priority,repeat:source.repeat};
+    const details={assignedToId:source.assignedToId,date:source.date,time:source.time,weekdays:[...source.weekdays],priority:source.priority,repeat:source.repeat};
     appliedDetails.current=details;
     setRows(current=>current.map(row=>({...row,daysCustomized:true,task:{...row.task,...details,weekdays:[...details.weekdays]}})));
     setNotice("Details applied to all tasks, including tasks you add next in this batch. Titles and notes kept.");
@@ -59,9 +61,11 @@ export default function BulkTaskEditor({ categories, initialCategory, initialTem
   }
   async function submit(event:FormEvent) {
     event.preventDefault();
-    if(pending || submitting.current || uncertain) return;
+    if(!canManage||pending || submitting.current || uncertain) return;
     const empty=rows.find(row=>!row.task.title.trim());
     if(empty) {setError("Give every task a title before adding them.");document.getElementById(`${id}-title-${empty.key}`)?.focus();return;}
+    const missingAssignee=rows.find(row=>!row.task.assignedToId||!members.some(m=>m.id===row.task.assignedToId));
+    if(missingAssignee){setError(`Choose an assigned member for task ${rows.indexOf(missingAssignee)+1}.`);return;}
     const missingDate=rows.find(row=>row.task.time && !row.task.date);
     if(missingDate) {
       setError("Choose a due date for every task with a time.");
@@ -78,12 +82,13 @@ export default function BulkTaskEditor({ categories, initialCategory, initialTem
   return <div className={styles.bulkEditor}>
     <div className={styles.bulkHeader}><div><p className={styles.editorEyebrow}>MAKE ROOM FOR WHAT MATTERS</p><h2>Add multiple tasks</h2>{initialTemplate?<><p className={styles.templateSource}>From template: <strong>{initialTemplate.name}</strong></p><p>{initialTemplate.items.length} tasks copied. Review before saving.</p></>:<p>Create separate tasks in one category.</p>}</div><button type="button" className={styles.iconButton} disabled={pending} aria-label="Close multiple-task editor" onClick={onClose}>×</button></div>
     <form onSubmit={submit} noValidate aria-busy={pending}>
-      <fieldset className={styles.formFields} disabled={pending}>
+      <fieldset className={styles.formFields} disabled={pending||!canManage}>
         <label className={`${styles.field} ${styles.bulkCategory}`}>Category<select value={category} onChange={event=>changeCategory(event.target.value)}>{!category && <option value="" disabled>Choose category</option>}{categories.map(name=><option key={name}>{name}</option>)}</select></label>
         <div className={styles.bulkSectionHeading}><h3>Tasks</h3><span>{rows.length} / {MAX_BATCH_TASKS}</span></div>
         <div className={styles.bulkRows}>{rows.map((row,index)=><section key={row.key} className={styles.bulkRow} aria-label={`Task ${index+1}`}>
           <div className={styles.bulkTitleRow}><span className={styles.taskNumber}>{index+1}</span><label className={styles.field}><span className={styles.srOnly}>Task {index+1} title</span><input id={`${id}-title-${row.key}`} value={row.task.title} onChange={event=>update(row.key,"title",event.target.value)} maxLength={200} required placeholder="What would you like to do?" data-autofocus={index===0} aria-invalid={!!error && !row.task.title.trim()} /></label><button type="button" className={styles.iconButton} aria-label={`Remove task ${index+1}`} disabled={rows.length===1} onClick={()=>removeRow(row.key)}>×</button></div>
           {row.notesOpen?<label className={styles.field}>Notes <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span><textarea value={row.task.notes} onChange={event=>update(row.key,"notes",event.target.value)} rows={2} maxLength={4000} placeholder="A few helpful details…" /></label>:<button type="button" className={styles.textButton} onClick={()=>setRows(current=>current.map(item=>item.key===row.key?{...item,notesOpen:true}:item))}>+ Add notes <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span></button>}
+          <TaskAssignee currentMemberId={currentMemberId} context={`Task ${index+1}`} value={row.task.assignedToId} members={members} onChange={id=>update(row.key,"assignedToId",id)}/>
           <button type="button" className={styles.detailsToggle} aria-expanded={row.details} aria-controls={`${id}-details-${row.key}`} onClick={()=>setRows(current=>current.map(item=>item.key===row.key?{...item,details:!item.details}:item))}>{row.details?"Hide details":"Task details"}<span aria-hidden="true">{row.details?"−":"+"}</span></button>
           <div id={`${id}-details-${row.key}`} hidden={!row.details}>
             <div className={styles.bulkDetails}>
@@ -92,7 +97,7 @@ export default function BulkTaskEditor({ categories, initialCategory, initialTem
               <TaskRepeat task={row.task} onChange={rule=>update(row.key,"repeat",rule)} onDaysChange={days=>update(row.key,"weekdays",days)} label={`Repeat for task ${index+1}`}/>
               <label className={styles.property}><span>Priority<span className={styles.srOnly}> for task {index+1}</span></span><select value={row.task.priority} onChange={event=>update(row.key,"priority",event.target.value as Priority)}>{PRIORITIES.map(item=><option key={item}>{item}</option>)}</select></label>
               <button type="button" className={styles.applyDetails} onClick={()=>applyDetails(row.task)}>Apply these details to all tasks</button>
-              <p className={styles.editorHint}>Applies date, time, days, priority and repeat to this batch and tasks added next. Keeps each task’s title and notes.</p>
+              <p className={styles.editorHint}>Applies assignee, date, time, days, priority and repeat to this batch and tasks added next. Keeps each task’s title and notes.</p>
             </div>
           </div>
         </section>)}</div>
