@@ -19,6 +19,14 @@ Assigned to me is a dedicated page directly below Users in the same menu group. 
 
 The modern Users page keeps You first, member search, capacity, role controls and activity based on actual presence leases. Ownership transfer makes the chosen existing member Owner and the previous Owner Coordinator. The current Owner must transfer ownership before leaving. Other departures preserve saved work and history.
 
+## Meeting attendance and team coverage
+
+Migration016 adds self-marked absence for a meeting category. Special Meeting requires its date and ends at23:50 India time the following day. Other categories use their existing category deadlines. Attendance clears automatically; no early-return control is provided. Users shows a separate Absent members list without changing online status.
+
+Only unfinished, available work in that meeting period becomes available for a teammate to take. A confirmed, version-checked claim assigns only that occurrence, with one winner across concurrent requests. The absent assignee cannot complete it before another eligible member takes it. Helpers absent for the same meeting cannot take it. The new assignee alone can complete/reopen; actual completion attribution and existing annual-credit rules remain separate. Future repeat assignments and schedules stay unchanged. Expiry removes availability, not tasks or accounts; a successful claim stays assigned to its helper. Members gain only this narrowly scoped claim action, not general task editing, deletion, restoration or template access.
+
+Task titles, template titles/names and member-name inputs capitalize the first typed letter while preserving later casing. Credentials, notes, search and existing saved content are unchanged.
+
 ## Data and authorization
 
 Stable workspace owner_id partitions data independently of the current Owner role. Server/RPC checks derive identity and workspace from the verified Auth session. RLS limits shared reads; browser table mutations and legacy identity-picker/mutation function execution are revoked. Checked RPCs enforce current role, assignment, versions, category boundaries, invitation seats and ownership transfer. Private realtime invalidations refresh authorized devices without broadcasting task content.
@@ -43,6 +51,8 @@ node --test scripts/*.test.mjs
 npm run typecheck
 npm run build
 npm run test:workspace:sql
+npm run test:absence
+npm run test:absence:sql
 ```
 
 The Node suite uses local fixtures, no real credentials. The workspace SQL runner uses an already-installed `postgres:16-alpine` Docker image with `--pull=never`, no network/ports/persistent volume and removes its disposable container. It tests the actual migrations and forbidden database access using fictional Auth/session identities. **Never run local Auth fixtures or earlier reset scripts against hosted Supabase.**
@@ -51,6 +61,6 @@ For isolated browser QA, `node scripts/workspace-ui-fixture.mjs` creates disposa
 
 ## Release boundary
 
-Keep private planning, memory, screenshots, bootstrap identity details, database exports and environment values out of the public release. Apply only reviewed new migration015 after checking the hosted schema and legacy function fingerprints; never replay applied001–014 or any completed fresh-data reset. Protected initial Owner setup must preserve the existing verified account/password and refuse unexpected mappings or data. Read-only schema/privilege verification is in `supabase/verification/20261014_workspace_assignment_schema_checks.sql`.
+Keep private planning, memory, screenshots, bootstrap identity details, database exports and environment values out of the public release. For this release, apply only reviewed new migration016 after checking the existing verified migration015 workspace and function fingerprints; never replay applied001–015, Owner bootstrap or any completed fresh-data reset. Protected initial Owner setup must preserve the existing verified account/password and refuse unexpected mappings or data. Read-only schema/privilege verification is in `supabase/verification/20261014_workspace_assignment_schema_checks.sql` and `supabase/verification/20261014_absence_coverage_schema_checks.sql`.
 
 Hosted database/access changes, real invitations/account tests and Vercel publication require explicit approval. Local tests are evidence of local behavior, not proof of live email delivery, cross-device behavior or a hosted deployment.
