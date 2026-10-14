@@ -42,11 +42,11 @@ export async function POST(request:Request){const data=await read();const input=
 `);
 await writeFile(path.join(dir,'src/app/api/bin/route.ts'),shared+`
 import {validateBinAction} from '@/lib/tasks/bin';
-export async function GET(){const data=await read();return data.failRead?json({message:'Local fixture Bin unavailable'},503):json({tasks:data.tasks.filter((t:{deleted_at:string|null})=>!!t.deleted_at),categories:data.categories});}
+export async function GET(){const data=await read();return data.failRead?json({message:'Local fixture Bin unavailable'},503):json({tasks:data.tasks.filter((t:{deleted_at:string|null})=>!!t.deleted_at),categories:data.categories,templates:[]});}
 export async function POST(request:Request){const data=await read();const input=validateBinAction(await request.json());if(!input)return json({message:'Invalid fixture Bin action'},400);if(data.failWrite)return json({message:'Local fixture Bin write unavailable'},503);
  if(!input.items.every(item=>data.tasks.some((t:{id:string;updated_at:string;deleted_at:string|null})=>t.id===item.id&&t.updated_at===item.version&&t.deleted_at)))return json({message:'A selected task changed. Refresh and select again. No tasks were changed.'},409);
  const ids=input.items.map(item=>item.id);if(input.action==='purge')data.tasks=data.tasks.filter((t:{id:string})=>!ids.includes(t.id));else for(const task of data.tasks)if(ids.includes(task.id)){task.deleted_at=null;task.deleted_by_name=null;task.history_at=null;task.updated_at=new Date().toISOString();}
- data.writes.push({action:input.action,ids,at:new Date().toISOString()});await save(data);return json({action:input.action,ids});}
+ data.writes.push({action:input.action,ids,at:new Date().toISOString()});await save(data);return json({action:input.action,ids,items:input.items.map(item=>({kind:item.kind??"task",id:item.id}))});}
 `);
 await writeFile(path.join(dir,'src/app/api/presence/route.ts'),`export async function POST(){return Response.json({message:'Fixture has no real presence.'},{status:503});}`);
 await writeFile(path.join(dir,'src/app/api/templates/route.ts'),shared+`

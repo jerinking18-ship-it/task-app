@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     let value: unknown;
     try { value = JSON.parse(new TextDecoder("utf-8", { fatal:true }).decode(bytes)); } catch { return json({ message: "Invalid Bin selection." },400); }
     const input = validateBinAction(value);
-    if (!input) return json({ message: "Select up to 1,000 tasks and confirm the action." },400);
+    if (!input) return json({ message: "Select up to 1,000 items and confirm the action." },400);
     return json(await (await repository()).mutate(input));
   } catch (error) { return failed(error); }
 }

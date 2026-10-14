@@ -144,3 +144,24 @@ The offline SQL runner verifies reopen/recomplete races, parallel counter writes
 rollback, first-member/year attribution and migration preservation. The fictional
 Member history UI fixture mirrors those transitions for browser checks; it does
 not contact a hosted database.
+
+## Templates in Bin
+
+Templates open through the compact icon beside Bin. Confirmed removal keeps the
+whole template in a separate Bin section, including its name, titles and notes.
+Hold a Bin item to select tasks and templates together, restore them, or confirm
+permanent deletion. Removing a template never changes tasks already created from
+it. Deleted times use India time and relative day labels. No template auto-purge
+is scheduled.
+
+Apply additive migration014 once after013 as part of the coordinated release.
+Existing records are preserved. Deleted templates are excluded from normal reads
+and stale saves; member/owner/version checks protect remove, restore and purge.
+Mixed Bin batches are atomic and keep the existing recurrence-safe task behavior.
+Legacy task-only clients continue using the existing RPC.
+
+Run `node --test scripts/template-bin.test.mjs` for client/API checks and the full
+offline SQL runner for permissions, migration preservation, races and repeat-queue
+rollback. `node scripts/template-bin-ui-fixture.mjs` serves fictional data at
+port3026, with controlled failure/ambiguous-response flags; it contacts no hosted
+database. Stop it with Ctrl-C.

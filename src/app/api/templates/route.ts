@@ -5,7 +5,7 @@ import { authOrigin, AUTH_HEADERS } from "@/lib/auth/server";
 import { MemberError, readMembers } from "@/lib/members/server";
 import { TaskError } from "@/lib/tasks/repository";
 import { TemplateRepository } from "@/lib/templates/repository";
-import { validateTemplateAction } from "@/lib/templates/model";
+import { validateTemplateMutation } from "@/lib/templates/model";
 const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:AUTH_HEADERS});
 async function repository() {
   const client=await createClient();const identity=await verifiedIdentity(client.auth);
@@ -26,7 +26,7 @@ export async function POST(request:Request){
     for(;;){const {done,value}=await reader.read();if(done)break;length+=value.byteLength;if(length>393216){await reader.cancel();return json({message:"Template request is too large."},413);}chunks.push(value);}
     const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
     let value:unknown;try{value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{return json({message:"Invalid template request."},400);}
-    const input=validateTemplateAction(value);if(!input)return json({message:"Give the template a name and every task a title. Check your notes and try again."},400);
+    const input=validateTemplateMutation(value);if(!input)return json({message:"Give the template a name and every task a title. Check your notes and try again."},400);
     return json(await (await repository()).mutate(input));
   }catch(error){return failure(error);}
 }

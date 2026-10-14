@@ -7,7 +7,7 @@ export const TASK_HOLD_MS = 450;
 const MOVE_THRESHOLD = 8;
 type Session<T> = { task: T; id: number; kind: "pointer" | "touch"; x: number; y: number; held: boolean; holdActionFired: boolean; dragged: boolean; element: HTMLElement; timer: ReturnType<typeof setTimeout> | null };
 
-export function useBinDrag<T extends Task>(target: RefObject<HTMLButtonElement | null>, disabled: boolean, onDrop: (task: T) => void, onOpen: (task: T) => void, onHold?: (task: T) => void) {
+export function useBinDrag<T extends Pick<Task,"id"|"title">>(target: RefObject<HTMLButtonElement | null>, disabled: boolean, onDrop: (task: T) => void, onOpen: (task: T) => void, onHold?: (task: T) => void) {
   const [drag, setDrag] = useState<{ task: T; x: number; y: number; over: boolean } | null>(null);
   const [held, setHeld] = useState<T | null>(null);
   const session = useRef<Session<T> | null>(null);

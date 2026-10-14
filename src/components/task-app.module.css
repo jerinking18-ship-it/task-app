@@ -1860,3 +1860,9 @@
  .memberHistoryWorkspace>section { margin:-12px 0 0; }
 }
 @media(max-width:360px){.memberHistoryWorkspace .header h1 { font-size:20px; }.memberHistoryWorkspace .accountBar+.header .heading { gap:10px; }}
+
+/* Compact Templates access shares the bottom action row with Bin. */
+.headerActions .templatesButton{position:fixed;left:auto;right:84px;bottom:28px;z-index:8;display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;min-height:48px;padding:0;border:1px solid #66768c;border-radius:9px;background:#fffdf8;color:#101c2d;box-shadow:0 5px 18px #101c2d10}
+.headerActions .templatesButton:hover{background:#efede7;border-color:#344e6b}.headerActions .templatesButton:focus-visible{outline:2px solid #71839b;outline-offset:3px}
+@media(max-width:760px){.workspace.templatesAvailable{padding-bottom:100px}.headerActions .templatesButton{right:68px;bottom:max(19px,env(safe-area-inset-bottom));width:44px;height:48px;box-shadow:0 5px 18px #101c2d10}.headerActions .addButton{left:16px;width:92px}.headerActions .bulkButton{left:116px;right:120px;width:calc(100% - 236px);font-size:11px;padding:0 3px;gap:3px}}
+@media(max-width:360px){.headerActions .templatesButton{right:64px}.headerActions .addButton{left:12px;width:80px;font-size:10px}.headerActions .bulkButton{left:100px;right:116px;width:calc(100% - 216px);font-size:10px;padding:0;gap:3px}.headerActions .bulkButton svg{width:12px}}
