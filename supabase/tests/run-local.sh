@@ -95,4 +95,21 @@ for task_sql_file in \
   docker exec -i "$task_sql_container" psql -X -q -At -U postgres \
     -d meeting_feature_tests -v ON_ERROR_STOP=1 < "$task_sql_file"
 done
+for task_sql_file in \
+  supabase/migrations/202610140011_task_templates.sql \
+  supabase/verification/20261014_template_schema_checks.sql \
+  supabase/tests/task_templates.sql; do
+  docker exec -i "$task_sql_container" psql -X -q -At -U postgres \
+    -d meeting_feature_tests -v ON_ERROR_STOP=1 < "$task_sql_file"
+done
+bash supabase/tests/task_templates_concurrency.sh "$task_sql_container"
+for task_sql_file in \
+  supabase/tests/member_history_transition.sql \
+  supabase/migrations/202610140012_member_history.sql \
+  supabase/verification/20261014_member_history_schema_checks.sql \
+  supabase/tests/member_history.sql; do
+  docker exec -i "$task_sql_container" psql -X -q -At -U postgres \
+    -d meeting_feature_tests -v ON_ERROR_STOP=1 < "$task_sql_file"
+done
+bash supabase/tests/member_history_concurrency.sh "$task_sql_container"
 echo 'Local SQL checks passed; disposable database will now be removed.'
