@@ -89,3 +89,23 @@ test('provenance rejects malformed, duplicate, mismatched and client-injected id
  assert.equal(validation.validateAction({action:'take',id:row.id,version:stamp,absenceId:a.id,confirmed:true,claim_origin:origin}),null);
  assert.equal(validation.validateAction({action:'status',id:row.id,version:stamp,status:'completed',claim_origin:origin}),null);
 });
+
+test('Absent members displays one person once, deduplicates categories and keeps separate people with the same name',()=>{
+ const now=new Date('2026-10-14T07:00:00Z');
+ const rows=[a,{...a,id:id(20)},{...a,id:id(21)},{...a,id:id(22),categoryId:id(23),category:'Sunday Service'}];
+ const input={...state,absences:rows};const before=JSON.stringify(input);
+ const grouped=absence.absentMemberGroups(input,now);
+ assert.equal(grouped.length,1);assert.equal(grouped[0].memberId,person.id);assert.equal(grouped[0].name,'Sarah');
+ assert.deepEqual(Array.from(grouped[0].categories),['Healing Meeting','Sunday Service']);assert.equal(JSON.stringify(input),before);
+ const sameName={...helper,name:'Sarah'};
+ const both=absence.absentMemberGroups({...state,members:[person,sameName],absences:[...rows,{...a,id:id(24),memberId:helper.id}]},now);
+ assert.equal(both.length,2);assert.notEqual(both[0].memberId,both[1].memberId);
+ assert.equal(absence.absentMemberGroups(null,now).length,0);
+});
+test('grouped absent list clears each expired meeting and removes the person only after their last active absence ends',()=>{
+ const later='2026-10-16T18:20:00Z';
+ const groupedState={...state,absences:[a,{...a,id:id(25),categoryId:id(26),category:'Sunday Service',expiresAt:later}]};
+ const atFirst=absence.absentMemberGroups(groupedState,new Date(end));assert.equal(atFirst.length,1);assert.deepEqual(Array.from(atFirst[0].categories),['Sunday Service']);
+ assert.equal(absence.absentMemberGroups(groupedState,new Date(later)).length,0);
+ assert.equal(absence.absentMemberGroups(groupedState,new Date('2026-10-14T05:59:59Z')).length,0);
+});
