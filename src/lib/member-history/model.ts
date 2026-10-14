@@ -1,5 +1,7 @@
 import { accountClock, MEETING_CATEGORIES } from "@/lib/tasks/model";
 import { isRecord, timestamp, uuid } from "@/lib/tasks/validation";
+import { RESET_WEEKDAYS, RESET_LABELS } from "@/lib/tasks/meeting-period";
+export { RESET_WEEKDAYS, RESET_LABELS } from "@/lib/tasks/meeting-period";
 export type HistoryMember = { id:string; name:string };
 export type HistoryEntry = { id:string; memberId:string; title:string; notes:string; category:string; completedAt:string; expiresAt:string };
 export type HistoryTotal = { memberId:string; year:number; count:number };
@@ -23,8 +25,6 @@ export function completionTime(value:string){
   return new Intl.DateTimeFormat("en-US",{...zone,month:"short",day:"numeric"}).format(date)+" · "+new Intl.DateTimeFormat("en-US",{...zone,hour:"numeric",minute:"2-digit",hour12:true}).format(date)+" · "+new Intl.DateTimeFormat("en-US",{...zone,weekday:"short"}).format(date);
 }
 export function visibleCompletions(data:MemberHistoryData|null,memberId:string,category:string,now:Date){return (data?.entries??[]).filter(entry=>entry.memberId===memberId&&entry.category===category&&Date.parse(entry.expiresAt)>now.getTime()&&Date.parse(entry.completedAt)<=now.getTime()).sort((a,b)=>b.completedAt.localeCompare(a.completedAt)||a.id.localeCompare(b.id));}
-export const RESET_WEEKDAYS:Record<string,number>={"Sunday Service":1,"Healing Meeting":4,"Woman's Meeting":5,"Revival Meeting":6};
-export const RESET_LABELS:Record<string,string>={"Sunday Service":"Monday","Healing Meeting":"Thursday","Woman's Meeting":"Friday","Revival Meeting":"Saturday"};
 export const CATEGORY_COLORS:Record<string,string>={"Sunday Service":"#b89d63","Healing Meeting":"#58a9a1","Woman's Meeting":"#db83b1","Revival Meeting":"#668bcb","Special Meeting":"#9076bd"};
 export function regularSchedule(now:Date){
   const clock=accountClock(now,"Asia/Kolkata"),day=new Date(clock.date+"T12:00:00Z").getUTCDay(),past=clock.time>="23:50:00";
