@@ -70,7 +70,7 @@ function CompletionTime({value}:{value:string|null}) {
   return <time className={styles.completionTime} dateTime={value}><Icon name="clock" size={13}/><span>Completed on {day} · {time} · {weekday}</span></time>;
 }
 function CompletedBy({name}:{name:string|null}) {
-  return name ? <span className={styles.completedBy}>Completed by <strong>{name}</strong></span> : null;
+  return name ? <span className={styles.completedBy}><Icon name="person" size={13}/><span>Completed by <strong>{name}</strong></span></span> : null;
 }
 function CompletionAge({value,now}:{value:string|null;now:Date}) {
   const age=completionAge(value,now);
