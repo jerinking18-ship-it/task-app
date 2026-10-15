@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { decodeBinRow, confirmBinItems, type BinAction } from "./bin";
 import { decodeCategory } from "./validation";
 import { TaskError,readMemberNames } from "./repository";
-const columns = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,deleted_at,deleted_by_name,deleted_by_member_id,assigned_to_member_id";
+const columns = "id,title,notes,status,due_date,due_time,priority,category_id,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,missed_completion_role,deleted_at,deleted_by_name,deleted_by_member_id,assigned_to_member_id";
 function check(error: { code?: string } | null) {
   if (!error) return;
   if(error.code === "P0403") throw new TaskError(403,"Your current role or assignment does not allow this action. Refresh to see current permissions.");

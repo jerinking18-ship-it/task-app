@@ -46,6 +46,7 @@ export function validateAction(v: unknown): TaskAction | null {
       && (v.scope===undefined || v.scope==="this" || v.scope==="future")
       && (v.seriesVersion===undefined || timestamp(v.seriesVersion))
       ? { action:"update", id:v.id, version:v.version, fields:{...v.fields,title:v.fields.title.trim()},scope:v.scope as "this"|"future"|undefined,seriesVersion:v.seriesVersion as string|undefined } : null;
+    case "missed": return keys(v,["action","id","version","confirmed"]) && uuid(v.id) && timestamp(v.version) && v.confirmed===true ? v as TaskAction : null;
     case "take": return keys(v,["action","id","version","absenceId","confirmed"]) && uuid(v.id) && timestamp(v.version) && uuid(v.absenceId) && v.confirmed===true ? v as TaskAction : null;
     case "status": return keys(v,["action","id","version","status"]) && uuid(v.id) && timestamp(v.version) && ["active","completed"].includes(v.status as string)
       ? v as TaskAction : null;
@@ -82,7 +83,9 @@ export function decodeRow(v: unknown): TaskRow {
   const completedById=v.completed_by_member_id ?? null, completedByName=v.completed_by_name ?? null;
   if (!((completedById===null && completedByName===null) || (v.status==="completed" && uuid(completedById)
     && typeof completedByName==="string" && completedByName.trim().length>0 && completedByName.length<=50))) throw new Error("Incomplete completion member response.");
-  return { ...fields, ...(origin===undefined?{}:{claim_origin:origin as TaskRow["claim_origin"]}), ...(coverage===undefined?{}:{coverage:coverage as TaskRow["coverage"]}), id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
+  const missed=v.missed_completion_role??null;
+  if(missed!==null && (!["owner","coordinator"].includes(missed as string) || v.status!=="completed" || !uuid(completedById) || !uuid(v.assigned_to_member_id) || completedById===v.assigned_to_member_id)) throw new Error("Incomplete missed completion response.");
+  return { ...fields, missed_completion_role:missed as TaskRow["missed_completion_role"], ...(origin===undefined?{}:{claim_origin:origin as TaskRow["claim_origin"]}), ...(coverage===undefined?{}:{coverage:coverage as TaskRow["coverage"]}), id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
     completed_by_member_id:completedById as string|null,completed_by_name:completedByName as string|null,
     series_id:v.series_id as string|null|undefined,history_at:v.history_at as string|null|undefined,available_at:v.available_at as string|null|undefined,repeat_anchor_day:v.repeat_anchor_day as number|null|undefined,series_version:v.series_version as string|undefined };
 }

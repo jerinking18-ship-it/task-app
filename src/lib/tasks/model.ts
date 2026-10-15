@@ -15,6 +15,7 @@ export function categoryOrder(names: string[]) {
 }
 export type ClaimOrigin = {memberId:string;memberName:string;takenById:string};
 export type Task = {
+  missedCompletionRole?:"owner"|"coordinator"|null;
   claimOrigin?:ClaimOrigin|null;
   coverage?:Coverage|null; assignedToId?: string | null; id: string; title: string; notes: string; completed: boolean; date: string;
   time: string; priority: Priority; category: string; reminder: string;
@@ -34,6 +35,7 @@ export type TaskRow = TaskFields & {
   claim_origin?:{member_id:string;member_name:string;taken_by_member_id:string}|null;
   coverage?: {absence_id:string;member_id:string;member_name:string;expires_at:string}|null;
   id: string; created_at: string; updated_at: string; completed_at: string | null;
+  missed_completion_role?: "owner" | "coordinator" | null;
   completed_by_member_id?: string | null; completed_by_name?: string | null;
   series_id?: string | null; history_at?: string | null; available_at?: string | null; repeat_anchor_day?: number | null; series_version?:string;
 };
@@ -46,6 +48,7 @@ export type TaskAction =
   | { action: "create_many"; fields: TaskFields[] }
   | { action: "delete"; id: string; version: string }
   | { action: "update"; id: string; version: string; fields: TaskFields; scope?: EditScope; seriesVersion?:string }
+  | { action:"missed";id:string;version:string;confirmed:true }
   | { action:"take";id:string;version:string;absenceId:string;confirmed:true }
   | { action: "status"; id: string; version: string; status: "active" | "completed" };
 
@@ -63,7 +66,7 @@ export function newTaskDraft(category = ""): Task {
 export function mapTask(row: TaskRow, categories: Category[]): Task {
   const category = row.category_id ? categories.find(c => c.id === row.category_id) : null;
   if (row.category_id && !category) throw new Error("Category data is incomplete. Refresh your tasks.");
-  return { ...blankTask(), claimOrigin:row.claim_origin?{memberId:row.claim_origin.member_id,memberName:row.claim_origin.member_name,takenById:row.claim_origin.taken_by_member_id}:null, coverage:row.coverage?{absenceId:row.coverage.absence_id,memberId:row.coverage.member_id,memberName:row.coverage.member_name,expiresAt:row.coverage.expires_at}:null, assignedToId:row.assigned_to_member_id ?? null, id: row.id, title: row.title, notes: row.notes ?? "", completed: row.status === "completed",
+  return { ...blankTask(), missedCompletionRole:row.missed_completion_role??null, claimOrigin:row.claim_origin?{memberId:row.claim_origin.member_id,memberName:row.claim_origin.member_name,takenById:row.claim_origin.taken_by_member_id}:null, coverage:row.coverage?{absenceId:row.coverage.absence_id,memberId:row.coverage.member_id,memberName:row.coverage.member_name,expiresAt:row.coverage.expires_at}:null, assignedToId:row.assigned_to_member_id ?? null, id: row.id, title: row.title, notes: row.notes ?? "", completed: row.status === "completed",
     date: row.due_date ?? "", time: row.due_time?.slice(0, 5) ?? "",
     priority: (row.priority[0].toUpperCase() + row.priority.slice(1)) as Priority,
     category: category?.name ?? "", createdAt: row.created_at, updatedAt: row.updated_at,completedAt:row.completed_at,
