@@ -1680,7 +1680,6 @@
 
 /* Meeting categories and the shared single/bulk task controls. */
 .specialMeeting { background:#ae91bd; }
-.womansMeeting { background:#d79ca9; }
 .weekdayMeta { color:#82765e; font-size:10px; white-space:normal; }
 .headerActions { flex-wrap:wrap; justify-content:flex-end; }
 .headerActions .addButton { background:#fffdf8; border-color:#ded7c8; }
