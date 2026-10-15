@@ -17,3 +17,9 @@ export function isChangedCompletion(task:Task):boolean {
  const origin=task.claimOrigin;
  return !!(task.completed && origin && task.completedById===origin.takenById && task.assignedToId===origin.takenById && origin.memberId!==task.completedById);
 }
+
+// A helper transfer is distinct from an ordinary edit or coordinator reassignment.
+export function isChangedAssignment(task:Task):boolean {
+ const origin=task.claimOrigin;
+ return !!(!task.completed && origin && task.assignedToId===origin.takenById && origin.memberId!==origin.takenById);
+}
