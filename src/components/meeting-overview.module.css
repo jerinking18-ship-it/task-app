@@ -218,3 +218,5 @@
 
 .titleStatuses{display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0}.availableState{color:#2f7253;border-color:#a8c8b5;background:#edf5ee}
 @media(max-width:350px){.titleStatuses{flex-wrap:wrap;max-width:120px;gap:4px}}
+
+.originalAssignee{margin:10px 0 0;font-size:10px;color:#536779;line-height:1.5;overflow-wrap:anywhere}.originalAssignee strong{font-weight:500;color:#203b59}
