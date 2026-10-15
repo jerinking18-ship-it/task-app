@@ -25,10 +25,10 @@ export function completionTime(value:string){
   return new Intl.DateTimeFormat("en-US",{...zone,month:"short",day:"numeric"}).format(date)+" · "+new Intl.DateTimeFormat("en-US",{...zone,hour:"numeric",minute:"2-digit",hour12:true}).format(date)+" · "+new Intl.DateTimeFormat("en-US",{...zone,weekday:"short"}).format(date);
 }
 export function visibleCompletions(data:MemberHistoryData|null,memberId:string,category:string,now:Date){return (data?.entries??[]).filter(entry=>entry.memberId===memberId&&entry.category===category&&Date.parse(entry.expiresAt)>now.getTime()&&Date.parse(entry.completedAt)<=now.getTime()).sort((a,b)=>b.completedAt.localeCompare(a.completedAt)||a.id.localeCompare(b.id));}
-export const CATEGORY_COLORS:Record<string,string>={"Sunday Service":"#b89d63","Healing Meeting":"#58a9a1","Woman's Meeting":"#db83b1","Revival Meeting":"#668bcb","Special Meeting":"#9076bd"};
+export const CATEGORY_COLORS:Record<string,string>={"Sunday Service":"#b89d63","Healing Meeting":"#58a9a1","Revival Meeting":"#668bcb","Special Meeting":"#9076bd"};
 export function regularSchedule(now:Date){
   const clock=accountClock(now,"Asia/Kolkata"),day=new Date(clock.date+"T12:00:00Z").getUTCDay(),past=clock.time>="23:50:00";
-  const category=day===0||day===1&&!past||day===6&&past?"Sunday Service":day===1||day===2||day===3||day===4&&!past?"Healing Meeting":day===4||day===5&&!past?"Woman's Meeting":"Revival Meeting";
+  const category=day===0||day===1&&!past||day===6&&past?"Sunday Service":day===1||day===2||day===3||day===4&&!past?"Healing Meeting":"Revival Meeting";
   let days=(RESET_WEEKDAYS[category]-day+7)%7;if(days===0&&past)days=7;
   const next=new Date(clock.date+"T12:00:00Z");next.setUTCDate(next.getUTCDate()+days);
   const resetAt=new Date(next.toISOString().slice(0,10)+"T23:50:00+05:30").toISOString();
