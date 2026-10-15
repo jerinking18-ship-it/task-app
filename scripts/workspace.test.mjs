@@ -24,7 +24,7 @@ test('viewer-relative assignment labels keep completed attribution separate',()=
  const task={...tasks.blankTask(),assignedToId:other};assert.equal(assignments.assignmentLabel(task,id,state.members),'Only Sarah can complete');assert.equal(assignments.assignmentLabel(task,other,state.members),'Assigned to me');assert.equal(assignments.assignmentLabel({...task,completed:true},id,state.members),'Assigned to Sarah');assert.equal(assignments.assignmentLabel({...task,assignedToId:null},id,state.members),'Unassigned');
 });
 test('personal page hides only own expired category work, preserves active future and global lists',()=>{
- const now=new Date('2026-10-12T18:20:01Z');const clock=tasks.accountClock(now,'Asia/Kolkata');const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
+ const now=new Date('2026-10-12T18:30:01Z');const clock=tasks.accountClock(now,'Asia/Kolkata');const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
  const task={...tasks.blankTask(),id,title:'Prepare service',category:'Sunday Service',assignedToId:id,createdAt:'2026-10-10T00:00:00Z',date:'2026-10-11',time:'23:50'};
  assert.equal(assignments.matchesAssignedTask(task,id,filters,clock.date,clock.time,now),false);
  assert.equal(tasks.matchesTask(task,{...filters,view:'All tasks'},clock.date,clock.time,now),true);

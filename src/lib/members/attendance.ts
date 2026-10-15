@@ -19,6 +19,7 @@ export function meetingAttendance(state: MemberState | null, category: string, n
 export function attendanceMeetings(tasks: Task[], now: Date) {
   const dates = [...new Set(meetingOverview(tasks, "Special Meeting", now).tasks.map(task => task.date || null))];
   dates.sort((a, b) => (a ?? "").localeCompare(b ?? ""));
-  return [{ category: automaticOverviewCategory(now), meetingDate: null as string | null },
+  const regular = automaticOverviewCategory(now);
+  return [...(regular ? [{ category: regular, meetingDate: null as string | null }] : []),
     ...dates.map(meetingDate => ({ category: "Special Meeting", meetingDate }))];
 }

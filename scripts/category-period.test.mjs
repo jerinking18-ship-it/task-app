@@ -19,7 +19,7 @@ function matches(row,f,now){const d=new Date(now),clock=model.accountClock(d,'As
 
 test('Each weekly category hides completed and overdue rows at exactly its own India reset',()=>{
   for(const [category,date] of [['Sunday Service','2026-10-12'],['Healing Meeting','2026-10-15'],['Revival Meeting','2026-10-17']]) {
-    const before=date+'T18:19:59.999Z',at=date+'T18:20:00Z';
+    const before=date+'T18:29:59.999Z',at=date+'T18:30:00Z';
     for(const completed of [false,true]) {
       const row=task({category,completed,completedAt:completed?stamp:null});
       assert.equal(visible(row,before),true,category+' before');
@@ -29,7 +29,7 @@ test('Each weekly category hides completed and overdue rows at exactly its own I
   }
 });
 test('Category All/Completed/Overdue tabs expire rows, while global pages and their category filters keep them',()=>{
-  const now='2026-10-12T18:20:00Z';
+  const now='2026-10-12T18:30:00Z';
   const completed=task({completed:true,completedAt:stamp}),overdue=task();
   for(const status of ['All','Completed'])assert.equal(matches(completed,filters({status}),now),false);
   for(const status of ['All','Active','Overdue'])assert.equal(matches(overdue,filters({status}),now),false);
@@ -42,60 +42,60 @@ test('Category counters count every retained status and never force zero when ac
   const rows=[task(),task({id:'done',completed:true,completedAt:stamp}),task({id:'future',date:'2026-10-18'}),task({id:'undated',date:'',time:''}),task({id:'other',category:'Healing Meeting'})];
   const original=JSON.stringify(rows);
   const count=now=>rows.filter(row=>row.category==='Sunday Service'&&visible(row,now)).length;
-  assert.equal(count('2026-10-12T18:19:59Z'),4);
-  assert.equal(count('2026-10-12T18:20:00Z'),2);
-  for(const row of rows.slice(2,4))for(const status of ['Active','All'])assert.equal(matches(row,filters({status}),'2026-10-12T18:20:00Z'),true,'Active/upcoming stay in '+status);
+  assert.equal(count('2026-10-12T18:29:59Z'),4);
+  assert.equal(count('2026-10-12T18:30:00Z'),2);
+  for(const row of rows.slice(2,4))for(const status of ['Active','All'])assert.equal(matches(row,filters({status}),'2026-10-12T18:30:00Z'),true,'Active/upcoming stay in '+status);
   assert.equal(JSON.stringify(rows),original,'Visibility must never mutate or remove saved records');
-  assert.equal(visible(rows[4],'2026-10-12T18:20:00Z'),true,'Other categories retain their own period');
+  assert.equal(visible(rows[4],'2026-10-12T18:30:00Z'),true,'Other categories retain their own period');
 });
 test('Late completions and newly entered overdue tasks get the next matching deadline',()=>{
-  const late='2026-10-12T18:20:00Z',next='2026-10-19T18:20:00Z';
+  const late='2026-10-12T18:30:00Z',next='2026-10-19T18:30:00Z';
   for(const row of [task({completed:true,completedAt:late}),task({createdAt:late})]) {
     assert.equal(visible(row,late),true);
-    assert.equal(visible(row,'2026-10-19T18:19:59Z'),true);
+    assert.equal(visible(row,'2026-10-19T18:29:59Z'),true);
     assert.equal(visible(row,next),false);
   }
 });
 test('Special Meeting uses independent next-day deadlines and honors selected-day late-completion fallback',()=>{
   const row=task({category:'Special Meeting',date:'2026-10-13',createdAt:'2026-10-13T07:25:00Z'});
-  assert.equal(visible(row,'2026-10-14T18:19:59Z'),true);
-  assert.equal(visible(row,'2026-10-14T18:20:00Z'),false);
+  assert.equal(visible(row,'2026-10-14T18:29:59Z'),true);
+  assert.equal(visible(row,'2026-10-14T18:30:00Z'),false);
   const later=task({...row,date:'2026-10-14'});
-  assert.equal(visible(later,'2026-10-14T18:20:00Z'),true);
-  assert.equal(visible(later,'2026-10-15T18:20:00Z'),false);
-  const late=task({...row,completed:true,completedAt:'2026-10-14T18:20:00Z',weekdays:[2]});
-  assert.equal(periods.meetingResetAt(late.category,Date.parse(late.completedAt),late.date,late.weekdays),Date.parse('2026-10-21T18:20:00Z'));
+  assert.equal(visible(later,'2026-10-14T18:30:00Z'),true);
+  assert.equal(visible(later,'2026-10-15T18:30:00Z'),false);
+  const late=task({...row,completed:true,completedAt:'2026-10-14T18:30:00Z',weekdays:[2]});
+  assert.equal(periods.meetingResetAt(late.category,Date.parse(late.completedAt),late.date,late.weekdays),Date.parse('2026-10-21T18:30:00Z'));
   const undated=task({category:'Special Meeting',date:'',time:'',completed:true,completedAt:'2026-10-14T19:00:00Z'});
-  assert.equal(visible(undated,'2026-10-16T18:19:59Z'),true);
-  assert.equal(visible(undated,'2026-10-16T18:20:00Z'),false);
+  assert.equal(visible(undated,'2026-10-16T18:29:59Z'),true);
+  assert.equal(visible(undated,'2026-10-16T18:30:00Z'),false);
 });
 test('Date-only, exact timed overdue boundaries and reopened tasks keep existing semantics',()=>{
   const row=task({date:'2026-10-12',time:''});
-  assert.equal(visible(row,'2026-10-12T18:20:00Z'),true,'Date-only remains active until next midnight');
+  assert.equal(visible(row,'2026-10-12T18:30:00Z'),true,'Date-only remains active until next midnight');
   assert.equal(visible(row,'2026-10-18T18:30:00Z'),true);
-  assert.equal(visible(row,'2026-10-19T18:20:00Z'),false);
+  assert.equal(visible(row,'2026-10-19T18:30:00Z'),false);
   const timed=task({date:'2026-10-12',time:'23:50'});
-  assert.equal(visible(timed,'2026-10-12T18:19:59.999Z'),true);
-  assert.equal(visible(timed,'2026-10-12T18:20:00Z'),false);
-  assert.equal(visible(timed,'2026-10-12T18:20:01Z'),false);
+  assert.equal(visible(timed,'2026-10-12T18:29:59.999Z'),true);
+  assert.equal(visible(timed,'2026-10-12T18:30:00Z'),false);
+  assert.equal(visible(timed,'2026-10-12T18:30:01Z'),false);
   const oldDone=task({date:'',time:'',completed:true,completedAt:stamp});
   assert.equal(visible(oldDone,'2026-10-14T12:00:00Z'),false);
   assert.equal(visible({...oldDone,completed:false,completedAt:null},'2026-10-14T12:00:00Z'),true,'Reopened undated task is active again');
 });
 test('When due and reset coincide, all four weekly categories clear due work without hiding future occurrences',()=>{
   for(const [category,date] of [['Sunday Service','2026-10-12'],['Healing Meeting','2026-10-15'],['Revival Meeting','2026-10-17']]) {
-    const row=task({category,date,time:'23:50'}),at=date+'T18:20:00Z';
-    assert.equal(visible(row,date+'T18:19:59Z'),true);
+    const row=task({category,date,time:'23:50'}),at=date+'T18:30:00Z';
+    assert.equal(visible(row,date+'T18:29:59Z'),true);
     assert.equal(visible(row,at),false);
     assert.equal(matches(row,filters({category}),at),false);
     assert.equal(matches(row,filters({category:'Any'}),at),true,'Main All still keeps the saved row');
-    assert.equal(matches(row,filters({view:'Overdue',category:'Any',status:'Overdue'}),date+'T18:20:01Z'),true);
+    assert.equal(matches(row,filters({view:'Overdue',category:'Any',status:'Overdue'}),date+'T18:30:01Z'),true);
     const future=task({category,date:'2026-10-25',availableAt:'2026-10-24T18:30:00Z'});
     assert.equal(visible(future,at),false,'Not-yet-released occurrence does not inflate the category');
     assert.equal(visible(future,'2026-10-24T18:30:00Z'),true,'Occurrence appears as active on its own date');
   }
   const rows=[task({completed:true,completedAt:stamp}),task(),task({date:'2026-10-12',time:'23:50'})];
-  assert.equal(rows.filter(row=>visible(row,'2026-10-12T18:20:00Z')).length,0,'Counter is zero when all tasks are completed or due');
+  assert.equal(rows.filter(row=>visible(row,'2026-10-12T18:30:00Z')).length,0,'Counter is zero when all tasks are completed or due');
 });
 test('Future availability, existing repeat History, legacy timestamps and unknown categories remain safe',()=>{
   const now='2026-10-14T12:00:00Z';
@@ -110,8 +110,8 @@ test('Future availability, existing repeat History, legacy timestamps and unknow
 });
 test('Year rollover uses India dates and retains normal filters in category and dedicated views',()=>{
   const row=task({category:'Revival Meeting',completed:true,completedAt:'2026-12-31T19:00:00Z'});
-  assert.equal(visible(row,'2027-01-02T18:19:59Z'),true);
-  assert.equal(visible(row,'2027-01-02T18:20:00Z'),false);
+  assert.equal(visible(row,'2027-01-02T18:29:59Z'),true);
+  assert.equal(visible(row,'2027-01-02T18:30:00Z'),false);
   const overdue=task({title:'Check camera',notes:'Platform',priority:'High'});
   const f=filters({view:'Overdue',status:'Overdue',search:'camera',priority:'High'});
   assert.equal(matches(overdue,f,'2026-10-14T12:00:00Z'),true);

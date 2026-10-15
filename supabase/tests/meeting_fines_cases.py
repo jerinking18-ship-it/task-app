@@ -8,8 +8,8 @@ expect('client cannot enable fines','select public.task_app_enable_fines();',own
 for category,day in [('Sunday Service','2026-10-12'),('Healing Meeting','2026-10-15'),('Revival Meeting','2026-10-17'),('Special Meeting','2026-10-12')]:
  scheduled={'Sunday Service':'2026-10-11','Healing Meeting':'2026-10-14','Revival Meeting':'2026-10-16','Special Meeting':'2026-10-11'}[category]
  safe=category.replace("'","''")
- check('05:00 India cutoff '+category,sql(f"select public.task_app_fine_cutoff('{safe}','{scheduled}','23:50')=('{day}T05:00:00+05:30')::timestamptz;")=='t')
-check('future custom due time never fined early',sql("select public.task_app_fine_cutoff('Sunday Service','2026-10-12','23:50')='2026-10-19T05:00:00+05:30'::timestamptz;")=='t')
+ check('01:00 India cutoff '+category,sql(f"select public.task_app_fine_cutoff('{safe}','{scheduled}','23:50')=('{day}T01:00:00+05:30')::timestamptz;")=='t')
+check('future custom due time never fined early',sql("select public.task_app_fine_cutoff('Sunday Service','2026-10-12','23:50')='2026-10-19T01:00:00+05:30'::timestamptz;")=='t')
 check('undated tasks have no guessed fine cutoff',sql("select public.task_app_fine_cutoff('Special Meeting',null,'23:50')is null;")=='t')
 original_task_digest=sql("select md5(coalesce(string_agg(to_jsonb(t)::text,'|'order by id),''))from public.tasks t;")
 activation=sql('select public.task_app_enable_fines();')

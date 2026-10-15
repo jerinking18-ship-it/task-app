@@ -1,16 +1,12 @@
 import { accountClock, isOverdue, sortTasksForStatus, type Task } from "./model";
-import { isCategoryTaskVisible, meetingResetAt } from "./meeting-period";
+import { isCategoryTaskVisible, meetingResetAt, regularMeetingWindow, specialMeetingIsOpen } from "./meeting-period";
 import { taskCoverage } from "@/lib/members/absence";
 
 export type OverviewFilter = "All" | "Completed" | "Remaining" | "Needs help";
 
-// Opening choice follows the India calendar day. Category visibility still
-// uses its separate 11:50 PM reset; Member history's rotation is unchanged.
+// Exact two-day India meeting windows; Tuesday has no regular meeting.
 export function automaticOverviewCategory(now: Date): string {
-  const day = accountClock(now, "Asia/Kolkata").date;
-  const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
-  return ["Sunday Service", "Sunday Service", "Healing Meeting", "Healing Meeting",
-    "Healing Meeting", "Revival Meeting", "Revival Meeting"][weekday];
+  return regularMeetingWindow(now).category;
 }
 
 // Use exactly the category visibility rules, rather than a second reset timer
@@ -18,7 +14,8 @@ export function automaticOverviewCategory(now: Date): string {
 export function meetingOverview(tasks: Task[], category: string, now: Date, coverageNow = now) {
   const clock = accountClock(now, "Asia/Kolkata");
   const visible = tasks.filter(task => task.category === category
-    && isCategoryTaskVisible(task, now, clock.date, clock.time));
+    && isCategoryTaskVisible(task, now, clock.date, clock.time)
+    && (category !== "Special Meeting" || specialMeetingIsOpen(task, now)));
   const completed = visible.filter(task => task.completed);
   const remaining = sortTasksForStatus(visible.filter(task => !task.completed), "All");
   const needsHelp = remaining.filter(task => !!taskCoverage(task, coverageNow));
@@ -38,7 +35,7 @@ export function overviewDeadline(category: string, now: Date) {
   if (category === "Special Meeting") return null;
   const resetAt = meetingResetAt(category, now.getTime());
   if (resetAt === null) return null;
-  const resetDay = accountClock(new Date(resetAt), "Asia/Kolkata").date;
+  const resetDay = accountClock(new Date(resetAt - 1), "Asia/Kolkata").date;
   const meetingDate = new Date(`${resetDay}T12:00:00Z`);
   meetingDate.setUTCDate(meetingDate.getUTCDate() - 1);
   return { resetAt, meetingDate: meetingDate.toISOString().slice(0, 10) };
