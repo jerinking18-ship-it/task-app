@@ -18,15 +18,15 @@ test('History response validates complete owner-scoped member joins, receipts an
  assert.equal(model.decodeMemberHistory(data).totals[0].count,125);
  for(const bad of [{...data,members:[data.members[0],data.members[0]]},{...data,totals:[data.totals[0],data.totals[0]]},{...data,totals:[{memberId:taskId,year:2026,count:1}]},{...data,totals:[{...data.totals[0],count:Number.MAX_SAFE_INTEGER+1}]},{...data,entries:[{...data.entries[0],memberId:taskId}]},{...data,entries:[{...data.entries[0],expiresAt:'bad'}]},{...data,entries:[data.entries[0],data.entries[0]]},{...data,specialWindows:undefined},{...data,specialWindows:[{startsAt:'bad',endsAt:data.serverNow}]}])assert.throws(()=>model.decodeMemberHistory(bad));
 });
-test('Weekly category rotation switches at exactly 23:50 India time across all four boundaries',()=>{
- for(const [time,category] of [['2026-10-12T18:19:59.999Z','Sunday Service'],['2026-10-12T18:20:00Z','Healing Meeting'],['2026-10-15T18:19:59Z','Healing Meeting'],['2026-10-15T18:20:00Z',"Woman's Meeting"],['2026-10-16T18:19:59Z',"Woman's Meeting"],['2026-10-16T18:20:00Z','Revival Meeting'],['2026-10-17T18:19:59Z','Revival Meeting'],['2026-10-17T18:20:00Z','Sunday Service']])assert.equal(model.regularSchedule(new Date(time)).category,category);
+test('Weekly category rotation switches at exactly 23:50 India time across all three boundaries',()=>{
+ for(const [time,category] of [['2026-10-12T18:19:59.999Z','Sunday Service'],['2026-10-12T18:20:00Z','Healing Meeting'],['2026-10-15T18:19:59Z','Healing Meeting'],['2026-10-15T18:20:00Z','Revival Meeting'],['2026-10-16T18:19:59Z','Revival Meeting'],['2026-10-16T18:20:00Z','Revival Meeting'],['2026-10-17T18:19:59Z','Revival Meeting'],['2026-10-17T18:20:00Z','Sunday Service']])assert.equal(model.regularSchedule(new Date(time)).category,category);
  assert.equal(model.regularSchedule(new Date('2026-10-12T18:20:00Z')).resetAt,'2026-10-15T18:20:00.000Z');
 });
 test('Year label and total switch at India New Year while category history can remain visible',()=>{
  const before=new Date('2026-12-31T18:29:59.999Z'),after=new Date('2026-12-31T18:30:00Z');
  assert.equal(model.historyYear(before),2026);assert.equal(model.historyYear(after),2027);assert.equal(model.yearlyTotal(data,id,before),125);assert.equal(model.yearlyTotal(data,id,after),0);assert.equal(model.yearlyTotal(data,other,before),7);
- const rows={...data,entries:[{...data.entries[0],category:"Woman's Meeting",completedAt:'2026-12-31T07:25:00Z',expiresAt:'2027-01-01T18:20:00Z'}]};
- assert.equal(model.visibleCompletions(rows,id,"Woman's Meeting",before).length,1);assert.equal(model.visibleCompletions(rows,id,"Woman's Meeting",after).length,1);
+ const rows={...data,entries:[{...data.entries[0],category:'Healing Meeting',completedAt:'2026-12-31T07:25:00Z',expiresAt:'2027-01-01T18:20:00Z'}]};
+ assert.equal(model.visibleCompletions(rows,id,'Healing Meeting',before).length,1);assert.equal(model.visibleCompletions(rows,id,'Healing Meeting',after).length,1);
 });
 test('Only selected member/category unexpired completions appear; cutoff removes rows but never yearly total',()=>{
  assert.equal(model.visibleCompletions(data,id,'Sunday Service',new Date(data.serverNow)).length,1);assert.equal(model.visibleCompletions(data,other,'Sunday Service',new Date(data.serverNow)).length,0);assert.equal(model.visibleCompletions(data,id,'Healing Meeting',new Date(data.serverNow)).length,0);
@@ -34,7 +34,7 @@ test('Only selected member/category unexpired completions appear; cutoff removes
 });
 test('Scheduled Special Meetings never replace the regular category, including exact weekly cutoffs',()=>{
  const rows={...data,specialWindows:[{startsAt:'2026-10-12T18:30:00Z',endsAt:'2026-10-18T18:20:00Z'}]};
- for(const [time,category] of [['2026-10-12T18:30:00Z','Healing Meeting'],['2026-10-15T18:19:59Z','Healing Meeting'],['2026-10-15T18:20:00Z',"Woman's Meeting"],['2026-10-16T18:20:00Z','Revival Meeting'],['2026-10-17T18:20:00Z','Sunday Service']])assert.equal(model.reportSchedule(rows,new Date(time)).category,category);
+ for(const [time,category] of [['2026-10-12T18:30:00Z','Healing Meeting'],['2026-10-15T18:19:59Z','Healing Meeting'],['2026-10-15T18:20:00Z','Revival Meeting'],['2026-10-16T18:20:00Z','Revival Meeting'],['2026-10-17T18:20:00Z','Sunday Service']])assert.equal(model.reportSchedule(rows,new Date(time)).category,category);
  assert.equal(model.reportSchedule(rows,new Date('2026-10-14T12:00:00Z')).resetAt,'2026-10-15T18:20:00.000Z');
 });
 test('Special completion deadlines stay independent across overlapping days and trigger timely refresh',()=>{
