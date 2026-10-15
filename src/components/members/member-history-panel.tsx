@@ -1,4 +1,5 @@
 "use client";
+import NoMeeting from "../no-meeting";
 import {useEffect,useRef,useState} from "react";
 import {displayMemberName,type NamedMember} from "@/lib/members/display-name";
 import {CATEGORY_COLORS,completionTime,historyYear,reportSchedule,specialResetLabel,visibleCompletions,yearlyTotal,type HistoryEntry,type MemberHistoryData} from "@/lib/member-history/model";
@@ -17,7 +18,7 @@ export default function MemberHistoryPanel({data,loading,error,now,currentMember
  const member=members.find(item=>item.id===memberId),year=historyYear(now),schedule=reportSchedule(data,now);
  const entries=visibleCompletions(data,memberId,schedule.category,now);
  const specialEntries=visibleCompletions(data,memberId,"Special Meeting",now);
- const hasSpecial=hasSpecialTasks||!!data?.specialWindows.some(window=>Date.parse(window.endsAt)>now.getTime())
+ const hasSpecial=hasSpecialTasks||!!data?.specialWindows.some(window=>Date.parse(window.startsAt)<=now.getTime()&&Date.parse(window.endsAt)>now.getTime())
   ||!!data?.entries.some(entry=>entry.category==="Special Meeting"&&Date.parse(entry.completedAt)<=now.getTime()&&Date.parse(entry.expiresAt)>now.getTime());
  const visibleCount=entries.length+specialEntries.length;
  // The schedule changes locally at the exact server-adjusted boundary; refetch
@@ -30,7 +31,7 @@ export default function MemberHistoryPanel({data,loading,error,now,currentMember
   <div className={styles.top}><label className={styles.memberField}><span>MEMBER</span><div className={styles.selector}><span className={styles.avatar} aria-hidden="true">{member?Array.from(member.name)[0]?.toLocaleUpperCase():"—"}</span><select aria-label="Choose history member" value={memberId} disabled={!members.length} onChange={event=>setSelected(event.target.value)}>{!members.length&&<option value="">Choose a member</option>}{members.map(item=><option key={item.id} value={item.id}>{item.name}{item.id===currentMemberId?" · You":""}</option>)}</select></div></label><button className={styles.refresh} type="button" onClick={onRefresh} disabled={loading}>{loading?"Loading…":"Refresh"}</button></div>
   {error&&<p className={styles.error} role="alert">{error}</p>}
   {!data?<p className={styles.loading} role="status">{loading?"Loading member history…":"Refresh to load your member history."}</p>:<><div className={styles.stats}><div className={styles.stat}><Mark/><div><strong className={styles.number}>{yearlyTotal(data,memberId,now)}</strong><span className={styles.statLabel}>Completed in {year}</span><small>All categories · this year</small></div></div><div className={styles.stat}><Mark/><div><strong className={styles.number}>{visibleCount}</strong><span className={styles.statLabel}>Visible history</span></div></div></div>
-   <Section category={schedule.category} entries={entries} resetLabel={schedule.label}/>
+   {schedule.category ? <Section category={schedule.category} entries={entries} resetLabel={schedule.label}/> : <NoMeeting now={now}/>}
    {hasSpecial&&<Section category="Special Meeting" entries={specialEntries} resetLabel={specialResetLabel(specialEntries)}/>}
    <p className={styles.footer}><Mark clock size={16}/>Regular category changes automatically. Special Meeting clears separately.</p>
   </>}

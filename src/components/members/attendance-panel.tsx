@@ -1,4 +1,6 @@
 "use client";
+import NoMeeting from "../no-meeting";
+import { automaticOverviewCategory } from "@/lib/tasks/meeting-overview";
 
 import type { Member, MemberState } from "@/lib/members/model";
 import { attendanceMeetings, meetingAttendance } from "@/lib/members/attendance";
@@ -22,11 +24,12 @@ type Props = {
 export default function AttendancePanel({ state, tasks, tasksReady, tasksError, search, now, loading, error, onRefresh, onBack }: Props) {
   const meetings = attendanceMeetings(tasksReady ? tasks : [], now);
   const query = search.trim().toLocaleLowerCase();
-  const ready = meetingAttendance(state, meetings[0].category, now).ready;
+  const ready = meetingAttendance(state, "", now).ready;
   return <section className={shared.panel} aria-label="Meeting attendance list" aria-busy={loading}>
     <button type="button" className={styles.back} onClick={onBack}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>Back to Users</button>
     {(error || tasksError) && <div className={styles.problem} role="alert"><p>{error || tasksError}</p>{ready && <p>Showing the last loaded attendance. Refresh to check for updates.</p>}<button type="button" disabled={loading} onClick={onRefresh}>Refresh attendance</button></div>}
     {!ready ? <div className={shared.empty} role="status"><AttendanceIcon/><h3>{loading ? "Loading attendance…" : "Attendance unavailable"}</h3><p>{loading ? "Getting the current meeting’s members ready." : "Refresh to load attendance before checking who is present."}</p>{!loading && <button type="button" className={shared.secondary} onClick={onRefresh}>Refresh attendance</button>}</div> : <>
+      {!automaticOverviewCategory(now)&&<NoMeeting now={now}/>}
       {meetings.map(({ category, meetingDate }) => {
         const groups = meetingAttendance(state, category, now, meetingDate);
         return <section className={styles.meetingSection} key={`${category}:${meetingDate ?? "regular"}`} aria-label={`${category}${meetingDate ? ` ${meetingDate}` : ""} attendance`}>

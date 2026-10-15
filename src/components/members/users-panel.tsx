@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MEMBER_LIMIT, memberSeen, memberActive, roleLabel, decodeMemberResponse, type MemberState, type Member, type Invitation } from "@/lib/members/model";
-import { absentMemberGroups } from "@/lib/members/absence";
 import { requestWorkspace } from "@/lib/workspace/client";
 import { isRecord } from "@/lib/tasks/validation";
 import type { WorkspaceAction } from "@/lib/workspace/model";
@@ -16,7 +15,6 @@ export default function UsersPanel({onAttendance,state,search,loading,error,onRe
  const owner=state?.current?.role==="owner";
  const members=state?[...state.members].sort((a,b)=>Number(b.id===state.current?.id)-Number(a.id===state.current?.id)):[];
  const visible=members.filter(m=>m.name.toLowerCase().includes(search.trim().toLowerCase()));
- const absentMembers=absentMemberGroups(state,now).filter(a=>a.name.toLowerCase().includes(search.trim().toLowerCase()));
  const reserved=state?.workspace?.reservedSeats??0;const used=members.length+reserved;
  useEffect(()=>{if(!dialog)return;modal.current?.showModal();modal.current?.querySelector<HTMLElement>("input,select,button")?.focus();return()=>modal.current?.close();},[dialog]);
  useEffect(()=>{if(!owner&&!pending&&dialog){setDialog(null);setLink("");setProblem("Your role changed. Refresh to see current permissions.");}},[owner,pending,dialog]);
@@ -51,7 +49,6 @@ export default function UsersPanel({onAttendance,state,search,loading,error,onRe
   {state&&!visible.length&&<div className={styles.empty}><UsersIcon/><h3>No members found</h3><p>Try another name.</p></div>}
   <footer className={styles.footer}><p><SmallIcon name="lock"/>Only the Owner can manage members and roles.</p><p>Names appear on completed tasks.</p></footer>
   </section>
-  {!!absentMembers.length&&<section className={styles.absentCard} aria-label="Absent members"><div className={styles.absentHeading}><h2>Absent members</h2><span>{absentMembers.length}</span></div><ul>{absentMembers.map(a=><li key={a.memberId}><span className={styles.absentAvatar} aria-hidden="true">{Array.from(a.name)[0]?.toLocaleUpperCase()}</span><div><strong>{a.name}</strong><p>{a.categories.join(" · ")}</p></div><span className={styles.absentLabel}>Absent</span></li>)}</ul></section>}
   {owner&&!!state?.invitations?.length&&<section className={styles.pending}><h3>Pending invitations</h3><p>Reserved places · Expire seven days after creation</p>{state.invitations.map(invitation=><div key={invitation.id}><span><strong>{invitation.email}</strong><small>{roleLabel(invitation.role)} · Expires {new Intl.DateTimeFormat("en-IN",{timeZone:"Asia/Kolkata",day:"numeric",month:"short"}).format(new Date(invitation.expiresAt))}</small></span><button disabled={pending} className={styles.secondary} onClick={()=>open({kind:"invite",invitation})}>New link</button><button disabled={pending} className={styles.cancelInvite} onClick={()=>open({kind:"revoke",invitation})}>Cancel</button></div>)}</section>}
   {owner&&members.length>1&&<button className={styles.transfer} disabled={pending} onClick={()=>open({kind:"transfer"})}>Transfer ownership</button>}
   {dialog&&<dialog ref={modal} className={styles.dialog} aria-labelledby="workspace-dialog-title" onCancel={e=>{e.preventDefault();close();}} onClick={e=>{if(e.target===e.currentTarget)close();}}><form onSubmit={submit}>

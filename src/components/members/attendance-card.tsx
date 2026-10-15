@@ -1,4 +1,5 @@
 "use client";
+import NoMeeting from "../no-meeting";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { decodeMemberResponse, type MemberState } from "@/lib/members/model";
 import { activeAbsences } from "@/lib/members/absence";
@@ -82,7 +83,7 @@ export default function AttendanceCard(props:Props){
  const special=props.categories.find(category=>category.name==="Special Meeting");
  return <section className={styles.card} aria-label="Meeting attendance">
   <h2>Meeting attendance</h2><p>Can’t attend a meeting? Make your unfinished tasks available for someone to help.</p>
-  <MeetingAttendance {...props} category={regular}/>
+  {regular ? <MeetingAttendance key={regular.id} {...props} category={regular}/> : <NoMeeting now={props.now}/>}
   {props.hasSpecialTasks&&special&&<MeetingAttendance {...props} category={special} special/>}
  </section>;
 }
