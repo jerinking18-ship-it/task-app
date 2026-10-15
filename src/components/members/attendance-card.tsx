@@ -9,7 +9,7 @@ import { requestWorkspace } from "@/lib/workspace/client";
 import styles from "./attendance.module.css";
 
 type Props = {
- state:MemberState;categories:Category[];now:Date;disabled:boolean;onSaved:(state:MemberState)=>void;
+ state:MemberState;categories:Category[];hasSpecialTasks:boolean;now:Date;disabled:boolean;onSaved:(state:MemberState)=>void;
  onPending:(pending:boolean)=>void;onRefresh:()=>void;
 };
 type Review = { categoryId:string;category:string;meetingDate:string|null;absenceId:string|null;expiresAt:string|null };
@@ -83,6 +83,6 @@ export default function AttendanceCard(props:Props){
  return <section className={styles.card} aria-label="Meeting attendance">
   <h2>Meeting attendance</h2><p>Can’t attend a meeting? Make your unfinished tasks available for someone to help.</p>
   <MeetingAttendance {...props} category={regular}/>
-  {special&&<MeetingAttendance {...props} category={special} special/>}
+  {props.hasSpecialTasks&&special&&<MeetingAttendance {...props} category={special} special/>}
  </section>;
 }
