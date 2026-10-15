@@ -31,12 +31,13 @@ export default function AttendancePanel({ state, tasks, tasksReady, tasksError, 
     {(error || tasksError) && <div className={styles.problem} role="alert"><p>{error || tasksError}</p>{ready && <p>Showing the last loaded attendance. Refresh to check for updates.</p>}<button type="button" disabled={loading} onClick={onRefresh}>Refresh attendance</button></div>}
     {!ready ? <div className={shared.empty} role="status"><AttendanceIcon/><h3>{loading ? "Loading attendance…" : "Attendance unavailable"}</h3><p>{loading ? "Getting the current meeting’s members ready." : "Refresh to load attendance before checking who is present."}</p>{!loading && <button type="button" className={shared.secondary} onClick={onRefresh}>Refresh attendance</button>}</div> : <>
       {!automaticOverviewCategory(now)&&<NoMeeting now={now}/>}
-      {meetings.map(({ category, meetingDate }) => {
-        const groups = meetingAttendance(state, category, now, meetingDate);
-        return <section className={styles.meetingSection} key={`${category}:${meetingDate ?? "regular"}`} aria-label={`${category}${meetingDate ? ` ${meetingDate}` : ""} attendance`}>
-          <div className={styles.meetingHeading}><span>{category === "Special Meeting" ? "Special meeting" : "Current meeting"}</span><h2>{category}</h2>{meetingDate && <time dateTime={meetingDate}>{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", weekday: "long", month: "short", day: "numeric" }).format(new Date(`${meetingDate}T12:00:00+05:30`))}</time>}</div>
-          <MemberGroup people={groups.absent} currentId={state?.current?.id} category={category} query={query}/>
-          <MemberGroup present people={groups.present} currentId={state?.current?.id} category={category} query={query}/>
+      {meetings.map(({ category, meetingDate,sundayService }) => {
+        const groups = meetingAttendance(state, category, now, meetingDate,sundayService);
+        const title=sundayService==="morning"?"Morning Service":sundayService==="evening"?"Evening Service":category;
+        return <section className={styles.meetingSection} key={`${category}:${sundayService??meetingDate ?? "regular"}`} aria-label={`${title}${meetingDate ? ` ${meetingDate}` : ""} attendance`}>
+          <div className={styles.meetingHeading}><span>{sundayService?"Sunday Service":category === "Special Meeting" ? "Special meeting" : "Current meeting"}</span><h2>{title}</h2>{meetingDate && <time dateTime={meetingDate}>{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", weekday: "long", month: "short", day: "numeric" }).format(new Date(`${meetingDate}T12:00:00+05:30`))}</time>}</div>
+          <MemberGroup people={groups.absent} currentId={state?.current?.id} category={title} query={query}/>
+          <MemberGroup present people={groups.present} currentId={state?.current?.id} category={title} query={query}/>
         </section>;
       })}
       <p className={styles.note}>Present members haven’t marked absent for this meeting.</p>
