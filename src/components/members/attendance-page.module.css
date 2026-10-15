@@ -1,14 +1,14 @@
 .withEntry.withEntry{padding-bottom:90px}
 .dock{position:fixed;z-index:8;bottom:max(18px,env(safe-area-inset-bottom));left:228px;right:0;display:flex;justify-content:center;pointer-events:none;padding:0 16px}
-.entry{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:48px;border:1px solid #203b59;border-radius:10px;padding:10px 21px;background:#203b59;color:#fff;box-shadow:0 4px 18px #101c2d16;font:600 13px Arial;cursor:pointer;pointer-events:auto}
+.entry{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:48px;border:1px solid #101c2d;border-radius:10px;padding:10px 21px;background:#101c2d;color:#fff;box-shadow:0 4px 18px #101c2d16;font:600 13px Arial;cursor:pointer;pointer-events:auto}
 .entry svg,.back svg{display:block;flex-shrink:0}
 .entry:hover:not(:disabled){background:#172d46}
 .entry:disabled{opacity:.55;cursor:default}
 .entry:focus-visible,.back:focus-visible{outline:2px solid #71839b;outline-offset:3px}
 .back{display:inline-flex;align-items:center;justify-content:center;gap:8px;color:#203b59;font:inherit;font-size:12px;border:0;background:none;padding:0;min-height:30px;margin-bottom:20px;cursor:pointer}
 .meetingSection+.meetingSection{margin-top:26px;padding-top:24px;border-top:1px solid #e6e2d9}
-.meetingHeading{padding:14px 16px;background:#fff;border:1px solid #bac5d0;border-radius:12px;min-width:0}
-.meetingHeading>span{display:block;line-height:1.5;font-size:9px;letter-spacing:1.4px;color:#97753b;font-weight:600;text-transform:uppercase}
+.meetingHeading{padding:14px 16px;background:#fffdf8;border:1px solid #e6e2d9;border-radius:12px;min-width:0}
+.meetingHeading>span{display:block;line-height:1.5;font-size:9px;letter-spacing:1.4px;color:#987b43;font-weight:600;text-transform:uppercase}
 .meetingHeading h2{margin:3px 0 0;font-size:21px;letter-spacing:-.5px;color:#203b59;font-weight:600;overflow-wrap:anywhere}
 .meetingHeading time{display:block;margin-top:8px;font-size:12px;color:#728095}
 .meetingSection .presentCount{background:#eaf3ed;color:#2f7253}
