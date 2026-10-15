@@ -517,7 +517,7 @@
 }
 
 /* Plain total counts stay unfilled outside overview and Needs help. */
-.listHeading>span:first-child { color:#101c2d; }
+.listHeading>span:first-child { color:#203b59; }
 
 .remainingTasks {
   display:inline-flex;
@@ -1948,3 +1948,6 @@
 
 .needsHelpWorkspace .header{display:block}.needsHelpWorkspace .headerActions{width:100%}
 @media(min-width:761px){.needsHelpWorkspace .header{padding-right:0}.needsHelpWorkspace .heading{padding-right:100px}}
+
+/* Original attribution appears only on an unfinished helper transfer. */
+.originalAssignee{display:flex;align-items:center;gap:5px;flex-basis:100%;font-size:10px;color:#536779;line-height:1.5;overflow-wrap:anywhere;min-width:0}.originalAssignee svg{flex-shrink:0}.originalAssignee strong{font-weight:500;color:#203b59;min-width:0}
