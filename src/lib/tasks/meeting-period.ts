@@ -8,7 +8,30 @@ function shiftDay(day: string, amount: number): string {
   date.setUTCDate(date.getUTCDate() + amount);
   return date.toISOString().slice(0, 10);
 }
-const cutoff = (day: string) => Date.parse(`${day}T23:50:00+05:30`);
+// Exclusive midnight includes every second of the advertised 11:59 PM minute.
+const cutoff = (day: string) => Date.parse(`${shiftDay(day, 1)}T00:00:00+05:30`);
+export function regularMeetingWindow(now: Date) {
+  const day = accountClock(now, "Asia/Kolkata").date;
+  const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
+  const category = ["Sunday Service", "Sunday Service", "", "Healing Meeting", "Healing Meeting", "Revival Meeting", "Revival Meeting"][weekday];
+  const start = shiftDay(day, [0,-1,0,0,-1,0,-1][weekday]);
+  const nextDay = weekday === 2 ? shiftDay(day, 1) : shiftDay(start, category === "Sunday Service" ? 3 : 2);
+  const nextCategory = weekday === 2 || category === "Sunday Service" ? "Healing Meeting" : category === "Healing Meeting" ? "Revival Meeting" : "Sunday Service";
+  return { category, startsAt: Date.parse(`${start}T00:00:00+05:30`),
+    endsAt: Date.parse(`${shiftDay(start, category ? 2 : 1)}T00:00:00+05:30`), nextCategory, nextDay };
+}
+export function specialMeetingIsOpen(task: Task, now: Date): boolean {
+  const day = accountClock(now, "Asia/Kolkata").date;
+  if (task.date) return now.getTime() >= Date.parse(`${task.date}T00:00:00+05:30`)
+    && now.getTime() < Date.parse(`${shiftDay(task.date, 2)}T00:00:00+05:30`);
+  if (task.weekdays.length) return [day,shiftDay(day,-1)].some(value => task.weekdays.includes(new Date(`${value}T12:00:00Z`).getUTCDay()));
+  // Legacy undated tasks use their creation day; never invent an endless meeting.
+  const created = Date.parse(task.createdAt);
+  if (!Number.isFinite(created)) return false;
+  const createdDay = accountClock(new Date(created), "Asia/Kolkata").date;
+  return now.getTime() >= created && now.getTime() < Date.parse(`${shiftDay(createdDay,2)}T00:00:00+05:30`);
+}
+
 
 // Same deadlines as task_app_history_expires, anchored to the occurrence rather
 // than the current week. An expired item must not return on the following week.
