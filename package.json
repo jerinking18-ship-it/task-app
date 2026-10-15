@@ -27,7 +27,8 @@
     "test:absence:sql": "python3 supabase/tests/absence_coverage.py",
     "test:fines": "node --test scripts/fines.test.mjs",
     "test:fines:sql": "python3 supabase/tests/meeting_fines.py",
-    "test:overview": "node --test scripts/meeting-overview.test.mjs"
+    "test:overview": "node --test scripts/meeting-overview.test.mjs",
+    "test:help": "node --test scripts/needs-help.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
