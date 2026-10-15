@@ -9,6 +9,7 @@ export class TaskError extends Error {
 }
 function check(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code === "P0014") throw new TaskError(409,"Missed completion is not available yet. Dated tasks must reach their scheduled date; undated tasks must be within their meeting period, India time.");
   if(error.code === "P0403") throw new TaskError(403,"Your current role or assignment does not allow this action. Refresh to see current permissions.");
   if(error.code === "P0409") throw new TaskError(409,"This item changed. Refresh and review the current details before trying again.");
   if (["PGRST301","PGRST302","42501"].includes(error.code ?? "")) throw new TaskError(401,"Your session is unavailable. Sign in again to continue.");
