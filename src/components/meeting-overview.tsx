@@ -37,13 +37,11 @@ export default function MeetingOverview(props: OverviewProps) {
   const { tasks, now, workspaceName, loaded, ready, timezone, loading, pending, error, deferred, onRefresh, onSetup } = props;
   const category = automaticOverviewCategory(now);
   const special = meetingOverview(tasks, "Special Meeting", now, props.coverageNow);
-  const weekday = new Intl.DateTimeFormat("en-US", {timeZone:"Asia/Kolkata",weekday:"long"}).format(now);
   return <div className={styles.content}>
     <div className={styles.intro}><span>{workspaceName}<i aria-hidden="true"/>India time · Mumbai</span><button className={styles.refresh} disabled={loading || pending} onClick={onRefresh} aria-label="Refresh meeting overview"><Symbol name="refresh"/><span>{loading ? "Refreshing…" : "Refresh"}</span></button></div>
     {deferred && <p className={styles.notice} role="status">Refresh queued. Finish saving to load updates.</p>}
     {error && <div className={styles.error} role="alert"><p>{error}</p>{loaded && <p>The overview shows the last loaded tasks. Refresh to check for updates.</p>}<button disabled={loading || pending} onClick={onRefresh}>Refresh saved data</button></div>}
     {!loaded ? <div className={styles.empty} role="status"><span className={styles.emptyIcon}><Symbol name="clock"/></span><h2>{error ? "Overview unavailable" : "Loading meeting overview…"}</h2><p>Your saved tasks will appear here.</p></div> : !ready ? <div className={styles.empty}><span className={styles.emptyIcon}><Symbol name="calendar"/></span><h2>{timezone ? "Preparing your categories" : "A home for your time"}</h2><p>Use the existing India time and meeting category setup to view your overview.</p><button disabled={pending} onClick={onSetup}>{timezone ? "Retry category setup" : "Use India time"}</button></div> : <>
-      <div className={styles.automaticMeeting}><span><Symbol name="calendar"/>{weekday}’s meeting</span><span className={styles.automaticTag}>Opens automatically</span></div>
       <p className={styles.overviewNotice}><Symbol name="list"/><span><strong>Read-only overview.</strong> Complete or reopen tasks from your task list.</span></p>
       <MeetingSection key={category} {...props} category={category}/>
       {special.tasks.length > 0 && <section className={styles.specialSection} aria-label="Special Meeting section"><div className={styles.specialHeading}><span className={styles.specialMark}><Symbol name="calendar"/></span><div><h2>Additional meeting</h2><p>Shown separately from your weekly meeting.</p></div></div><MeetingSection {...props} category="Special Meeting"/></section>}

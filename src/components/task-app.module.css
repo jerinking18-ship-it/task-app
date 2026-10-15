@@ -516,6 +516,9 @@
   padding:0 5px
 }
 
+/* Plain total counts stay unfilled outside overview and Needs help. */
+.listHeading>span:first-child { color:#101c2d; }
+
 .remainingTasks {
   display:inline-flex;
   align-items:center;
