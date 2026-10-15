@@ -47,3 +47,29 @@ test('repository uses dedicated Missed RPC and rejects incomplete success',async
  assert.equal((await repo.mutate(action)).task.missed_completion_role,'coordinator');assert.equal(calls[0].name,'task_app_complete_missed');assert.equal(calls[0].args.confirmed,true);assert.equal(calls.some(c=>c.name==='task_app_mutate'),false);
  bad=true;await assert.rejects(repo.mutate(action),/could not be confirmed/);
 });
+
+test('dated Missed opens at India midnight, independent of due time, without changing lock review access',()=>{
+ const task={...base,date:'2026-10-18',time:'23:50',category:'Sunday Service'};
+ const before=new Date('2026-10-17T23:59:59.999+05:30'),at=new Date('2026-10-18T00:00:00+05:30');
+ assert.equal(assignment.canReviewMissed(task,actor,'owner',before),true);
+ assert.equal(assignment.canCompleteMissed(task,actor,'owner',before),false);
+ assert.equal(assignment.canCompleteMissed(task,actor,'owner',at),true);
+ assert.equal(assignment.canCompleteMissed(task,actor,'owner',new Date('2026-10-20T12:00:00+05:30')),true);
+});
+test('undated Missed follows two-day regular windows and bounded Special dates',()=>{
+ for(const [category,start,end]of [['Sunday Service','2026-10-18','2026-10-20'],['Healing Meeting','2026-10-21','2026-10-23'],['Revival Meeting','2026-10-23','2026-10-25']]){
+  const task={...base,category,date:''};
+  assert.equal(assignment.canCompleteMissed(task,actor,'coordinator',new Date(`${start}T00:00:00+05:30`)),true);
+  assert.equal(assignment.canCompleteMissed(task,actor,'coordinator',new Date(Date.parse(`${end}T00:00:00+05:30`)-1)),true);
+  assert.equal(assignment.canCompleteMissed(task,actor,'coordinator',new Date(`${end}T00:00:00+05:30`)),false);
+ }
+ const special={...base,category:'Special Meeting',createdAt:'2026-10-18T09:00:00+05:30',date:'',weekdays:[]};
+ for(const [stamp,want]of [['2026-10-18T08:59:00+05:30',false],['2026-10-19T23:59:59+05:30',true],['2026-10-20T00:00:00+05:30',false]])assert.equal(assignment.missedCompletionTiming(special,new Date(stamp)).open,want);
+ assert.equal(assignment.missedCompletionTiming({...special,weekdays:[3]},new Date('2026-10-22T12:00:00+05:30')).open,true);
+});
+
+test('server timing rejection is a readable conflict rather than generic failure',async()=>{
+ const client={async rpc(){return{data:null,error:{code:'P0014'}}}};
+ const repo=new repository.TaskRepository(client,id);
+ await assert.rejects(repo.mutate({action:'missed',id,version:stamp,confirmed:true}),error=>error.status===409&&/scheduled date/.test(error.message));
+});

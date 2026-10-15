@@ -34,7 +34,16 @@ function card(time,absent=false){const now=new Date(time),current={id:'member',n
 test('the same window disables both Mark and Unmark while preserving a still-active absence',()=>{
  for(const absent of [false,true]){
   const before=card('2026-10-18T20:59:59+05:30',absent),after=card('2026-10-18T21:00:00+05:30',absent);
-  assert.doesNotMatch(before,/<button[^>]*disabled/);assert.match(after,/<button[^>]*disabled/);assert.match(after,/Attendance changes closed at 9:00 PM India time/);
+  const evening=before.match(/<form aria-label="Evening Service attendance"[\s\S]*?<\/form>/)[0];assert.doesNotMatch(evening,/<button[^>]*disabled/);assert.match(before,/<form aria-label="Morning Service attendance"[\s\S]*?<button[^>]*disabled/);assert.equal((after.match(/<button[^>]*disabled/g)||[]).length,2);assert.match(after,/Attendance changes closed at 9:00 PM India time/);
   if(absent){assert.match(after,/You’re marked absent for/);assert.match(after,/Unmark absent/);assert.match(card('2026-10-19T12:00:00+05:30',true),/You’re marked absent for/);}
  }
+});
+
+test('Sunday Morning and Evening Mark/Unmark boundaries are independent',()=>{
+ for(const [time,morning,evening]of [['00:00:00',true,false],['10:59:59.999',true,false],['11:00:00',false,false],['12:59:59.999',false,false],['13:00:00',false,true],['20:59:59.999',false,true],['21:00:00',false,false]]){
+  const now=new Date(`2026-10-18T${time}+05:30`);
+  assert.equal(absenceChangeWindow('Sunday Service',now,null,'morning').open,morning);
+  assert.equal(absenceChangeWindow('Sunday Service',now,null,'evening').open,evening);
+ }
+ assert.equal(absenceChangeWindow('Sunday Service',new Date('2026-10-19T09:00:00+05:30'),null,'morning').open,false);
 });

@@ -124,3 +124,22 @@ test('unmark response removes only the returned meeting from Absent members',()=
  assert.deepEqual(Array.from(absence.absentMemberGroups({...state,absences:[second]},now)[0].categories),['Sunday Service']);
  assert.equal(absence.absentMemberGroups({...state,absences:[]},now).length,0);
 });
+
+test('service attendance actions validate scope and map to dedicated checked RPCs',()=>{
+ for(const sundayService of ['morning','evening']){
+  const mark={action:'absent',categoryId:a.categoryId,meetingDate:null,sundayService,confirmed:true};
+  const unmark={action:'unmarkAbsent',id:a.id,expiresAt:end,sundayService,confirmed:true};
+  assert.ok(workspace.workspaceAction(mark));assert.equal(workspace.workspaceRpc(mark).name,'task_app_mark_service_absent');
+  assert.equal(workspace.workspaceRpc(mark).args.selected_service,sundayService);
+  assert.ok(workspace.workspaceAction(unmark));assert.equal(workspace.workspaceRpc(unmark).name,'task_app_unmark_service_absent');
+ }
+ for(const sundayService of [null,'both','Morning',0])assert.equal(workspace.workspaceAction({action:'absent',categoryId:a.categoryId,meetingDate:null,sundayService,confirmed:true}),null);
+});
+test('member decoding accepts independent Sunday scopes and partial legacy returns, rejects overlapping or invalid metadata',()=>{
+ const now='2026-10-18T14:00:00+05:30';
+ const legacy={...a,category:'Sunday Service',createdAt:'2026-10-18T00:00:00+05:30',expiresAt:'2026-10-20T00:00:00+05:30',morningReturnedAt:'2026-10-18T10:00:00+05:30'};
+ const morning={...legacy,id:id(8),sundayService:'morning',morningReturnedAt:null};
+ const data={...state,serverNow:now,absences:[legacy,morning]};
+ const decoded=members.decodeMemberResponse(data);assert.equal(decoded.absences.length,2);assert.equal(decoded.absences[0].morningReturnedAt,legacy.morningReturnedAt);
+ for(const absences of [[{...legacy,morningReturnedAt:null},morning],[{...morning,sundayService:'both'}],[{...legacy,category:'Healing Meeting'}],[{...legacy,morningReturnedAt:'bad'}],[{...legacy,morningReturnedAt:legacy.expiresAt}],[{...morning,morningReturnedAt:legacy.morningReturnedAt}]])assert.throws(()=>members.decodeMemberResponse({...data,absences}));
+});
