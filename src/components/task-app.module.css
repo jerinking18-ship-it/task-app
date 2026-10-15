@@ -1950,3 +1950,22 @@
 
 /* Original attribution appears only on an unfinished helper transfer. */
 .originalAssignee{display:flex;align-items:center;gap:5px;flex-basis:100%;font-size:10px;color:#536779;line-height:1.5;overflow-wrap:anywhere;min-width:0}.originalAssignee svg{flex-shrink:0}.originalAssignee strong{font-weight:500;color:#203b59;min-width:0}
+
+/* Confirmed missed work keeps the existing task layout and uses warning red. */
+.missedTag{border-color:#bb3b43;background:#fff0ee;color:#bb3b43}
+.completedBy .missedRole{color:#bb3b43}
+.missedConfirmation{text-align:center}
+.missedConfirmIcon{display:flex;align-items:center;justify-content:center;color:#203b59;margin:0 0 18px}
+.confirmContent .missedFineWarning{display:flex;align-items:center;gap:12px;text-align:left;padding:14px 16px;border-radius:10px;background:#fff0ee;color:#bb3b43;font-size:14px;line-height:1.6}
+.missedFineWarning svg{flex-shrink:0}
+.missedConfirmation .editorActions{justify-content:center}
+@media(max-width:350px){.missedConfirmation .editorActions{gap:8px}.missedConfirmation .editorActions button{padding-left:10px;padding-right:10px;font-size:12px}}
+
+.missedConfirmation .saveButton{background:#d4bc87;color:#101c2d;border:1px solid #c5aa72;font-weight:600}
+.missedConfirmation .saveButton:hover{background:#c6ab72}
+.missedConfirmation .cancelButton{color:#203b59;border-color:#d5d1c8;padding-left:18px;padding-right:18px}
+
+/* Notifications alone uses its approved compact header; other pages unchanged. */
+.notificationsWorkspace .overline{display:none}
+@media(max-width:760px){.notificationsWorkspace .header{min-height:121px;padding:24px 20px 25px}.notificationsWorkspace .accountBar,.notificationsWorkspace .accountBar:not(:has([role=status],[role=alert])){top:24px;right:20px}.notificationsWorkspace .header h1{font-size:25px;letter-spacing:-.7px;font-weight:500}.notificationsWorkspace .accountBar+.header .heading{padding-right:79px;gap:13px}.notificationsWorkspace .date{font-size:11px;margin-top:10px;color:#aebdd0}.notificationsWorkspace .mobileMenu{width:40px;height:44px}.notificationsWorkspace .accountBar button{font-size:11px;padding:0 11px;min-height:44px}}
+@media(max-width:350px){.notificationsWorkspace .header{padding-left:16px;padding-right:16px}.notificationsWorkspace .accountBar,.notificationsWorkspace .accountBar:not(:has([role=status],[role=alert])){right:16px}.notificationsWorkspace .header h1{font-size:21px}.notificationsWorkspace .accountBar+.header .heading{gap:10px;padding-right:76px}}

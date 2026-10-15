@@ -28,7 +28,9 @@
     "test:fines": "node --test scripts/fines.test.mjs",
     "test:fines:sql": "python3 supabase/tests/meeting_fines.py",
     "test:overview": "node --test scripts/meeting-overview.test.mjs",
-    "test:help": "node --test scripts/needs-help.test.mjs"
+    "test:help": "node --test scripts/needs-help.test.mjs",
+    "test:notifications": "node --test scripts/notifications.test.mjs",
+    "test:notifications:sql": "python3 supabase/tests/notifications.py"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -22,3 +22,6 @@
 .problem p{margin:0 0 8px}
 .problem button{min-height:40px;border:1px solid #e7c0be;border-radius:7px;background:#fff;color:#9e3e46;padding:8px 12px;font:inherit;cursor:pointer}
 @media(max-width:760px){.dock{left:0}.meetingHeading h2{font-size:20px}.back{margin-bottom:12px}}
+
+/* Optional personal inbox action beside the existing Attendance button. */
+.dock{gap:10px;align-items:center}

@@ -91,7 +91,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
         const future=Array.isArray(body.future)?body.future.map(row=>mapTask(decodeRow(row),categories)):undefined;
         throw new SaveError(typeof body.message==="string" ? body.message : "Unable to save. Please try again.",response.status,latest,future);
       }
-      if(input.action === "create" || input.action === "update" || input.action === "status" || input.action === "take") decodeRow(body.task);
+      if(input.action === "create" || input.action === "update" || input.action === "status" || input.action === "take" || input.action === "missed") decodeRow(body.task);
       if(input.action === "create_many") {
         if(!Array.isArray(body.tasks) || body.tasks.length !== input.fields.length) throw new SaveError("The save response was incomplete. Refresh before retrying.");
         const rows=body.tasks.map(decodeRow);
@@ -137,6 +137,12 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     setData(current=>current ? {...current,tasks:current.tasks.map(t=>t.id===row.id ? row : t)} : current);
     setDeferred(true); return mapped;
   }
+  async function completeMissed(task:Task) {
+    const reply=await mutate({action:"missed",id:task.id,version:task.updatedAt,confirmed:true});
+    const row=decodeRow(reply.task);const mapped=mapTask(row,data?.categories??[]);
+    setData(current=>current?{...current,tasks:current.tasks.map(t=>t.id===row.id?row:t)}:current);
+    setDeferred(true);return mapped;
+  }
   async function take(task:Task,absenceId:string) {
     const reply=await mutate({action:"take",id:task.id,version:task.updatedAt,absenceId,confirmed:true});
     const row=decodeRow(reply.task);const mapped=mapTask(row,data?.categories??[]);
@@ -179,6 +185,6 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   if(data) tasks=newestFirst(data.tasks.map(t=>mapTask(t,data.categories)));
   const categories:Category[]=data?.categories ?? [];
   return {tasks,categories,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && initialized,
-    loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,toggle,take,saveMany,remove,addCategory,
+    loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,toggle,completeMissed,take,saveMany,remove,addCategory,
     reviewCompleted:()=>completedRequest(),purgeCompleted:(snapshot:CompletedSnapshot)=>completedRequest(snapshot)};
 }
