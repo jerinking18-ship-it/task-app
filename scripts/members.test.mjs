@@ -59,7 +59,7 @@ test("completion attribution is read-only metadata, preserved in mapping and omi
 });
 test("member reads sanitize provider errors; legacy profile-picker helper is absent",async()=>{
  assert.equal(server.chooseMember,undefined);
- for(const [code,status]of [["P0010",409],["23505",409],["23514",400],["42501",401],["P0403",403],["P0409",409],["unexpected",503]]){
+ for(const [code,status]of [["P0010",409],["P0012",409],["23505",409],["23514",400],["42501",401],["P0403",403],["P0409",409],["unexpected",503]]){
  await assert.rejects(()=>server.readMembers({rpc:async()=>({data:null,error:{code,message:"private-provider-data"}})}),error=>error.status===status&&!error.message.includes("private-provider-data"));}
 });
 function fixture({ signedIn = true, data = state, error = null, signOutFails = false } = {}) {
