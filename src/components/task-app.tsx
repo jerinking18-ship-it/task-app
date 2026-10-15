@@ -109,7 +109,7 @@ function sampleTasks(today: string): Task[] {
 const navItems: { view: View; icon: IconName }[] = [
   { view: "Meeting overview", icon: "grid" },
   { view: "All tasks", icon: "list" }, { view: "Today", icon: "calendar" },
-  { view: "Overdue", icon: "clock" }, { view: "Completed", icon: "check" }, {view:"Needs help",icon:"users"}, {view:"Member history",icon:"history"},
+  { view: "Overdue", icon: "clock" }, {view:"Needs help",icon:"users"}, { view: "Completed", icon: "check" }, {view:"Member history",icon:"history"},
 ];
 function categoryClass(category: string) {
   return category === "Sunday Service" ? styles.shopping : category === "Healing Meeting" ? styles.personal : category === "Revival Meeting" ? styles.work : category === "Special Meeting" ? styles.specialMeeting : category === "Woman's Meeting" ? styles.womansMeeting : styles.custom;

@@ -25,3 +25,8 @@
 
 .more{display:flex;align-items:center;justify-content:center;gap:12px;margin:20px 0;color:#7d8288;font-size:11px}.more button{border:1px solid #c8ced5;background:#fffdf9;color:#314d6a;border-radius:7px;padding:8px 12px;min-height:38px}
 @media(max-width:760px){.select select{font-size:12px}}
+
+/* Summary cards filter the existing status list without changing ledger data. */
+.content .summary{display:block;text-align:left;font-family:inherit;color:inherit;cursor:pointer;width:100%;appearance:none}
+.summary.paid{background:#edf5ee;border-color:#bdd7c6}
+.summary.cancelled{background:#f7efdc;border-color:#e3d1a2}
