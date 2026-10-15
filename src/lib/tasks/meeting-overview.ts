@@ -10,7 +10,7 @@ export function automaticOverviewCategory(now: Date): string {
   const day = accountClock(now, "Asia/Kolkata").date;
   const weekday = new Date(`${day}T12:00:00Z`).getUTCDay();
   return ["Sunday Service", "Sunday Service", "Healing Meeting", "Healing Meeting",
-    "Woman's Meeting", "Revival Meeting", "Revival Meeting"][weekday];
+    "Healing Meeting", "Revival Meeting", "Revival Meeting"][weekday];
 }
 
 // Use exactly the category visibility rules, rather than a second reset timer

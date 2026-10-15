@@ -1,7 +1,7 @@
 import { accountClock, inHistory, isAvailable, isOverdue, matchesTask, type Filters, type Task } from "./model";
 
-export const RESET_WEEKDAYS: Record<string, number> = {"Sunday Service":1,"Healing Meeting":4,"Woman's Meeting":5,"Revival Meeting":6};
-export const RESET_LABELS: Record<string, string> = {"Sunday Service":"Monday","Healing Meeting":"Thursday","Woman's Meeting":"Friday","Revival Meeting":"Saturday"};
+export const RESET_WEEKDAYS: Record<string, number> = {"Sunday Service":1,"Healing Meeting":4,"Revival Meeting":6};
+export const RESET_LABELS: Record<string, string> = {"Sunday Service":"Monday","Healing Meeting":"Thursday","Revival Meeting":"Saturday"};
 
 function shiftDay(day: string, amount: number): string {
   const date = new Date(`${day}T12:00:00Z`);

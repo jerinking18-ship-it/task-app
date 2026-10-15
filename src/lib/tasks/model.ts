@@ -1,7 +1,7 @@
 import type { Coverage } from "@/lib/members/absence";
 export type Priority = "None" | "Low" | "Medium" | "High";
 export const PRIORITIES = ["Low", "Medium", "High"] as const;
-export const MEETING_CATEGORIES = ["Sunday Service", "Healing Meeting", "Revival Meeting", "Special Meeting", "Woman's Meeting"];
+export const MEETING_CATEGORIES = ["Sunday Service", "Healing Meeting", "Revival Meeting", "Special Meeting"];
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const MAX_BATCH_TASKS = 20;
 export const REPEATS = ["Off", "Daily", "Weekly", "Monthly"] as const;
@@ -54,7 +54,7 @@ export function blankTask(): Task {
     category: "", reminder: "Off", notification: false, email: false, repeat: "Off", seriesId:null,historyAt:null,availableAt:null,repeatAnchor:null,seriesVersion:"",createdAt: "", updatedAt: "",completedAt:null,completedById:null,completedByName:null, weekdays: [] };
 }
 export function categoryWeekdays(category: string): number[] {
-  const day: Record<string, number> = {"Sunday Service":0,"Healing Meeting":3,"Revival Meeting":5,"Woman's Meeting":4};
+  const day: Record<string, number> = {"Sunday Service":0,"Healing Meeting":3,"Revival Meeting":5};
   return Object.prototype.hasOwnProperty.call(day,category) ? [day[category]] : [];
 }
 export function newTaskDraft(category = ""): Task {
