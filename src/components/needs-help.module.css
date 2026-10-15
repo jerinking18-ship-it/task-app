@@ -1,0 +1,21 @@
+.content{padding-top:24px}
+.meeting{display:flex;align-items:center;justify-content:space-between;gap:15px;margin:26px 0 28px;padding:22px 23px;border:1px solid #e3ded2;border-radius:14px;background:#fffdf9}
+.meeting h2{margin:0;font-size:25px;font-weight:500;color:#20364f;letter-spacing:-.5px}
+.weekday{display:inline-flex;align-items:center;gap:6px;color:#536b83;border:1px solid #d5dfe7;background:#edf2f6;padding:8px 10px;border-radius:8px;font-size:10px;white-space:nowrap}
+.weekday svg{width:13px;height:13px}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.cards>article{min-width:0}
+.sectionIntro{font-size:11px;line-height:1.7;color:#798591;margin:-5px 0 16px}
+.mine{margin-top:23px;border-top:1px solid #e3ded3;padding-top:22px}
+.helpMe{color:#bb3b43;border-color:#df9799;background:#fff0ee}
+.due{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
+.due svg{width:12px;height:12px}
+.take{display:inline-flex;align-items:center;justify-content:center;min-height:44px;flex-shrink:0;background:#1b304b;border:1px solid #1b304b;border-radius:9px;color:#fffdf8;padding:0 15px;font-size:11px!important}
+.waiting{font-size:10px;line-height:1.7;text-align:right;color:#798591}
+.empty{display:flex;align-items:center;gap:12px;padding:18px;border:1px dashed #dcd8cf;border-radius:12px;background:#faf8f3}
+.emptyIcon{display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;border:1px solid #e0ddd4;border-radius:10px;background:#f0eee7;color:#76818b}
+.emptyIcon svg{width:18px;height:18px}
+.empty h3{font-size:11px;font-weight:500;color:#536779;margin:0}
+.empty p{font-size:10px;line-height:1.6;margin:5px 0 0;color:#798591}
+@media(max-width:760px){.content{padding-top:21px}.meeting{margin:24px 0;padding:19px 16px;gap:10px}.meeting h2{font-size:22px}.weekday{font-size:9px;padding:7px 8px}.weekday svg{width:12px;height:12px}.cards{grid-template-columns:1fr;gap:12px}.sectionIntro{font-size:10px}.take{font-size:10px!important;padding:0 13px}.waiting{font-size:9px}.empty{padding:16px}.empty p{font-size:9px}.empty h3{font-size:10px}}
+@media(max-width:350px){.meeting h2{font-size:19px}.meeting{padding:16px 13px}.weekday{font-size:8px}}

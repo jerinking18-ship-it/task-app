@@ -4,14 +4,14 @@ import { useId, useState, type ReactNode } from "react";
 import { accountClock, completionAge, isOverdue, WEEKDAYS, type Task } from "@/lib/tasks/model";
 import { CATEGORY_COLORS } from "@/lib/member-history/model";
 import { automaticOverviewCategory, meetingOverview, overviewTasks, overviewDeadline, type OverviewFilter } from "@/lib/tasks/meeting-overview";
-import { assignmentLabel, isChangedCompletion } from "@/lib/tasks/assignment";
+import { assignmentLabel, isChangedCompletion, isChangedAssignment } from "@/lib/tasks/assignment";
 import { displayMemberName } from "@/lib/members/display-name";
 import { taskCoverage } from "@/lib/members/absence";
 import type { Member } from "@/lib/members/model";
 import styles from "./meeting-overview.module.css";
 
 type SymbolName = "list" | "check" | "warning" | "people" | "arrow" | "clock" | "calendar" | "refresh" | "repeat";
-function Symbol({ name }: { name: SymbolName }) {
+export function Symbol({ name }: { name: SymbolName }) {
   const paths: Record<SymbolName, ReactNode> = {
     list: <><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></>,
     check: <><circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/></>,
@@ -25,9 +25,9 @@ function Symbol({ name }: { name: SymbolName }) {
   };
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
-const dateLabel = (day: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", ...options }).format(new Date(`${day}T12:00:00+05:30`));
+export const dateLabel = (day: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", ...options }).format(new Date(`${day}T12:00:00+05:30`));
 
-type OverviewProps = {
+export type OverviewProps = {
   tasks: Task[]; members: Member[]; currentMemberId?: string; now: Date; coverageNow: Date; workspaceName: string;
   loaded: boolean; ready: boolean; timezone: string | null; loading: boolean; pending: boolean; error: string; deferred: boolean;
   onRefresh: () => void; onSetup: () => void;
@@ -87,7 +87,7 @@ function MeetingSection({ category, tasks, members, currentMemberId, now, covera
           const status = task.completed ? "Completed" : coverage ? own ? "Available" : "Needs help" : overdue ? "Overdue!" : "Active";
           const time = task.time ? new Intl.DateTimeFormat("en-US", {timeZone:"UTC",hour:"numeric",minute:"2-digit",hour12:true}).format(new Date(`2000-01-01T${task.time}:00Z`)) : "";
           return <article key={task.id} className={`${styles.taskCard} ${coverage ? styles.helpTask : ""}`}>
-            <div className={styles.taskHeading}><h4>{task.title}</h4><span className={`${styles.taskState} ${coverage || overdue ? styles.helpState : ""}`}>{coverage ? <Symbol name="people"/> : overdue ? <Symbol name="warning"/> : <i aria-hidden="true"/>}{status}</span></div>
+            <div className={styles.taskHeading}><h4>{task.title}</h4><span className={styles.titleStatuses}>{isChangedAssignment(task) && <span className={styles.changed}>Changed</span>}<span className={`${styles.taskState} ${(coverage && !own) || overdue && !coverage ? styles.helpState : ""} ${coverage && own ? styles.availableState : ""}`}>{coverage ? <Symbol name="people"/> : overdue ? <Symbol name="warning"/> : <i aria-hidden="true"/>}{status}</span></span></div>
             <p className={styles.taskNotes}>{task.notes || "No notes added"}</p>
             <p className={styles.taskContext}>{coverage ? own ? "Your task is available for a teammate." : "A teammate is needed for this task." : assignmentLabel(task,currentMemberId,members)}</p>
             <div className={styles.taskMetadata}>{task.priority !== "None" && <span className={styles.priority} data-priority={task.priority}>{task.priority} priority</span>}{(task.weekdays.length > 0 || task.repeat !== "Off") && <span className={styles.repeatMeta}>{task.weekdays.length > 0 && <span>{task.weekdays.map(day => WEEKDAYS[day].slice(0,3)).join(" · ")}</span>}{task.repeat !== "Off" && <span className={styles.repeatIcon} title={`Repeats ${task.repeat.toLowerCase()}`} aria-label={`Repeats ${task.repeat.toLowerCase()}`}><Symbol name="repeat"/></span>}</span>}{task.completed && isChangedCompletion(task) && <span className={styles.changed}>Changed</span>}</div>

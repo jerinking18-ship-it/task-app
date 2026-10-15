@@ -1936,3 +1936,12 @@
 .overviewWorkspace{position:relative;padding-top:36px;padding-bottom:36px}.overviewWorkspace .accountBar{position:absolute;top:36px;right:40px;padding:0}.overviewWorkspace .header{padding-right:100px}.overviewWorkspace .header h1{font-weight:500}.overviewWorkspace .overline{color:#9d8758;letter-spacing:1.7px}
 @media(max-width:760px){.workspace.overviewWorkspace{padding:0 0 0}.overviewWorkspace .header{padding:24px 18px 26px;min-height:118px}.overviewWorkspace .header h1{font-size:22px;letter-spacing:-.65px;white-space:nowrap;overflow-wrap:normal}.overviewWorkspace .accountBar,.overviewWorkspace .accountBar:not(:has([role=status],[role=alert])){top:24px;right:18px}.overviewWorkspace .accountBar+.header .heading{padding-right:72px;gap:11px}.overviewWorkspace .mobileMenu{width:42px;height:44px}.overviewWorkspace .date{font-size:10px;color:#9faec1}.overviewWorkspace .accountBar button{font-size:10px;padding-left:10px;padding-right:10px}}
 @media(max-width:350px){.overviewWorkspace .header{padding-left:14px;padding-right:14px}.overviewWorkspace .accountBar,.overviewWorkspace .accountBar:not(:has([role=status],[role=alert])){right:14px}.overviewWorkspace .header h1{font-size:18px}.overviewWorkspace .accountBar+.header .heading{gap:8px;padding-right:64px}}
+
+/* Needs help keeps the existing header/search, with actions limited to claims. */
+.needsHelpWorkspace .headerActions{display:block;margin-top:24px}.needsHelpWorkspace .headerActions:after{display:none}.needsHelpWorkspace .search{max-width:460px;width:100%}
+.titleStatuses{display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0}
+@media(max-width:760px){.needsHelpWorkspace .header{padding-bottom:26px}.needsHelpWorkspace .headerActions{margin-top:26px}.needsHelpWorkspace .search{max-width:none;background:#1d2a3d;border:1px solid #4d6580;min-height:47px;border-radius:10px}.needsHelpWorkspace .search input{color:#fff}.needsHelpWorkspace .search input::placeholder{color:#9faec1}}
+@media(max-width:350px){.titleStatuses{flex-wrap:wrap;max-width:120px;gap:4px}}
+
+.needsHelpWorkspace .header{display:block}.needsHelpWorkspace .headerActions{width:100%}
+@media(min-width:761px){.needsHelpWorkspace .header{padding-right:0}.needsHelpWorkspace .heading{padding-right:100px}}

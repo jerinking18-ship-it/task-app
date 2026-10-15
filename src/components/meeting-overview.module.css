@@ -55,7 +55,7 @@
 .lower>section,.lower>div{min-width:0}
 .sectionHead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}
 .sectionHead h3{margin:0;font-size:17px;font-weight:500;letter-spacing:-.3px}
-.sectionHead>span{font-size:10px;color:#7f817f;background:#eae7df;border-radius:20px;padding:5px 9px;white-space:nowrap}
+.sectionHead>span{font-size:10px;color:#203b59;background:#e8edf3;border-radius:20px;padding:5px 9px;white-space:nowrap}
 .taskCards{display:grid;gap:12px}
 .taskCard{background:#fffdf9;border:1px solid #e2ded6;border-radius:14px;padding:18px 19px;box-shadow:0 3px 12px #20364f03;min-width:0}
 .helpTask{border-color:#e9d9d1}
@@ -215,3 +215,6 @@
 .taskAssignee strong{flex-wrap:wrap}
 }
 
+
+.titleStatuses{display:inline-flex;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0}.availableState{color:#2f7253;border-color:#a8c8b5;background:#edf5ee}
+@media(max-width:350px){.titleStatuses{flex-wrap:wrap;max-width:120px;gap:4px}}
