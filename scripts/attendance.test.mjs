@@ -51,3 +51,20 @@ test('Special Meetings are separated by selected date, deduplicated and gated by
  assert.equal(attendance.attendanceMeetings([],now).length,1);
  assert.equal(attendance.attendanceMeetings([task({id:'old',completed:true,completedAt:'2026-10-14T00:00:00Z',date:'2026-10-14'})],new Date('2026-10-15T24:00:00+05:30')).length,1);
 });
+
+test('Sunday Attendance splits scopes and preserves a legacy both mark until its service return/expiry',()=>{
+ const time=new Date('2026-10-18T14:00:00+05:30');
+ const sunday=(patch={})=>absent({category:'Sunday Service',createdAt:'2026-10-18T00:00:00+05:30',expiresAt:'2026-10-20T00:00:00+05:30',...patch});
+ const data=state([sunday({sundayService:'morning'}),sunday({id:'legacy',memberId:'jerin',morningReturnedAt:'2026-10-18T10:00:00+05:30'})]);
+ assert.deepEqual(ids(attendance.meetingAttendance(data,'Sunday Service',time,null,'morning').absent),['sarah']);
+ assert.deepEqual(ids(attendance.meetingAttendance(data,'Sunday Service',time,null,'evening').absent),['jerin']);
+ assert.deepEqual(Array.from(attendance.attendanceMeetings([],time),m=>m.sundayService),['morning','evening']);
+ assert.equal(attendance.meetingAttendance(data,'Sunday Service',new Date('2026-10-20T00:00:00+05:30'),null,'evening').absent.length,0);
+ const legacy=state([sunday()]);for(const service of ['morning','evening'])assert.equal(attendance.meetingAttendance(legacy,'Sunday Service',time,null,service).absent.length,1);
+});
+test('a helper absent only in Morning may take an Evening task but not a Morning task',()=>{
+ const time=new Date('2026-10-18T14:00:00+05:30');const data=state([absent({memberId:'jerin',category:'Sunday Service',sundayService:'morning',createdAt:'2026-10-18T00:00:00+05:30',expiresAt:'2026-10-20T00:00:00+05:30'})]);
+ const task={...model.blankTask(),category:'Sunday Service',assignedToId:'sarah',coverage:{memberId:'sarah',expiresAt:'2026-10-20T00:00:00+05:30'}};
+ assert.equal(absence.canTakeTask({...task,sundayService:'morning'},data,time),false);
+ assert.equal(absence.canTakeTask({...task,sundayService:'evening'},data,time),true);
+});

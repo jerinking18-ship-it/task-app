@@ -63,14 +63,32 @@ function decodeState(value: unknown, format: "database" | "api"): MemberState {
       if(!isRecord(a))throw new Error("Incomplete absence response.");
       const memberId=format==="database"?a.member_id:a.memberId,categoryId=format==="database"?a.category_id:a.categoryId;
       const createdAt=format==="database"?a.created_at:a.createdAt,expiresAt=format==="database"?a.expires_at:a.expiresAt;
+      const sundayService=(format==="database"?a.sunday_service:a.sundayService)??null;
+      const morningReturnedAt=(format==="database"?a.morning_returned_at:a.morningReturnedAt)??null;
+      const eveningReturnedAt=(format==="database"?a.evening_returned_at:a.eveningReturnedAt)??null;
       const meetingDate=(format==="database"?a.meeting_date:a.meetingDate)??null;
       if(!uuid(a.id)||!uuid(memberId)||!members.some(m=>m.id===memberId)||!uuid(categoryId)||typeof a.category!=="string"
         ||!["Sunday Service","Healing Meeting","Revival Meeting","Special Meeting"].includes(a.category)
         ||!timestamp(createdAt)||!timestamp(expiresAt)||Date.parse(expiresAt)<=Date.parse(createdAt)
         ||(a.category==="Special Meeting"?!date(meetingDate):meetingDate!==null))throw new Error("Incomplete absence response.");
-      absences.push({id:a.id,memberId,categoryId,category:a.category,createdAt,expiresAt,meetingDate:meetingDate as string|null});
+      if((sundayService!==null&&!['morning','evening'].includes(sundayService as string))
+        ||(a.category!=="Sunday Service"&&(sundayService!==null||morningReturnedAt!==null||eveningReturnedAt!==null))
+        ||(sundayService!==null&&(morningReturnedAt!==null||eveningReturnedAt!==null))
+        ||[morningReturnedAt,eveningReturnedAt].some(t=>t!==null&&(!timestamp(t)||Date.parse(t)<Date.parse(createdAt)||Date.parse(t)>=Date.parse(expiresAt))))throw new Error("Incomplete absence response.");
+      absences.push({...(sundayService===null?{}:{sundayService:sundayService as "morning"|"evening"}),
+        ...(morningReturnedAt===null?{}:{morningReturnedAt:morningReturnedAt as string}),...(eveningReturnedAt===null?{}:{eveningReturnedAt:eveningReturnedAt as string}),id:a.id,memberId,categoryId,category:a.category,createdAt,expiresAt,meetingDate:meetingDate as string|null});
     }
-    if(new Set(absences.map(a=>a.memberId+":"+a.categoryId)).size!==absences.length)throw new Error("Duplicate active absence response.");
+    const absenceClock=typeof serverNow==="string"?Date.parse(serverNow):Date.now();
+    const scopes=absences.flatMap(a=>{
+      const key=a.memberId+":"+a.categoryId;
+      if(a.category!=="Sunday Service")return [key];
+      const services=a.sundayService?[a.sundayService]:["morning","evening"].filter(service=>{
+        const returned=service==="morning"?a.morningReturnedAt:a.eveningReturnedAt;
+        return !returned||Date.parse(returned)>absenceClock;
+      });
+      return services.map(service=>key+":"+service);
+    });
+    if(new Set(absences.map(a=>a.id)).size!==absences.length||new Set(scopes).size!==scopes.length)throw new Error("Duplicate active absence response.");
   }
   return { ...(value.absences===undefined?{}:{absences}), ...(workspace===undefined?{}:{workspace}),...(value.invitations===undefined?{}:{invitations}), current, members, ...(serverNow===undefined?{}:{serverNow}) };
 }
