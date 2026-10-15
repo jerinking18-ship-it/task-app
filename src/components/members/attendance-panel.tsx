@@ -2,6 +2,7 @@
 import NoMeeting from "../no-meeting";
 import { automaticOverviewCategory } from "@/lib/tasks/meeting-overview";
 
+import type {ReactNode} from "react";
 import type { Member, MemberState } from "@/lib/members/model";
 import { attendanceMeetings, meetingAttendance } from "@/lib/members/attendance";
 import type { Task } from "@/lib/tasks/model";
@@ -12,8 +13,8 @@ function AttendanceIcon() {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 2h6v4H9zM8 13l2 2 5-5"/></svg>;
 }
 
-export function AttendanceEntry({ onOpen, disabled }: { onOpen: () => void; disabled: boolean }) {
-  return <div className={styles.dock}><button type="button" className={styles.entry} disabled={disabled} onClick={onOpen}><AttendanceIcon/>Attendance</button></div>;
+export function AttendanceEntry({ onOpen, disabled,children }: { onOpen: () => void; disabled: boolean;children?:ReactNode }) {
+  return <div className={styles.dock}><button type="button" className={styles.entry} disabled={disabled} onClick={onOpen}><AttendanceIcon/>Attendance</button>{children}</div>;
 }
 
 type Props = {

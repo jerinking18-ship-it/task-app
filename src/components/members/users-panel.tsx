@@ -5,12 +5,13 @@ import { requestWorkspace } from "@/lib/workspace/client";
 import { isRecord } from "@/lib/tasks/validation";
 import type { WorkspaceAction } from "@/lib/workspace/model";
 import styles from "./users.module.css";
+import {NotificationsEntry} from "../notifications/notifications-panel";
 import { AttendanceEntry } from "./attendance-panel";
 import attendanceStyles from "./attendance-page.module.css";
 type DialogState={kind:"invite";invitation?:Invitation}|{kind:"role";member:Member;role:"member"|"coordinator"}|{kind:"transfer"}|{kind:"revoke";invitation:Invitation};
 function SmallIcon({name}:{name:"refresh"|"lock"}){return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{name==="lock"?<><rect x="6" y="10" width="12" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></>:<><path d="M20 8a8 8 0 0 0-14-3L3 8m0-5v5h5M4 16a8 8 0 0 0 14 3l3-3m0 5v-5h-5"/></>}</svg>;}
 function UsersIcon(){return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2"/></svg>;}
-export default function UsersPanel({onAttendance,state,search,loading,error,onRefresh,onSaved,now}:{onAttendance:()=>void;state:MemberState|null;search:string;loading:boolean;error:string;onRefresh:()=>void;onSaved:(state:MemberState)=>void;now:Date}){
+export default function UsersPanel({onNotifications,unreadCount=0,notificationsReady=false,onAttendance,state,search,loading,error,onRefresh,onSaved,now}:{onNotifications?:()=>void;unreadCount?:number;notificationsReady?:boolean;onAttendance:()=>void;state:MemberState|null;search:string;loading:boolean;error:string;onRefresh:()=>void;onSaved:(state:MemberState)=>void;now:Date}){
  const [dialog,setDialog]=useState<DialogState|null>(null);const [pending,setPending]=useState(false);const [problem,setProblem]=useState("");const [email,setEmail]=useState("");const [role,setRole]=useState<"member"|"coordinator">("member");const [recipient,setRecipient]=useState("");const [link,setLink]=useState("");const [copied,setCopied]=useState(false);const busy=useRef(false);const modal=useRef<HTMLDialogElement>(null);const trigger=useRef<HTMLElement|null>(null);
  const owner=state?.current?.role==="owner";
  const members=state?[...state.members].sort((a,b)=>Number(b.id===state.current?.id)-Number(a.id===state.current?.id)):[];
@@ -38,7 +39,7 @@ export default function UsersPanel({onAttendance,state,search,loading,error,onRe
   finally{busy.current=false;setPending(false);}
  }
  return <section className={`${styles.panel} ${attendanceStyles.withEntry}`} aria-label="Workspace users" aria-busy={loading||pending}>
-  <AttendanceEntry onOpen={onAttendance} disabled={pending||!state?.current||!state.workspace}/><div className={styles.workspace}><span className={styles.workspaceDot}/><strong>{state?.workspace?.name??"Workspace"}</strong><span className={styles.capacity}>{members.length} of {MEMBER_LIMIT} members{reserved>0&&<small> · {reserved} reserved</small>}</span></div>
+  <AttendanceEntry onOpen={onAttendance} disabled={pending||!state?.current||!state.workspace}>{onNotifications&&<NotificationsEntry count={unreadCount}ready={notificationsReady}disabled={pending||!state?.current||!state.workspace}onOpen={onNotifications}/>}</AttendanceEntry><div className={styles.workspace}><span className={styles.workspaceDot}/><strong>{state?.workspace?.name??"Workspace"}</strong><span className={styles.capacity}>{members.length} of {MEMBER_LIMIT} members{reserved>0&&<small> · {reserved} reserved</small>}</span></div>
   {owner&&<button className={`${styles.gold} ${styles.mobileInvite}`} disabled={loading||pending||used>=MEMBER_LIMIT} onClick={()=>open({kind:"invite"})}><span aria-hidden="true">＋</span>Invite member</button>}
   <section className={styles.teamCard} aria-label="Team members">
   <div className={styles.top}><div><h2>Team members</h2><p><span className={styles.onlineDot}/>{members.filter(m=>memberActive(m,now)).length} active now</p></div><div className={styles.topActions}><button className={styles.refresh} aria-label={loading?"Refreshing members":"Refresh members"} title="Refresh members" disabled={loading||pending} onClick={onRefresh}><SmallIcon name="refresh"/></button>{owner&&<button className={`${styles.gold} ${styles.desktopInvite}`} disabled={loading||pending||used>=MEMBER_LIMIT} onClick={()=>open({kind:"invite"})}><span aria-hidden="true">＋</span>Invite member</button>}</div></div>
