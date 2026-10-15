@@ -9,7 +9,7 @@ do $$begin
  assert public.task_app_history_expires('Sunday Service','2026-10-12 23:49:59+05:30',null,null)='2026-10-12 23:50+05:30'::timestamptz;
  assert public.task_app_history_expires('Sunday Service','2026-10-12 23:50+05:30',null,null)='2026-10-19 23:50+05:30'::timestamptz;
  assert public.task_app_history_expires('Healing Meeting','2026-10-16 09:00+05:30',null,null)='2026-10-22 23:50+05:30'::timestamptz;
- assert public.task_app_history_expires('Woman''s Meeting','2026-12-31 23:59+05:30',null,null)='2027-01-01 23:50+05:30'::timestamptz;
+ assert public.task_app_history_expires('Special Meeting','2026-12-31 23:59+05:30',null,null)='2027-01-01 23:50+05:30'::timestamptz;
  assert public.task_app_history_expires('Revival Meeting','2026-10-16 12:00+05:30',null,null)='2026-10-17 23:50+05:30'::timestamptz;
  assert public.task_app_history_expires('Special Meeting','2026-10-14 12:00+05:30','2026-10-14',array[3]::smallint[])='2026-10-15 23:50+05:30'::timestamptz;
  assert public.task_app_history_expires('Special Meeting','2026-10-15 23:50+05:30','2026-10-14',array[3]::smallint[])='2026-10-22 23:50+05:30'::timestamptz;
