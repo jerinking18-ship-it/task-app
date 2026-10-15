@@ -27,7 +27,10 @@ try:
  sql((root/'supabase/tests/local-bootstrap.sql').read_text())
  sql("alter table auth.users add column email text,add column email_confirmed_at timestamptz,add column banned_until timestamptz;create table auth.sessions(id uuid primary key,user_id uuid not null references auth.users(id) on delete cascade,not_after timestamptz);create function auth.jwt()returns jsonb language sql stable as $$select jsonb_build_object('sub',auth.uid(),'session_id',nullif(current_setting('request.jwt.claim.session_id',true),''))$$;grant execute on function auth.jwt()to anon,authenticated;")
  sql((root/'supabase/tests/local-realtime-bootstrap.sql').read_text())
- for path in sorted((root/'supabase/migrations').glob('*.sql')):sql(path.read_text())
+ # Historical coverage/unmark regression through022. The deterministic
+ # attendance_action_window.py suite exercises023 and its meeting-day limits.
+ for path in sorted((root/'supabase/migrations').glob('*.sql')):
+  if path.name<'202610150023':sql(path.read_text())
  for n,u in enumerate(users,1):sql(f"insert into auth.users(id,email,email_confirmed_at)values('{u}','person{n}@example.test',{'null' if u==unverified else 'now()'});insert into auth.sessions(id,user_id) values('{sessions[u]}','{u}');")
  sql(f"select public.task_app_bootstrap_workspace('{owner}','Jerin');select public.task_app_bootstrap_workspace('{outsider}','Other Owner');")
  om=rpc('task_app_member_state','',owner)['current']['id']
