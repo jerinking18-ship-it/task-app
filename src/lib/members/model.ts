@@ -65,7 +65,7 @@ function decodeState(value: unknown, format: "database" | "api"): MemberState {
       const createdAt=format==="database"?a.created_at:a.createdAt,expiresAt=format==="database"?a.expires_at:a.expiresAt;
       const meetingDate=(format==="database"?a.meeting_date:a.meetingDate)??null;
       if(!uuid(a.id)||!uuid(memberId)||!members.some(m=>m.id===memberId)||!uuid(categoryId)||typeof a.category!=="string"
-        ||!["Sunday Service","Healing Meeting","Revival Meeting","Special Meeting","Woman's Meeting"].includes(a.category)
+        ||!["Sunday Service","Healing Meeting","Revival Meeting","Special Meeting"].includes(a.category)
         ||!timestamp(createdAt)||!timestamp(expiresAt)||Date.parse(expiresAt)<=Date.parse(createdAt)
         ||(a.category==="Special Meeting"?!date(meetingDate):meetingDate!==null))throw new Error("Incomplete absence response.");
       absences.push({id:a.id,memberId,categoryId,category:a.category,createdAt,expiresAt,meetingDate:meetingDate as string|null});

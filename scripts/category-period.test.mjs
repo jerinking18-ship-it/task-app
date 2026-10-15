@@ -18,7 +18,7 @@ function visible(row,now){const d=new Date(now),clock=model.accountClock(d,'Asia
 function matches(row,f,now){const d=new Date(now),clock=model.accountClock(d,'Asia/Kolkata');return periods.matchesCategoryTask(row,f,clock.date,clock.time,d);}
 
 test('Each weekly category hides completed and overdue rows at exactly its own India reset',()=>{
-  for(const [category,date] of [['Sunday Service','2026-10-12'],['Healing Meeting','2026-10-15'],["Woman's Meeting",'2026-10-16'],['Revival Meeting','2026-10-17']]) {
+  for(const [category,date] of [['Sunday Service','2026-10-12'],['Healing Meeting','2026-10-15'],['Revival Meeting','2026-10-17']]) {
     const before=date+'T18:19:59.999Z',at=date+'T18:20:00Z';
     for(const completed of [false,true]) {
       const row=task({category,completed,completedAt:completed?stamp:null});
@@ -83,7 +83,7 @@ test('Date-only, exact timed overdue boundaries and reopened tasks keep existing
   assert.equal(visible({...oldDone,completed:false,completedAt:null},'2026-10-14T12:00:00Z'),true,'Reopened undated task is active again');
 });
 test('When due and reset coincide, all four weekly categories clear due work without hiding future occurrences',()=>{
-  for(const [category,date] of [['Sunday Service','2026-10-12'],['Healing Meeting','2026-10-15'],["Woman's Meeting",'2026-10-16'],['Revival Meeting','2026-10-17']]) {
+  for(const [category,date] of [['Sunday Service','2026-10-12'],['Healing Meeting','2026-10-15'],['Revival Meeting','2026-10-17']]) {
     const row=task({category,date,time:'23:50'}),at=date+'T18:20:00Z';
     assert.equal(visible(row,date+'T18:19:59Z'),true);
     assert.equal(visible(row,at),false);
@@ -109,12 +109,18 @@ test('Future availability, existing repeat History, legacy timestamps and unknow
   assert.equal(visible(task({category:'Legacy category'}),now),true);
 });
 test('Year rollover uses India dates and retains normal filters in category and dedicated views',()=>{
-  const row=task({category:"Woman's Meeting",completed:true,completedAt:'2026-12-31T19:00:00Z'});
-  assert.equal(visible(row,'2027-01-01T18:19:59Z'),true);
-  assert.equal(visible(row,'2027-01-01T18:20:00Z'),false);
+  const row=task({category:'Revival Meeting',completed:true,completedAt:'2026-12-31T19:00:00Z'});
+  assert.equal(visible(row,'2027-01-02T18:19:59Z'),true);
+  assert.equal(visible(row,'2027-01-02T18:20:00Z'),false);
   const overdue=task({title:'Check camera',notes:'Platform',priority:'High'});
   const f=filters({view:'Overdue',status:'Overdue',search:'camera',priority:'High'});
   assert.equal(matches(overdue,f,'2026-10-14T12:00:00Z'),true);
   assert.equal(matches(overdue,{...f,search:'missing'},'2026-10-14T12:00:00Z'),false);
   assert.equal(matches(overdue,{...f,category:'Healing Meeting'},'2026-10-14T12:00:00Z'),false);
+});
+
+test('Supported meeting categories and reset rules contain exactly the four retained meetings',()=>{
+ assert.deepEqual(Array.from(model.MEETING_CATEGORIES),['Sunday Service','Healing Meeting','Revival Meeting','Special Meeting']);
+ assert.deepEqual(Object.keys(periods.RESET_WEEKDAYS).sort(),['Healing Meeting','Revival Meeting','Sunday Service']);
+ assert.deepEqual(Array.from(model.categoryWeekdays('Sunday Service')),[0]);assert.deepEqual(Array.from(model.categoryWeekdays('Healing Meeting')),[3]);assert.deepEqual(Array.from(model.categoryWeekdays('Revival Meeting')),[5]);assert.equal(model.categoryWeekdays('Special Meeting').length,0);
 });

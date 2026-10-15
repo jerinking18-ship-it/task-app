@@ -5,8 +5,8 @@ for who in [users[14],member,unverified]:expect('Member/departed/unverified fine
 expect('private ledger table denied','select * from public.task_fines;',owner,'42501')
 expect('client cannot assess another workspace',f"select public.task_app_assess_fines('{owner}',now());",owner,'42501')
 expect('client cannot enable fines','select public.task_app_enable_fines();',owner,'42501')
-for category,day in [('Sunday Service','2026-10-12'),('Healing Meeting','2026-10-15'),("Woman's Meeting",'2026-10-16'),('Revival Meeting','2026-10-17'),('Special Meeting','2026-10-12')]:
- scheduled={'Sunday Service':'2026-10-11','Healing Meeting':'2026-10-14',"Woman's Meeting":'2026-10-15','Revival Meeting':'2026-10-16','Special Meeting':'2026-10-11'}[category]
+for category,day in [('Sunday Service','2026-10-12'),('Healing Meeting','2026-10-15'),('Revival Meeting','2026-10-17'),('Special Meeting','2026-10-12')]:
+ scheduled={'Sunday Service':'2026-10-11','Healing Meeting':'2026-10-14','Revival Meeting':'2026-10-16','Special Meeting':'2026-10-11'}[category]
  safe=category.replace("'","''")
  check('05:00 India cutoff '+category,sql(f"select public.task_app_fine_cutoff('{safe}','{scheduled}','23:50')=('{day}T05:00:00+05:30')::timestamptz;")=='t')
 check('future custom due time never fined early',sql("select public.task_app_fine_cutoff('Sunday Service','2026-10-12','23:50')='2026-10-19T05:00:00+05:30'::timestamptz;")=='t')

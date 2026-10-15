@@ -35,7 +35,7 @@ await mkdir(path.join(dir,'src/app/api/workspace'),{recursive:true});
 await writeFile(path.join(dir,'src/app/api/workspace/route.ts'),stateSource+`export async function POST(request:Request){const action=await request.json();if((await stateForRequest()).current.role!=='owner')return Response.json({message:'Your current role does not allow this action.'},{status:403});if(action.action==='invite')return Response.json({token:'a'.repeat(64),expires_at:new Date(Date.now()+7*86400000).toISOString(),id:crypto.randomUUID()});return Response.json(await stateForRequest());}`);
 await mkdir(path.join(dir,'src/app/api/member-history'),{recursive:true});
 await writeFile(path.join(dir,'src/app/api/member-history/route.ts'),`export async function GET(){return Response.json({serverNow:new Date().toISOString(),members:${JSON.stringify(membersState.members.map(m=>({id:m.id,name:m.name})))},totals:[],entries:[],specialWindows:[]});}`);
-const categoryNames=['Sunday Service','Healing Meeting','Revival Meeting','Special Meeting',"Woman's Meeting"];
+const categoryNames=['Sunday Service','Healing Meeting','Revival Meeting','Special Meeting'];
 const categories=categoryNames.map((name,index)=>({id:`00000000-0000-4000-8000-${String(100+index).padStart(12,'0')}`,name}));
 const stamp='2026-10-11T07:25:00Z';const today='2026-10-12';
 const base={notes:'Review the team and meeting details',status:'active',due_date:today,due_time:'12:55:00',priority:'medium',weekdays:[],repeat_rule:'off',series_id:null,history_at:null,available_at:null,repeat_anchor_day:null,created_at:stamp,updated_at:stamp,completed_at:null,completed_by_member_id:null,completed_by_name:null,deleted_at:null,deleted_by_name:null};
