@@ -21,13 +21,13 @@ The modern Users page keeps You first, member search, capacity, role controls an
 
 ## Meeting attendance and team coverage
 
-Migration016 adds self-marked absence for a meeting category. Special Meeting requires its date and ends at23:50 India time the following day. Other categories use their existing category deadlines. Attendance clears automatically; no early-return control is provided. Users shows a separate Absent members list without changing online status.
+Migration016 adds self-marked absence for a meeting category. Special Meeting requires its date and ends at23:50 India time the following day. Other categories use their existing category deadlines. Attendance clears automatically at the meeting deadline. Migration020 adds a confirmed, self-only Unmark absent action. Returning ends the attendance interval without deleting its history or claimed-task provenance. Unclaimed work returns to the original member’s control; tasks already taken stay with the teammate. Users removes only the returned meeting, or the person after their last active absence ends. Historical fine exemptions remain intact; future cutoffs after return use the ended interval. Users shows a separate Absent members list without changing online status.
 
 Only unfinished, available work in that meeting period becomes available for a teammate to take. A confirmed, version-checked claim assigns only that occurrence, with one winner across concurrent requests. The absent assignee cannot complete it before another eligible member takes it. Helpers absent for the same meeting cannot take it. The new assignee alone can complete/reopen; actual completion attribution and existing annual-credit rules remain separate. Future repeat assignments and schedules stay unchanged. Expiry removes availability, not tasks or accounts; a successful claim stays assigned to its helper. Members gain only this narrowly scoped claim action, not general task editing, deletion, restoration or template access.
 
 Task titles, template titles/names and member-name inputs capitalize the first typed letter while preserving later casing. Credentials, notes, search and existing saved content are unchanged.
 
-Migration017 adds a read-only original-assignee lookup for taken occurrences. A completed taken task displays its source assignee separately from the helper who actually completed it; completion and reopening permissions still belong to the helper. Active released work shows a red Help me badge to teammates, while its absent assignee sees Available. My profile's meeting dropdown orders Sunday Service, Healing Meeting, Woman's Meeting, Revival Meeting, then Special Meeting.
+Migration017 adds a read-only original-assignee lookup for taken occurrences. A completed taken task displays its source assignee separately from the helper who actually completed it; completion and reopening permissions still belong to the helper. Active released work shows a red Help me badge to teammates, while its absent assignee sees Available. My profile automatically opens the regular meeting using India weekdays, with a separate dated Special Meeting form. The current meeting and status sit above the title; attendance actions remain outside the title box. Sunday Service absence ends Monday23:50 before Tuesday’s Healing Meeting opens. Other existing category deadlines remain unchanged.
 
 ## Current member names and completed coverage
 
@@ -73,6 +73,7 @@ npm run test:absence
 npm run test:absence:sql
 npm run test:fines
 npm run test:fines:sql
+python3 supabase/tests/unmark_absence.py
 ```
 
 The Node suite uses local fixtures, no real credentials. The workspace SQL runner uses an already-installed `postgres:16-alpine` Docker image with `--pull=never`, no network/ports/persistent volume and removes its disposable container. It tests the actual migrations and forbidden database access using fictional Auth/session identities. **Never run local Auth fixtures or earlier reset scripts against hosted Supabase.**
@@ -81,6 +82,10 @@ For isolated browser QA, `node scripts/workspace-ui-fixture.mjs` creates disposa
 
 ## Release boundary
 
-Keep private planning, memory, screenshots, bootstrap identity details, database exports and environment values out of the public release. For this release, apply only reviewed new migration019 after checking existing migration018 and function fingerprints; never replay applied001–018, Owner bootstrap or any completed fresh-data reset. Protected initial Owner setup must preserve the existing verified account/password and refuse unexpected mappings or data. Read-only schema/privilege verification is in `supabase/verification/20261014_workspace_assignment_schema_checks.sql` and `supabase/verification/20261014_absence_coverage_schema_checks.sql` and `supabase/verification/20261014_coverage_original_assignee_checks.sql`.
+Keep private planning, memory, screenshots, bootstrap identity details, database exports and environment values out of the public release. For this release, apply only reviewed new migration020 after checking the existing migration019 baseline and function fingerprints; never replay applied001–019, fine activation/Cron installers, Owner bootstrap or any completed fresh-data reset. Protected initial Owner setup must preserve the existing verified account/password and refuse unexpected mappings or data. Read-only schema/privilege verification is in `supabase/verification/20261014_workspace_assignment_schema_checks.sql` and `supabase/verification/20261014_absence_coverage_schema_checks.sql` and `supabase/verification/20261014_coverage_original_assignee_checks.sql`.
 
 Hosted database/access changes, real invitations/account tests and Vercel publication require explicit approval. Local tests are evidence of local behavior, not proof of live email delivery, cross-device behavior or a hosted deployment.
+
+## Current interface refinements
+
+Needs help appears above Completed in the shared menu. Meeting overview and Needs help keep dark navy count pills; other task totals remain plain dark navy text. The extra overview automatic-opening labels and Needs help weekday badge are omitted without changing day selection. Fines summary buttons filter Outstanding, Paid or Cancelled through the existing status state; fixed red/green/gold borders and light matching fills do not change when selected. Fine cards label the existing cutoff timestamp “Fined”. Existing page layouts and task rules are unchanged.
