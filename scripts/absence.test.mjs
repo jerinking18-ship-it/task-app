@@ -109,3 +109,18 @@ test('grouped absent list clears each expired meeting and removes the person onl
  assert.equal(absence.absentMemberGroups(groupedState,new Date(later)).length,0);
  assert.equal(absence.absentMemberGroups(groupedState,new Date('2026-10-14T05:59:59Z')).length,0);
 });
+
+test('self-unmark requires an exact absence expiry and confirmation without injected identity',()=>{
+ const input={action:'unmarkAbsent',id:a.id,expiresAt:end,confirmed:true};
+ assert.ok(workspace.workspaceAction(input));
+ assert.deepEqual(Object.keys(workspace.workspaceRpc(input).args).sort(),['absence_id','confirmed','expected_expires_at']);
+ assert.equal(workspace.workspaceRpc(input).name,'task_app_unmark_absent');
+ for(const changed of [{id:'fake'},{expiresAt:'bad'},{confirmed:false},{memberId:person.id},{categoryId:a.categoryId},{expiresAt:undefined}])assert.equal(workspace.workspaceAction({...input,...changed}),null);
+});
+test('unmark response removes only the returned meeting from Absent members',()=>{
+ const second={...a,id:id(31),categoryId:id(32),category:'Sunday Service',expiresAt:'2026-10-19T18:20:00Z'};
+ const now=new Date('2026-10-14T07:00:00Z');
+ assert.deepEqual(Array.from(absence.absentMemberGroups({...state,absences:[a,second]},now)[0].categories),['Healing Meeting','Sunday Service']);
+ assert.deepEqual(Array.from(absence.absentMemberGroups({...state,absences:[second]},now)[0].categories),['Sunday Service']);
+ assert.equal(absence.absentMemberGroups({...state,absences:[]},now).length,0);
+});
