@@ -11,7 +11,7 @@ const overview=load('../src/lib/tasks/meeting-overview.ts',{'./model':model,'./m
 const help=load('../src/lib/tasks/needs-help.ts',{'./meeting-overview':overview});
 const assignment=load('../src/lib/tasks/assignment.ts',{'./model':model,'./meeting-period':period,'@/lib/members/display-name':load('../src/lib/members/display-name.ts')});
 const now=new Date('2026-10-15T12:00:00+05:30');
-const coverage={absenceId:'absence',memberId:'sarah',memberName:'Sarah',expiresAt:'2026-10-16T23:50:00+05:30'};
+const coverage={absenceId:'absence',memberId:'sarah',memberName:'Sarah',expiresAt:'2026-10-16T24:00:00+05:30'};
 const row=(fields={})=>({...model.blankTask(),id:'task',title:'Test sound',notes:'Check microphones',category:'Healing Meeting',assignedToId:'sarah',coverage,date:'2026-10-15',time:'23:50',createdAt:'2026-10-14T06:00:00Z',...fields});
 const ids=rows=>Array.from(rows,x=>x.id);
 
@@ -26,15 +26,15 @@ test('Search filters both own and other sections by title/notes while the menu c
  assert.deepEqual(ids(result.others),['other']);assert.deepEqual(ids(result.mine),['mine']);assert.equal(help.needsHelpCount(rows,now),3);
 });
 test('Menu count follows India weekdays with Special separate, independent of viewer or searches',()=>{
- const expiry='2026-10-20T23:50:00+05:30';
+ const expiry='2026-10-20T24:00:00+05:30';
  const rows=[row({id:'healing',date:'2026-10-22',coverage:{...coverage,expiresAt:expiry}}),row({id:'revival',category:'Revival Meeting',date:'2026-10-16',coverage:{...coverage,expiresAt:expiry}}),row({id:'special',category:'Special Meeting',date:'2026-10-16',coverage:{...coverage,expiresAt:expiry}})];
- assert.equal(help.needsHelpCount(rows,new Date('2026-10-15T23:59:59.999+05:30')),2);
+ assert.equal(help.needsHelpCount(rows,new Date('2026-10-15T23:59:59.999+05:30')),1);
  assert.equal(help.needsHelpCount(rows,new Date('2026-10-16T00:00:00+05:30')),2);
  assert.deepEqual(ids(help.needsHelpMeeting(rows,'Revival Meeting','jerin',new Date('2026-10-16T00:00:00+05:30')).others),['revival']);
 });
-test('Each category release leaves at its exact India 23:50 deadline, including Special; server-adjusted expiry is respected',()=>{
+test('Each category release leaves at its exact India midnight boundary, including Special; server-adjusted expiry is respected',()=>{
  for(const [category,meeting,deadline] of [['Sunday Service','2026-10-11','2026-10-12'],['Healing Meeting','2026-10-14','2026-10-15'],['Revival Meeting','2026-10-16','2026-10-17'],['Special Meeting','2026-10-15','2026-10-16']]){
-  const end=new Date(`${deadline}T23:50:00+05:30`),before=new Date(end.getTime()-1),task=row({category,date:meeting,coverage:{...coverage,expiresAt:end.toISOString()}});
+  const end=new Date(`${deadline}T24:00:00+05:30`),before=new Date(end.getTime()-1),task=row({category,date:meeting,coverage:{...coverage,expiresAt:end.toISOString()}});
   assert.equal(help.needsHelpMeeting([task],category,'jerin',before).released.length,1,category);
   assert.equal(help.needsHelpMeeting([task],category,'jerin',end).released.length,0,category);
   assert.equal(help.needsHelpMeeting([task],category,'jerin',before,end).released.length,0,category);
