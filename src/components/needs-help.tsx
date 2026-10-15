@@ -1,4 +1,5 @@
 "use client";
+import NoMeeting from "./no-meeting";
 
 import { Symbol, dateLabel, type OverviewProps } from "./meeting-overview";
 import { automaticOverviewCategory, overviewDeadline } from "@/lib/tasks/meeting-overview";
@@ -21,7 +22,7 @@ export default function NeedsHelp(props: Props) {
     {deferred && <p className={shared.notice} role="status">Refresh queued. Finish saving to load updates.</p>}
     {error && <div className={shared.error} role="alert"><p>{error}</p>{loaded && <p>Showing the last loaded tasks. Refresh to check for updates.</p>}<button disabled={loading || pending} onClick={onRefresh}>Refresh saved data</button></div>}
     {!loaded ? <div className={shared.empty} role="status"><span className={shared.emptyIcon}><Symbol name="clock"/></span><h2>{error ? "Needs help unavailable" : "Loading tasks needing help…"}</h2><p>Your meeting tasks will appear here.</p></div> : !ready ? <div className={shared.empty}><span className={shared.emptyIcon}><Symbol name="calendar"/></span><h2>{timezone ? "Preparing your categories" : "A home for your time"}</h2><p>Use the existing India time and meeting category setup.</p><button disabled={pending} onClick={onSetup}>{timezone ? "Retry category setup" : "Use India time"}</button></div> : <>
-      <HelpMeeting {...props} category={category}/>
+      {category ? <HelpMeeting {...props} category={category}/> : <NoMeeting now={now} onAllTasks={props.onAllTasks}/>}
       {special.released.length > 0 && <section className={shared.specialSection} aria-label="Special Meeting help"><HelpMeeting {...props} category="Special Meeting" special/></section>}
       <p className={shared.foot}>A little help makes the whole team stronger.</p>
     </>}
@@ -37,7 +38,7 @@ function HelpMeeting(props: Props & { category: string; special?: boolean }) {
     {special ? <div className={shared.specialHeading}><span className={shared.specialMark}><Symbol name="calendar"/></span><div><h2>Special Meeting</h2><p>Shown separately from your weekly meeting.</p></div></div> : <div className={styles.meeting}><div><p className={shared.eyebrow}>THIS WEEK’S MEETING</p><h2>{category}</h2><p className={shared.meetingDate}>{dateLabel(clock.date,{weekday:"long",month:"long",day:"numeric"})}</p></div></div>}
     {(!special || rows.released.some(task=>task.assignedToId!==currentMemberId)) && <HelpSection {...props} title="Tasks needing help" rows={rows.others} own={false}/>}
     {(!special || rows.released.some(task=>task.assignedToId===currentMemberId)) && <HelpSection {...props} title="My tasks awaiting help" rows={rows.mine} own/>}
-    <p className={shared.deadline}><Symbol name="clock"/><span>{deadline ? `Released tasks leave this view ${dateLabel(accountClock(new Date(deadline.resetAt),"Asia/Kolkata").date,{weekday:"long",month:"short",day:"numeric"})} at 11:50 PM India time.` : "Each Special Meeting release expires at 11:50 PM India time the day after its selected date."} Taken and completed tasks leave immediately. Saved records remain.</span></p>
+    <p className={shared.deadline}><Symbol name="clock"/><span>{deadline ? `Released tasks leave this view ${dateLabel(accountClock(new Date(deadline.resetAt-1),"Asia/Kolkata").date,{weekday:"long",month:"short",day:"numeric"})} at 11:59 PM India time.` : "Each Special Meeting release expires at 11:59 PM India time the day after its selected date."} Taken and completed tasks leave immediately. Saved records remain.</span></p>
   </section>;
 }
 
