@@ -11,6 +11,7 @@ function failure(error: { code?: string } | null) {
   if (["42501", "PGRST301", "PGRST302"].includes(error.code ?? "")) throw new MemberError(401, "Your session has ended. Sign in again to continue.");
   if (error.code === "23505") throw new MemberError(409, "That name or membership is already listed. Choose a different name.");
   if (error.code === "P0011") throw new MemberError(409, "Your name changed on another device. Refresh your profile before editing again.");
+  if (error.code === "P0012") throw new MemberError(409, "Attendance changes are available only on the meeting day, from 12:00 AM to 9:00 PM India time.");
   if (error.code === "P0010") throw new MemberError(409, "All 10 workspace places are in use or reserved. Cancel a pending invitation or wait for it to expire.");
   if (error.code === "23514") throw new MemberError(400, "Check the name, category or meeting date and confirmation.");
   throw new MemberError(503, "We couldn’t load account members. Please try again.");
