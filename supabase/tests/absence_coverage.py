@@ -121,22 +121,22 @@ try:
  check('generated next occurrence assigned to original person',sql(f"select assigned_to_member_id from public.tasks where series_id='{repeat['series_id']}'and occurrence_number=1;")==mm)
  check('future repeat occurrence does not inherit claim provenance',sql(f"select count(*)from public.tasks t cross join lateral jsonb_array_elements(public.task_app_coverage_origins())j where t.series_id='{repeat['series_id']}'and t.occurrence_number=1 and j->>'task_id'=t.id::text;",wrong)=='0')
  # Exact category boundaries are tested using the PRIVATE helper as postgres.
- def covers(task_changes=None,absence_changes=None,at='2026-10-12T18:19:59Z'):
+ def covers(task_changes=None,absence_changes=None,at='2026-10-12T18:29:59Z'):
   fixture={**t,'due_date':'2026-10-11','due_time':'23:50:00','created_at':'2026-10-10T00:00:00Z',**(task_changes or {})}
-  absence={**a,'owner_id':owner,'category_id':category,'created_at':'2026-10-10T00:00:00Z','expires_at':'2026-10-15T18:20:00Z',**(absence_changes or {})}
+  absence={**a,'owner_id':owner,'category_id':category,'created_at':'2026-10-10T00:00:00Z','expires_at':'2026-10-15T18:30:00Z',**(absence_changes or {})}
   return sql(f"select public.task_app_absence_covers(jsonb_populate_record(null::public.tasks,{literal(fixture)}),jsonb_populate_record(null::public.account_member_absences,{literal(absence)}),'{at}');")=='t'
  check('current overdue work eligible',covers())
- check('absence expires at exact India deadline',not covers(at='2026-10-15T18:20:00Z'))
+ check('absence expires at exact India deadline',not covers(at='2026-10-15T18:30:00Z'))
  check('future period excluded',not covers({'due_date':'2026-10-21'}))
  check('old overdue period excluded',not covers({'due_date':'2026-10-02','created_at':'2026-10-01T00:00:00Z'}))
  check('completed/deleted/unavailable excluded',all(not covers(change)for change in [{'status':'completed'},{'deleted_at':'2026-10-12T00:00:00Z'},{'available_at':'2026-10-14T00:00:00Z'}]))
  check('undated current work eligible',covers({'due_date':None,'due_time':None}))
- check('due exactly on reset belongs to expiring period',not covers({'due_date':'2026-10-15','due_time':'23:50:00'},{'expires_at':'2026-10-22T18:20:00Z'},at='2026-10-15T18:20:01Z'))
+ check('due exactly on reset belongs to expiring period',not covers({'due_date':'2026-10-15','due_time':None},{'expires_at':'2026-10-22T18:30:00Z'},at='2026-10-15T18:30:01Z'))
  check('category mismatch excluded',not covers({'category_id':special}))
  special_date=today
  special_state=rpc('task_app_mark_absent',f"'{special}','{special_date}',true",member)
  sa=next(v for v in special_state['absences']if v['category_id']==special)
- check('Special selected date deadline next day 23:50 India',sql(f"select expires_at=((meeting_date+1)+time '23:50')at time zone 'Asia/Kolkata'from public.account_member_absences where id='{sa['id']}';")=='t')
+ check('Special selected date includes all of the next day',sql(f"select expires_at=((meeting_date+2)+time '00:00')at time zone 'Asia/Kolkata'from public.account_member_absences where id='{sa['id']}';")=='t')
  expect('cannot change active Special date',f"select public.task_app_mark_absent('{special}',(statement_timestamp()at time zone 'Asia/Kolkata')::date+1,true);",member,'P0409')
  check('Special date match only',covers({'category_id':special,'due_date':'2026-10-12'},{'category_id':special,'meeting_date':'2026-10-12'})and not covers({'category_id':special,'due_date':'2026-10-13'},{'category_id':special,'meeting_date':'2026-10-12'}))
  expiry_task=create(title='Expires before claim')
