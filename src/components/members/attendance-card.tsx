@@ -11,21 +11,22 @@ import { requestWorkspace } from "@/lib/workspace/client";
 import styles from "./attendance.module.css";
 
 type Props = {
+ specialMeetings?:import("@/lib/special-meetings/model").SpecialMeeting[];specialMeetingTitle?:string;
  state:MemberState;categories:Category[];hasSpecialTasks:boolean;now:Date;disabled:boolean;onSaved:(state:MemberState)=>void;
  onPending:(pending:boolean)=>void;onRefresh:()=>void;
 };
 type Review = { categoryId:string;category:string;meetingDate:string|null;absenceId:string|null;expiresAt:string|null;sundayService:SundayService|null };
 
-function MeetingAttendance({state,category,now,disabled,onSaved,onPending,onRefresh,special=false,sundayService=null}:Omit<Props,"categories">&{category:Category|undefined;special?:boolean;sundayService?:SundayService|null}){
- const [meetingDate,setMeetingDate]=useState("");
+function MeetingAttendance({state,category,now,disabled,onSaved,onPending,onRefresh,special=false,sundayService=null,fixedDate=null,specialMeetingTitle="Special Meeting"}:Omit<Props,"categories">&{category:Category|undefined;special?:boolean;sundayService?:SundayService|null;fixedDate?:string|null}){
+ const [meetingDate,setMeetingDate]=useState(fixedDate??"");
  const [reviewed,setReviewed]=useState<Review|null>(null);
  const [pending,setPending]=useState(false);const [problem,setProblem]=useState("");
  const busy=useRef(false);const modal=useRef<HTMLDialogElement>(null);const trigger=useRef<HTMLButtonElement>(null);
- const absent=activeAbsences(state,now).find(a=>a.memberId===state.current?.id&&a.categoryId===category?.id&&absenceCoversService(a,sundayService,now));
- const meetingLabel=sundayService==="morning"?"Morning Service":sundayService==="evening"?"Evening Service":category?.name;
+ const absent=activeAbsences(state,now).find(a=>a.memberId===state.current?.id&&a.categoryId===category?.id&&absenceCoversService(a,sundayService,now)&&(!special||a.meetingDate===(fixedDate??meetingDate)));
+ const meetingLabel=sundayService==="morning"?"Morning Service":sundayService==="evening"?"Evening Service":special?specialMeetingTitle:category?.name;
  const ready=state.absences!==undefined&&!!category;
  const returning=!!reviewed?.absenceId;
- const selectedMeetingDate=special?absent?.meetingDate??meetingDate:null;
+ const selectedMeetingDate=special?fixedDate??absent?.meetingDate??meetingDate:null;
  const changeWindow=absenceChangeWindow(category?.name??"",now,selectedMeetingDate,sundayService);
  useEffect(()=>{
   if(reviewed&&!pending&&!changeWindow.open)setProblem(changeWindow.message);
@@ -37,9 +38,9 @@ function MeetingAttendance({state,category,now,disabled,onSaved,onPending,onRefr
  function close(){if(!busy.current){setReviewed(null);setProblem("");}}
  function review(event:FormEvent){
   event.preventDefault();if(disabled||pending||!ready||!category||absent?.restrictionRole)return;setProblem("");
-  if(special&&!absent&&!date(meetingDate)){setProblem("Choose a valid meeting date.");return;}
+  if(special&&!absent&&!date(fixedDate??meetingDate)){setProblem("Choose a valid meeting date.");return;}
   if(!changeWindow.open){setProblem(changeWindow.message);return;}
-  setReviewed({categoryId:category.id,category:category.name,meetingDate:special?absent?.meetingDate??meetingDate:null,absenceId:absent?.id??null,expiresAt:absent?.expiresAt??null,sundayService});
+  setReviewed({categoryId:category.id,category:category.name,meetingDate:special?fixedDate??absent?.meetingDate??meetingDate:null,absenceId:absent?.id??null,expiresAt:absent?.expiresAt??null,sundayService});
  }
  async function submit(){
   if(busy.current||disabled||!ready||!state.current||!reviewed||absent?.restrictionRole)return;
@@ -71,7 +72,7 @@ function MeetingAttendance({state,category,now,disabled,onSaved,onPending,onRefr
     <span className={`${styles.attendanceStatus} ${absent?styles.isAbsent:styles.notAbsent}`} role="status"><span aria-hidden="true"/>{!ready?"Unavailable":absent?"Absent":"Not absent"}</span></div>
    <h3>{meetingLabel??(special?"Special Meeting":"Meeting unavailable")}</h3>
   </div>
-  {special&&<label>Meeting date<input type="date" required min="0001-01-01" max="9999-12-30" value={absent?.meetingDate??meetingDate} disabled={disabled||pending||!!absent} onChange={e=>{setMeetingDate(e.target.value);setProblem("");}}/></label>}
+  {special&&<label>Meeting date<input type="date" required min="0001-01-01" max="9999-12-30" value={fixedDate??absent?.meetingDate??meetingDate} readOnly={!!fixedDate} disabled={disabled||pending||!!absent} onChange={e=>{setMeetingDate(e.target.value);setProblem("");}}/></label>}
   <button ref={trigger} className={`${styles.absentButton} ${absent?styles.unmarkButton:""}`} disabled={disabled||pending||!ready||!changeWindow.open||!!absent?.restrictionRole}>
    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{absent?<><circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/></>:<><circle cx="9" cy="7" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M17 10l5 5m0-5-5 5"/></>}</svg>
    {pending?"Saving…":absent?"Unmark absent":"Mark myself absent"}
@@ -91,11 +92,13 @@ function MeetingAttendance({state,category,now,disabled,onSaved,onPending,onRefr
  </form>;
 }
 export default function AttendanceCard(props:Props){
+ const event=props.specialMeetings?.find(e=>!e.locked&&Date.parse(e.startsAt)<=props.now.getTime()&&props.now.getTime()<Date.parse(e.endsAt));
+ const eventDate=event?(event.days===null?event.startDate:new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).format(props.now)):null;
  const regular=props.categories.find(category=>category.name===automaticOverviewCategory(props.now));
  const special=props.categories.find(category=>category.name==="Special Meeting");
  return <section className={styles.card} aria-label="Meeting attendance">
   <h2>Meeting attendance</h2><p>Can’t attend a meeting? Make your unfinished tasks available for someone to help.</p>
-  {regular ? regular.name==="Sunday Service" ? (["morning","evening"] as SundayService[]).map(service=><MeetingAttendance key={`${regular.id}:${service}`} {...props} category={regular} sundayService={service}/>) : <MeetingAttendance key={regular.id} {...props} category={regular}/> : <NoMeeting now={props.now}/>}
-  {props.hasSpecialTasks&&special&&<MeetingAttendance {...props} category={special} special/>}
+  {!event&&(regular ? regular.name==="Sunday Service" ? (["morning","evening"] as SundayService[]).map(service=><MeetingAttendance key={`${regular.id}:${service}`} {...props} category={regular} sundayService={service}/>) : <MeetingAttendance key={regular.id} {...props} category={regular}/> : <NoMeeting now={props.now}/>)}
+  {(event||props.hasSpecialTasks)&&special&&<MeetingAttendance key={eventDate??"legacy-special"} {...props} category={special} special fixedDate={eventDate}/>}
  </section>;
 }

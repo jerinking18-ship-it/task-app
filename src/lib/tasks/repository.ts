@@ -1,14 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Category, Dataset, TaskAction, TaskRow } from "./model";
 import { MEETING_CATEGORIES } from "./model";
-import { decodeCategory, decodeRow, timestamp, uuid, isRecord } from "./validation";
+import { decodeCategory, decodeRow, decodeSpecialMeeting,timestamp, uuid, isRecord } from "./validation";
 
-const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,sunday_service,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,missed_completion_role,assigned_to_member_id";
+const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,sunday_service,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,missed_completion_role,assigned_to_member_id,special_plan_id,special_enabled";
 export class TaskError extends Error {
   constructor(public status: number, message: string, public latest?: TaskRow, public categories?: Category[], public future?:TaskRow[]) { super(message); }
 }
 function check(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code === "P0037")throw new TaskError(409,"Another activated Special Meeting overlaps these dates. Lock it before activating this meeting.");
+  if(error.code === "P0036")throw new TaskError(409,"This meeting is locked or another Special Meeting is active. Refresh to check the current meeting.");
   if(error.code === "P0015") throw new TaskError(403,"This task is restricted after a Missed completion. An Owner or Coordinator can remove the restriction on Attendance.");
   if(error.code === "P0014") throw new TaskError(409,"Missed completion is outside this task’s meeting window. Sunday Morning: 9:00 AM–4:00 PM. Other services: 7:00 PM–1:00 AM the following day, India time. Refresh before retrying.");
   if(error.code === "P0403") throw new TaskError(403,"Your current role or assignment does not allow this action. Refresh to see current permissions.");
@@ -74,16 +76,31 @@ export class TaskRepository {
     }
     return origins;
   }
+  private async specialState(){
+    const {data,error}=await this.client.rpc("task_app_special_state");check(error);
+    if(!isRecord(data)||!timestamp(data.serverNow)||!Array.isArray(data.meetings)||!Array.isArray(data.plans)||data.meetings.length>10000||data.plans.length>100000)throw new TaskError(503,"Meeting schedules could not be loaded completely. Refresh before continuing.");
+    const meetings=data.meetings.map(decodeSpecialMeeting),ids=new Set(meetings.map(e=>e.id));
+    const plans=new Map<string,{meetingId:string;version:string}>();
+    for(const p of data.plans){if(!isRecord(p)||!uuid(p.id)||!uuid(p.meetingId)||!ids.has(p.meetingId)||!timestamp(p.version)||typeof p.enabled!=="boolean"||typeof p.cancelled!=="boolean"||plans.has(p.id))throw new TaskError(503,"Incomplete meeting task schedule.");plans.set(p.id,{meetingId:p.meetingId,version:p.version});}
+    if(ids.size!==meetings.length)throw new TaskError(503,"Duplicate meeting schedule.");
+    return {meetings,plans,serverNow:data.serverNow};
+  }
+  private decorateSpecial(row:TaskRow,state:Awaited<ReturnType<TaskRepository["specialState"]>>){
+    if(!row.special_plan_id)return row;
+    const plan=state.plans.get(row.special_plan_id),meeting=state.meetings.find(e=>e.id===plan?.meetingId);
+    if(!plan||!meeting)throw new TaskError(503,"A meeting changed while loading. Refresh before continuing.");
+    return decodeRow({...row,special_meeting:meeting,special_plan_version:plan.version});
+  }
   private async withOrigin(row:TaskRow):Promise<TaskRow> {
-    const [origins,names]=await Promise.all([this.origins(),readMemberNames(this.client)]);
+    const [origins,names,special]=await Promise.all([this.origins(),readMemberNames(this.client),this.specialState()]);
     const origin=origins.get(row.id);
-    return decodeRow({...withCompletionName(row,names),claim_origin:origin?.version===row.updated_at?origin.origin:null});
+    return this.decorateSpecial(decodeRow({...withCompletionName(row,names),claim_origin:origin?.version===row.updated_at?origin.origin:null}),special);
   }
   async read(): Promise<Dataset> {
     // Owner-scoped, server-clock catch-up also covers a delayed Cron run. Before
     // midnight this is a no-op. Failed maintenance must never show a partial list.
     const {error}=await this.client.rpc("task_app_release_my_repeats"); check(error);
-    const [timezone,tasks,categories,names] = await Promise.all([this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory),readMemberNames(this.client)]);
+    const [timezone,tasks,categories,names,special] = await Promise.all([this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory),readMemberNames(this.client),this.specialState()]);
     const [{data:coverage,error:coverageError},origins]=await Promise.all([this.client.rpc("task_app_available_coverage"),this.origins()]);check(coverageError);
     if(!Array.isArray(coverage))throw new TaskError(503,"Task availability could not be confirmed. Refresh before continuing.");
     const released=new Map<string,{version:string;coverage:NonNullable<TaskRow["coverage"]>}>();
@@ -96,9 +113,13 @@ export class TaskRepository {
     const decorated=tasks.map(task=>{const entry=released.get(task.id),origin=origins.get(task.id);return decodeRow({...withCompletionName(task,names),coverage:entry&&entry.version===task.updated_at?entry.coverage:null,claim_origin:origin?.version===task.updated_at?origin.origin:null});});
     const versions=new Map<string,string>();
     for(const task of tasks) if(task.series_id && (!versions.has(task.series_id) || task.updated_at>versions.get(task.series_id)!)) versions.set(task.series_id,task.updated_at);
-    return {timezone,tasks:decorated.map(task=>({...task,series_version:task.series_id?versions.get(task.series_id):task.updated_at})),categories};
+    return {timezone,specialMeetings:special.meetings,serverNow:special.serverNow,tasks:decorated.map(task=>this.decorateSpecial({...task,series_version:task.series_id?versions.get(task.series_id):task.updated_at},special)),categories};
   }
   async mutate(input: TaskAction): Promise<Record<string,unknown>> {
+    if(input.action==="special_lock"){
+      const {error}=await this.client.rpc("task_app_set_special_locked",{meeting_id:input.id,expected_version:input.version,locked:input.locked,confirmed:true});check(error);
+      return {dataset:await this.read()};
+    }
     if (input.action==="setup" || input.action==="bootstrap" || input.action==="category") {
       const {data,error}=await this.client.rpc("task_app_setup",{operation:input.action,category_name:input.action==="category"?input.name:null});
       check(error);
@@ -112,7 +133,7 @@ export class TaskRepository {
       if(fields.some(field=>!field.assigned_to_member_id))throw new TaskError(400,"Choose an assigned member for every task.");
       const {data,error}=await this.client.rpc("task_app_create_tasks",{task_fields:fields});check(error);
       if(!Array.isArray(data)||data.length!==fields.length)throw new TaskError(503,"Refresh and review saved tasks before trying again.");
-      const tasks=data.map(decodeRow);return input.action==="create"?{task:tasks[0]}:{tasks};
+      const special=await this.specialState();const tasks=data.map(value=>this.decorateSpecial(decodeRow(value),special));return input.action==="create"?{task:tasks[0]}:{tasks};
     }
     if(input.action==="missed"){
       const {data,error}=await this.client.rpc("task_app_complete_missed",{task_id:input.id,expected_version:input.version,confirmed:true});check(error);
@@ -129,7 +150,7 @@ export class TaskRepository {
     // Permanent reassignment is one transaction, independent of repeat-edit scope.
     // Older clients and occurrence-only saves retain the existing mutation path.
     const permanent=input.action==="update" && input.assignmentScope==="future";
-    const {data,error} = await this.client.rpc(permanent?"task_app_reassign_permanently":"task_app_mutate",{
+    const {data,error} = await this.client.rpc(permanent?(input.action==="update"&&input.fields.special_days!==undefined?"task_app_reassign_special":"task_app_reassign_permanently"):"task_app_mutate",{
       task_id:input.id,expected_version:input.version,operation:input.action,
       fields:input.action==="update"?input.fields:null,new_status:input.action==="status"?input.status:null,
       edit_scope:input.action==="update"?(input.scope??"this"):"this",

@@ -31,7 +31,7 @@ export function canReopenMissed(task:Task,currentId:string|undefined):boolean {
  return !!(task.completed&&task.missedCompletionRole&&currentId&&task.completedById===currentId);
 }
 export function canReviewMissed(task:Task,currentId:string|undefined,role:string|undefined,now:Date):boolean {
- return !!(Number.isFinite(now.getTime())&&MEETING_CATEGORIES.includes(task.category)&&currentId&&(role==="owner"||role==="coordinator")&&!task.completed&&task.assignedToId&&task.assignedToId!==currentId
+ return !!((!task.specialMeeting||!task.specialMeeting.locked&&!!task.specialEnabled&&now.getTime()>=Date.parse(task.specialMeeting.startsAt)&&now.getTime()<Date.parse(task.specialMeeting.endsAt))&&Number.isFinite(now.getTime())&&MEETING_CATEGORIES.includes(task.category)&&currentId&&(role==="owner"||role==="coordinator")&&!task.completed&&task.assignedToId&&task.assignedToId!==currentId
   &&(!task.availableAt||Date.parse(task.availableAt)<=now.getTime())
   &&!(task.coverage&&task.coverage.memberId===task.assignedToId&&Date.parse(task.coverage.expiresAt)>now.getTime()));
 }
@@ -46,6 +46,7 @@ function shiftMeetingDay(day:string,amount:number):string {
 const meetingWeekday=(day:string)=>new Date(`${day}T12:00:00Z`).getUTCDay();
 // The database repeats this timing check after taking its mutation locks.
 export function missedCompletionTiming(task:Task,now:Date):{open:boolean;message:string} {
+ if(task.specialMeeting&&(task.specialMeeting.locked||!task.specialEnabled||now.getTime()<Date.parse(task.specialMeeting.startsAt)||now.getTime()>=Date.parse(task.specialMeeting.endsAt)))return {open:false,message:"This Special Meeting is locked, not started, or has ended. Final-day Missed actions close at11:59PM India time."};
  const morning=task.category==="Sunday Service"&&task.sundayService==="morning";
  const message=morning?"Morning Service Missed completion is available only on this task’s Sunday, from 9:00 AM until 4:00 PM India time.":"Missed completion is available only from 7:00 PM on this task’s meeting day until 1:00 AM the following day, India time.";
  const result=(open:boolean)=>({open,message:open?"":message});

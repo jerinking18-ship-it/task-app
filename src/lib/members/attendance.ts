@@ -17,7 +17,9 @@ export function meetingAttendance(state: MemberState | null, category: string, n
   return { ready: true, absent: people.filter(member => ids.has(member.id)), present: people.filter(member => !ids.has(member.id)) };
 }
 
-export function attendanceMeetings(tasks: Task[], now: Date) {
+export function attendanceMeetings(tasks: Task[], now: Date,meetings:import("@/lib/special-meetings/model").SpecialMeeting[]=[]) {
+  const event=meetings.find(e=>!e.locked&&Date.parse(e.startsAt)<=now.getTime()&&now.getTime()<Date.parse(e.endsAt));
+  if(event)return [{category:"Special Meeting",meetingDate:event.days===null?event.startDate:new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).format(now),sundayService:null}];
   const dates = [...new Set(meetingOverview(tasks, "Special Meeting", now).tasks.map(task => task.date || null))];
   dates.sort((a, b) => (a ?? "").localeCompare(b ?? ""));
   const regular = automaticOverviewCategory(now);

@@ -21,6 +21,8 @@ export function regularMeetingWindow(now: Date) {
     endsAt: Date.parse(`${shiftDay(start, category ? 2 : 1)}T00:00:00+05:30`), nextCategory, nextDay };
 }
 export function specialMeetingIsOpen(task: Task, now: Date): boolean {
+  if(task.specialMeeting){const e=task.specialMeeting;const today=accountClock(now,"Asia/Kolkata").date;return !e.locked&&!!task.specialEnabled&&now.getTime()>=Date.parse(e.startsAt)&&now.getTime()<Date.parse(e.endsAt)&&task.date===(e.days===null?e.startDate:today);}
+
   const day = accountClock(now, "Asia/Kolkata").date;
   if (task.date) return now.getTime() >= Date.parse(`${task.date}T00:00:00+05:30`)
     && now.getTime() < Date.parse(`${shiftDay(task.date, 2)}T00:00:00+05:30`);
@@ -63,6 +65,8 @@ export function meetingResetAt(category: string, anchor: number, scheduledDate =
 
 export function isCategoryTaskVisible(task: Task, now: Date, date: string, time: string): boolean {
   if (!isAvailable(task, now) || inHistory(task, now)) return false;
+  if(task.specialMeeting){const e=task.specialMeeting;const today=accountClock(now,"Asia/Kolkata").date;return now.getTime()<Date.parse(e.endsAt)&&(task.date||e.startDate)===(e.days===null||today<e.startDate?e.startDate:today);}
+
   let anchor: number;
   let includeAnchor = false;
   if (task.completed) {
