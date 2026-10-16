@@ -129,12 +129,13 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     void initialize().catch(e=>setError(e instanceof Error ? e.message : "Category setup failed. Please retry."));
     // No automatic retry after failure. The visible Retry setup action is explicit.
   },[enabled,data?.timezone,initialized]);
-  async function save(task:Task,scope:"this"|"future"="this",assignmentScope:"this"|"future"="this") {
+  async function save(task:Task,scope:"this"|"future"="this",assignmentScope:"this"|"future"="this",specialStart?:import("@/lib/special-meetings/model").SpecialDateChange) {
     const fields=taskFields(task,data?.categories ?? []);
-    const reply=await mutate(task.id ? {action:"update",id:task.id,version:task.updatedAt,fields,scope,assignmentScope,seriesVersion:task.seriesVersion || task.updatedAt}
+    const reply=await mutate(task.id ? {action:"update",id:task.id,version:task.updatedAt,fields,scope,assignmentScope,seriesVersion:task.seriesVersion || task.updatedAt,...(specialStart?{specialStart}:{})}
       : {action:"create",fields:{...fields,status:"active"}});
     const row=decodeRow(reply.task); const mapped=mapTask(row,data?.categories ?? []);
-    setData(current=>current ? {...current,tasks:[...current.tasks.filter(t=>t.id!==row.id),row]} : current);
+    if(specialStart){const next=decodeDataset(reply.dataset);setData(next);if(next.serverNow)setClockOffset(Date.parse(next.serverNow)-Date.now());}
+    else setData(current=>current ? {...current,tasks:[...current.tasks.filter(t=>t.id!==row.id),row]} : current);
     setDeferred(true); return mapped;
   }
   async function toggle(task:Task) {

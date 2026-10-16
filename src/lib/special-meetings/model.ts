@@ -1,5 +1,6 @@
 import {accountClock,type Task} from "@/lib/tasks/model";
 import {date} from "@/lib/tasks/validation";
+export type SpecialDateChange={date:string;version:string;confirmed:true};
 export type SpecialMeeting={id:string;startDate:string;days:number|null;locked:boolean;version:string;startsAt:string;endsAt:string};
 export function shiftSpecialDay(day:string,amount:number){const d=new Date(day+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+amount);return d.toISOString().slice(0,10);}
 export function specialEndDay(start:string,days:number|null){return shiftSpecialDay(start,days===null?1:days-1);}
