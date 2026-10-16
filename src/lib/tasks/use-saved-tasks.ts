@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mapTask, newestFirst, taskFields, type Category, type Dataset, type Task, type TaskAction } from "./model";
 import { decodeCategory, decodeDataset, decodeRow, isRecord } from "./validation";
 import { decodeCompletedPurge, decodeCompletedSnapshot, type CompletedSnapshot } from "./completed";
@@ -188,8 +188,8 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     setDeferred(true);
     return category.name;
   }
-  let tasks:Task[]=[];
-  if(data) tasks=newestFirst(data.tasks.map(t=>mapTask(t,data.categories)));
+  // A clock tick or opening a menu does not change saved task data.
+  const tasks=useMemo(()=>data?newestFirst(data.tasks.map(t=>mapTask(t,data.categories))):[],[data?.tasks,data?.categories]);
   const categories:Category[]=data?.categories ?? [];
   return {tasks,categories,clockOffset,specialMeetings:data?.specialMeetings??[],setSpecialLocked,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && initialized,
     loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,toggle,completeMissed,take,saveMany,remove,addCategory,

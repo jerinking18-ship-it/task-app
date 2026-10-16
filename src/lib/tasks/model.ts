@@ -131,9 +131,18 @@ export function sortTasksForStatus<T extends Task>(tasks: T[], status: string): 
     return primary || compareNewestTime(a.createdAt,b.createdAt) || b.id.localeCompare(a.id);
   });
 }
+// Reuse the expensive formatter across task rows and clock ticks. Keep the
+// cache bounded; return fresh values so callers cannot change later results.
+const clockFormatters=new Map<string,Intl.DateTimeFormat>();
 export function accountClock(now: Date, timezone: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit",
-    day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  let formatter=clockFormatters.get(timezone);
+  if(!formatter){
+    formatter=new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit",
+      day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+    if(clockFormatters.size>=8)clockFormatters.delete(clockFormatters.keys().next().value!);
+    clockFormatters.set(timezone,formatter);
+  }
+  const parts=formatter.formatToParts(now);
   const part = (name: string) => parts.find(p => p.type === name)!.value;
   return { date: `${part("year")}-${part("month")}-${part("day")}`, time: `${part("hour")}:${part("minute")}:${part("second")}` };
 }
