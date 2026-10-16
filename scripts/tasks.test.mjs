@@ -24,7 +24,7 @@ const fields={assigned_to_member_id:taskId,title:"A task",notes:null,status:"act
 const row={...fields,id:taskId,created_at:version,updated_at:version,completed_at:null};
 function fixture(respond) {
   const calls=[];
-  const client={rpc(name,args){const call={table:"rpc",ops:[["rpc",name,args]]};calls.push(call);return Promise.resolve().then(()=>respond(call,calls));},from(table){
+  const client={rpc(name,args){if(name==="task_app_special_state")return Promise.resolve({data:{serverNow:version,meetings:[],plans:[]},error:null});const call={table:"rpc",ops:[["rpc",name,args]]};calls.push(call);return Promise.resolve().then(()=>respond(call,calls));},from(table){
     const ops=[]; const query={};
     for(const method of ["select","eq","is","order","limit","gt","insert","update","single","maybeSingle"])
       query[method]=(...args)=>{ops.push([method,...args]);return query;};

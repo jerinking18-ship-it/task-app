@@ -21,23 +21,24 @@ export function AttendanceEntry({ onOpen, disabled,children }: { onOpen: () => v
 }
 
 type Props = {
+ specialMeetings?:import("@/lib/special-meetings/model").SpecialMeeting[];specialMeetingTitle?:string;
   onSaved:(state:MemberState)=>void;onPending:(pending:boolean)=>void;
   state: MemberState | null; tasks: Task[]; tasksReady: boolean; tasksError: string;
   search: string; now: Date; loading: boolean; error: string; onRefresh: () => void; onBack: () => void;
 };
 
-export default function AttendancePanel({ onSaved,onPending,state, tasks, tasksReady, tasksError, search, now, loading, error, onRefresh, onBack }: Props) {
-  const meetings = attendanceMeetings(tasksReady ? tasks : [], now);
+export default function AttendancePanel({specialMeetings=[],specialMeetingTitle="Special Meeting",onSaved,onPending,state, tasks, tasksReady, tasksError, search, now, loading, error, onRefresh, onBack }: Props) {
+  const meetings = attendanceMeetings(tasksReady ? tasks : [], now,specialMeetings);
   const query = search.trim().toLocaleLowerCase();
   const ready = meetingAttendance(state, "", now).ready;
   return <section className={shared.panel} aria-label="Meeting attendance list" aria-busy={loading}>
     <button type="button" className={styles.back} onClick={onBack}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"/></svg>Back to Users</button>
     {(error || tasksError) && <div className={styles.problem} role="alert"><p>{error || tasksError}</p>{ready && <p>Showing the last loaded attendance. Refresh to check for updates.</p>}<button type="button" disabled={loading} onClick={onRefresh}>Refresh attendance</button></div>}
     {!ready ? <div className={shared.empty} role="status"><AttendanceIcon/><h3>{loading ? "Loading attendance…" : "Attendance unavailable"}</h3><p>{loading ? "Getting the current meeting’s members ready." : "Refresh to load attendance before checking who is present."}</p>{!loading && <button type="button" className={shared.secondary} onClick={onRefresh}>Refresh attendance</button>}</div> : <>
-      {!automaticOverviewCategory(now)&&<NoMeeting now={now}/>}
+      {!automaticOverviewCategory(now,specialMeetings)&&<NoMeeting now={now}/>}
       {meetings.map(({ category, meetingDate,sundayService }) => {
         const groups = meetingAttendance(state, category, now, meetingDate,sundayService);
-        const title=sundayService==="morning"?"Morning Service":sundayService==="evening"?"Evening Service":category;
+        const title=sundayService==="morning"?"Morning Service":sundayService==="evening"?"Evening Service":category==="Special Meeting"?specialMeetingTitle:category;
         return <section className={styles.meetingSection} key={`${category}:${sundayService??meetingDate ?? "regular"}`} aria-label={`${title}${meetingDate ? ` ${meetingDate}` : ""} attendance`}>
           <div className={styles.meetingHeading}><span>{sundayService?"Sunday Service":category === "Special Meeting" ? "Special meeting" : "Current meeting"}</span><h2>{title}</h2>{meetingDate && <time dateTime={meetingDate}>{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", weekday: "long", month: "short", day: "numeric" }).format(new Date(`${meetingDate}T12:00:00+05:30`))}</time>}</div>
           <MemberGroup people={groups.absent} currentId={state?.current?.id} category={title} query={query} now={now} disabled={loading} onSaved={onSaved} onPending={onPending} restrictions={canManageTasks(state)?activeAbsences(state,now).filter(a=>!!a.restrictionRole&&a.category===category&&absenceCoversService(a,sundayService,now)&&(category!=="Special Meeting"||a.meetingDate===meetingDate)):[]}/>

@@ -10,7 +10,8 @@ export function date(v: unknown) {
     && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0,10) === v;
 }
 export function validFields(v: unknown): v is TaskFields {
-  return isRecord(v) && keys(v, ["title","notes","status","due_date","due_time","priority","category_id","weekdays","repeat_rule","assigned_to_member_id","sunday_service"])
+  return isRecord(v) && keys(v, ["title","notes","status","due_date","due_time","priority","category_id","weekdays","repeat_rule","assigned_to_member_id","sunday_service","special_days"])
+    && (v.special_days===undefined||v.special_days===null||Number.isInteger(v.special_days)&&Number(v.special_days)>=1&&Number(v.special_days)<=31)
     && (v.sunday_service === undefined || v.sunday_service === null || ["morning","evening"].includes(v.sunday_service as string))
     && (v.assigned_to_member_id === undefined || v.assigned_to_member_id === null || uuid(v.assigned_to_member_id))
     && typeof v.title === "string" && v.title.trim().length > 0 && v.title.trim().length <= 200
@@ -41,6 +42,7 @@ export function validateAction(v: unknown): TaskAction | null {
       if (!fields.every(field=>field.category_id === fields[0].category_id)) return null;
       return {action:"create_many",fields:fields.map(field=>({...field,title:field.title.trim()}))};
     }
+    case "special_lock":return keys(v,["action","id","version","locked","confirmed"])&&uuid(v.id)&&timestamp(v.version)&&typeof v.locked==="boolean"&&v.confirmed===true?v as TaskAction:null;
     case "delete": return keys(v,["action","id","version"]) && uuid(v.id) && timestamp(v.version)
       ? {action:"delete",id:v.id,version:v.version} : null;
     case "update": return keys(v,["action","id","version","fields","scope","assignmentScope","seriesVersion"]) && uuid(v.id) && timestamp(v.version) && validFields(v.fields)
@@ -88,12 +90,25 @@ export function decodeRow(v: unknown): TaskRow {
     && typeof completedByName==="string" && completedByName.trim().length>0 && completedByName.length<=50))) throw new Error("Incomplete completion member response.");
   const missed=v.missed_completion_role??null;
   if(missed!==null && (!["owner","coordinator"].includes(missed as string) || v.status!=="completed" || !uuid(completedById) || !uuid(v.assigned_to_member_id) || completedById===v.assigned_to_member_id)) throw new Error("Incomplete missed completion response.");
-  return { ...fields, missed_completion_role:missed as TaskRow["missed_completion_role"], ...(origin===undefined?{}:{claim_origin:origin as TaskRow["claim_origin"]}), ...(coverage===undefined?{}:{coverage:coverage as TaskRow["coverage"]}), id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
+  if(!(v.special_plan_id===undefined||v.special_plan_id===null||uuid(v.special_plan_id))||!(v.special_enabled===undefined||typeof v.special_enabled==="boolean")||!(v.special_plan_version===undefined||timestamp(v.special_plan_version)))throw Error("Incomplete Special task response.");
+  const special=v.special_meeting===undefined||v.special_meeting===null?v.special_meeting:decodeSpecialMeeting(v.special_meeting);
+  return { ...fields,special_plan_id:v.special_plan_id as string|null|undefined,special_enabled:v.special_enabled as boolean|undefined,special_meeting:special,special_plan_version:v.special_plan_version as string|undefined, missed_completion_role:missed as TaskRow["missed_completion_role"], ...(origin===undefined?{}:{claim_origin:origin as TaskRow["claim_origin"]}), ...(coverage===undefined?{}:{coverage:coverage as TaskRow["coverage"]}), id:v.id, created_at:v.created_at, updated_at:v.updated_at, completed_at:v.completed_at,
     completed_by_member_id:completedById as string|null,completed_by_name:completedByName as string|null,
     series_id:v.series_id as string|null|undefined,history_at:v.history_at as string|null|undefined,available_at:v.available_at as string|null|undefined,repeat_anchor_day:v.repeat_anchor_day as number|null|undefined,series_version:v.series_version as string|undefined };
 }
 export function decodeDataset(v: unknown): Dataset {
   if (!isRecord(v) || !Array.isArray(v.tasks) || !Array.isArray(v.categories)
     || !(v.timezone === null || v.timezone === "Asia/Kolkata")) throw new Error("Incomplete saved data. Please refresh.");
-  return {tasks:v.tasks.map(decodeRow), categories:v.categories.map(decodeCategory), timezone:v.timezone};
+  if(v.specialMeetings!==undefined&&(!Array.isArray(v.specialMeetings)||v.specialMeetings.length>10000))throw Error("Incomplete meeting schedules.");
+  if(v.serverNow!==undefined&&!timestamp(v.serverNow))throw Error("Incomplete server time.");
+  const specialMeetings=v.specialMeetings===undefined?[]:(v.specialMeetings as unknown[]).map(decodeSpecialMeeting);
+  if(new Set(specialMeetings.map(m=>m.id)).size!==specialMeetings.length)throw Error("Duplicate meeting schedules.");
+  return {tasks:v.tasks.map(decodeRow), categories:v.categories.map(decodeCategory), timezone:v.timezone,specialMeetings,serverNow:v.serverNow as string|undefined};
+}
+
+export function decodeSpecialMeeting(v:unknown):import("@/lib/special-meetings/model").SpecialMeeting {
+ if(!isRecord(v)||!uuid(v.id)||!date(v.startDate)||!(v.days===null||Number.isInteger(v.days)&&Number(v.days)>=1&&Number(v.days)<=31)||typeof v.locked!=="boolean"||!timestamp(v.version)||!timestamp(v.startsAt)||!timestamp(v.endsAt))throw Error("Incomplete Special Meeting schedule.");
+ const end=new Date(v.startDate+"T12:00:00Z");end.setUTCDate(end.getUTCDate()+(v.days===null?2:Number(v.days)));
+ if(Date.parse(v.startsAt)!==Date.parse(v.startDate+"T00:00:00+05:30")||Date.parse(v.endsAt)!==Date.parse(end.toISOString().slice(0,10)+"T00:00:00+05:30"))throw Error("Incomplete Special Meeting dates.");
+ return {id:v.id,startDate:v.startDate as string,days:v.days as number|null,locked:v.locked,version:v.version,startsAt:v.startsAt,endsAt:v.endsAt};
 }

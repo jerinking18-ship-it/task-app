@@ -9,6 +9,7 @@ export class SaveError extends Error {
 }
 export function useSavedTasks(enabled:boolean, dirty:boolean) {
   const [data,setData]=useState<Dataset|null>(null);
+  const [clockOffset,setClockOffset]=useState(0);
   const [loading,setLoading]=useState(enabled);
   const [pending,setPending]=useState(false);
   const [error,setError]=useState("");
@@ -31,7 +32,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
       const next=decodeDataset(body);
       // Validate category joins before accepting a complete dataset.
       next.tasks.forEach(row=>mapTask(row,next.categories));
-      if(alive.current && revision===sequence.current) { setData(next); setUncertain(false); setNeedsMember(false); }
+      if(alive.current && revision===sequence.current) { setData(next);if(next.serverNow)setClockOffset(Date.parse(next.serverNow)-Date.now()); setUncertain(false); setNeedsMember(false); }
     } catch(error) {
       if(alive.current && revision===sequence.current && !controller.signal.aborted)
         setError(error instanceof Error ? error.message : "Unable to connect. Try refreshing.");
@@ -67,11 +68,12 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
       // One refresh per India date boundary, not a polling loop. The read RPC
       // releases due schedules itself, so it need not race the background job.
       const indiaOffset=19800000;
-      const nextMidnight=(Math.floor((Date.now()+indiaOffset)/86400000)+1)*86400000-indiaOffset;
-      timer=window.setTimeout(()=>{void refresh();schedule();},nextMidnight-Date.now()+100);
+      const serverNow=Date.now()+clockOffset;
+      const nextMidnight=(Math.floor((serverNow+indiaOffset)/86400000)+1)*86400000-indiaOffset;
+      timer=window.setTimeout(()=>{void refresh();schedule();},nextMidnight-serverNow+100);
     };
     schedule(); return ()=>window.clearTimeout(timer);
-  },[enabled,data?.timezone,refresh]);
+  },[enabled,data?.timezone,clockOffset,refresh]);
   async function mutate(input:TaskAction):Promise<Record<string,unknown>> {
     if(state.current.pending) throw new SaveError("Please wait for the current save.");
     if(expired) throw new SaveError("Sign in again before saving.",401);
@@ -103,6 +105,10 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
       if((input.action==="create" || input.action==="create_many") && (!(error instanceof SaveError) || error.status===0 || error.status>=500)) setUncertain(true);
       throw error instanceof SaveError ? error : new SaveError("We couldn’t confirm saving. Check your connection and refresh to review saved data before trying again.");
     } finally {state.current.pending=false; if(alive.current) setPending(false);}
+  }
+  async function setSpecialLocked(id:string,version:string,locked:boolean){
+    const body=await mutate({action:"special_lock",id,version,locked,confirmed:true});
+    const next=decodeDataset(body.dataset);setData(next);if(next.serverNow)setClockOffset(Date.parse(next.serverNow)-Date.now());setDeferred(true);return next;
   }
   async function initialize() {
     const reply=await mutate({action:"bootstrap"});
@@ -184,7 +190,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   let tasks:Task[]=[];
   if(data) tasks=newestFirst(data.tasks.map(t=>mapTask(t,data.categories)));
   const categories:Category[]=data?.categories ?? [];
-  return {tasks,categories,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && initialized,
+  return {tasks,categories,clockOffset,specialMeetings:data?.specialMeetings??[],setSpecialLocked,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && initialized,
     loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,toggle,completeMissed,take,saveMany,remove,addCategory,
     reviewCompleted:()=>completedRequest(),purgeCompleted:(snapshot:CompletedSnapshot)=>completedRequest(snapshot)};
 }

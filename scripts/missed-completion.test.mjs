@@ -42,7 +42,7 @@ test('role attribution never replaces original assignment, including a previous 
 });
 test('repository uses dedicated Missed RPC and rejects incomplete success',async()=>{
  const calls=[];let bad=false;
- const client={async rpc(name,args){calls.push({name,args});return {data:name==='task_app_complete_missed'?(bad?{...row,missed_completion_role:null}:row):[],error:null};}};
+ const client={async rpc(name,args){if(name==="task_app_special_state")return Promise.resolve({data:{serverNow:stamp,meetings:[],plans:[]},error:null});calls.push({name,args});return {data:name==='task_app_complete_missed'?(bad?{...row,missed_completion_role:null}:row):[],error:null};}};
  const repo=new repository.TaskRepository(client,id);const action={action:'missed',id,version:stamp,confirmed:true};
  assert.equal((await repo.mutate(action)).task.missed_completion_role,'coordinator');assert.equal(calls[0].name,'task_app_complete_missed');assert.equal(calls[0].args.confirmed,true);assert.equal(calls.some(c=>c.name==='task_app_mutate'),false);
  bad=true;await assert.rejects(repo.mutate(action),/could not be confirmed/);

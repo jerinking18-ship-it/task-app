@@ -9,8 +9,8 @@ export function needsHelpMeeting(tasks: Task[], category: string, currentMemberI
   return { released, others: shown.filter(task => task.assignedToId !== currentMemberId), mine: shown.filter(task => !!currentMemberId && task.assignedToId === currentMemberId) };
 }
 
-export function needsHelpCount(tasks: Task[], now: Date, coverageNow = now) {
-  const category = automaticOverviewCategory(now);
+export function needsHelpCount(tasks: Task[], now: Date, coverageNow = now,meetings:import("@/lib/special-meetings/model").SpecialMeeting[]=[]) {
+  const category = automaticOverviewCategory(now,meetings);
   return meetingOverview(tasks, category, now, coverageNow).needsHelp.length
-    + meetingOverview(tasks, "Special Meeting", now, coverageNow).needsHelp.length;
+    + (category==="Special Meeting"?0:meetingOverview(tasks, "Special Meeting", now, coverageNow).needsHelp.length);
 }

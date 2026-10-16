@@ -14,8 +14,8 @@ function ProfileIcon({ children }: { children: ReactNode }) {
 }
 const chevron = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>;
 
-export default function ProfilePanel({ state, categories, hasSpecialTasks, email, loading, error, disabled, now, onRefresh, onUsers, onSaved, onDirty, onPending, beforeSignOut, onSignedOut }: {
-  state: MemberState | null; categories:Category[]; hasSpecialTasks:boolean; email: string | null; loading: boolean; error: string; disabled: boolean; now: Date;
+export default function ProfilePanel({ specialMeetings=[],specialMeetingTitle="Special Meeting",state, categories, hasSpecialTasks, email, loading, error, disabled, now, onRefresh, onUsers, onSaved, onDirty, onPending, beforeSignOut, onSignedOut }: {
+  specialMeetings?:import("@/lib/special-meetings/model").SpecialMeeting[];specialMeetingTitle?:string;state: MemberState | null; categories:Category[]; hasSpecialTasks:boolean; email: string | null; loading: boolean; error: string; disabled: boolean; now: Date;
   onRefresh: () => void; onUsers: () => void; onSaved: (state: MemberState) => void;
   onDirty: (dirty: boolean) => void; onPending: (pending: boolean) => void; beforeSignOut: () => Promise<boolean>; onSignedOut: (url:string) => void;
 }) {
@@ -105,7 +105,7 @@ export default function ProfilePanel({ state, categories, hasSpecialTasks, email
         <div className={styles.memberSummary}><div><span>Members</span><p>{state.members.length} of {MEMBER_LIMIT}</p></div><button disabled={blocked} onClick={onUsers}>View users {chevron}</button></div>
         <div className={styles.capacity} role="progressbar" aria-label="Member spaces used" aria-valuemin={0} aria-valuemax={MEMBER_LIMIT} aria-valuenow={state.members.length}><span style={{ width: `${state.members.length * 10}%` }}/></div>
       </section>
-      <AttendanceCard state={state} categories={categories} hasSpecialTasks={hasSpecialTasks} now={now} disabled={blocked||loading||editing} onSaved={onSaved} onPending={onPending} onRefresh={onRefresh}/>
+      <AttendanceCard specialMeetings={specialMeetings} specialMeetingTitle={specialMeetingTitle} state={state} categories={categories} hasSpecialTasks={hasSpecialTasks} now={now} disabled={blocked||loading||editing} onSaved={onSaved} onPending={onPending} onRefresh={onRefresh}/>
       <section className={styles.card} aria-label="Profile activity"><h2>Activity</h2>
         <div className={`${styles.detail} ${styles.activityDetail}`}><ProfileIcon><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6M17 2v6M3 11h18"/></ProfileIcon><div><span>Member since</span><time dateTime={member.createdAt}>{joined}</time></div></div>
         <div className={`${styles.detail} ${styles.activityDetail}`}><ProfileIcon><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></ProfileIcon><div><span>{memberActive(member,now)?"Status":"Last seen"}</span>{memberActive(member,now)?<p className={styles.activeNow}>● Active now</p>:<time dateTime={member.lastSeenAt}>{seen} IST</time>}</div></div>

@@ -5,8 +5,8 @@ import { taskCoverage } from "@/lib/members/absence";
 export type OverviewFilter = "All" | "Completed" | "Remaining" | "Needs help";
 
 // Exact two-day India meeting windows; Tuesday has no regular meeting.
-export function automaticOverviewCategory(now: Date): string {
-  return regularMeetingWindow(now).category;
+export function automaticOverviewCategory(now: Date,meetings:import("@/lib/special-meetings/model").SpecialMeeting[]=[]): string {
+  return meetings.some(e=>!e.locked&&Date.parse(e.startsAt)<=now.getTime()&&now.getTime()<Date.parse(e.endsAt))?"Special Meeting":regularMeetingWindow(now).category;
 }
 
 // Use exactly the category visibility rules, rather than a second reset timer

@@ -1,4 +1,5 @@
 "use client";
+import {SpecialMeetingSchedule} from "./special-meeting-schedule";
 import CapitalizedInput from "./capitalized-input";
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
@@ -21,7 +22,7 @@ export default function BulkTaskEditor({ categories, currentMemberId, members, c
   const id=useId();
   const sequence=useRef(initialTemplate?.items.length??1);
   const submitting=useRef(false);
-  const appliedDetails=useRef<Pick<Task,"date"|"time"|"weekdays"|"priority"|"repeat"|"assignedToId"|"sundayService">|null>(null);
+  const appliedDetails=useRef<Pick<Task,"date"|"time"|"weekdays"|"priority"|"repeat"|"assignedToId"|"sundayService"|"specialDays">|null>(null);
   const [category,setCategory]=useState(initialCategory);
   const [rows,setRows]=useState<DraftRow[]>(()=>(initialTemplate?templateDrafts(initialTemplate.items,initialCategory):[newTaskDraft(initialCategory)])
     .map((task,index)=>({key:index,task,details:index===0,notesOpen:index===0||!!task.notes,daysCustomized:false})));
@@ -38,11 +39,11 @@ export default function BulkTaskEditor({ categories, currentMemberId, members, c
   function changeCategory(category:string) {
     setCategory(category);
     setRows(current=>current.map(row=>({...row,task:{...row.task,category,sundayService:category==="Sunday Service"?(row.task.sundayService??"evening"):null,
-      weekdays:row.daysCustomized?[...row.task.weekdays]:categoryWeekdays(category)}})));
+      repeat:category==="Special Meeting"?"Daily":row.task.repeat,weekdays:row.daysCustomized?[...row.task.weekdays]:categoryWeekdays(category)}})));
     setError("");setNotice("");
   }
   function applyDetails(source:Task) {
-    const details={sundayService:source.sundayService??null,assignedToId:source.assignedToId,date:source.date,time:source.time,weekdays:[...source.weekdays],priority:source.priority,repeat:source.repeat};
+    const details={specialDays:source.specialDays??null,sundayService:source.sundayService??null,assignedToId:source.assignedToId,date:source.date,time:source.time,weekdays:[...source.weekdays],priority:source.priority,repeat:source.repeat};
     appliedDetails.current=details;
     setRows(current=>current.map(row=>({...row,daysCustomized:true,task:{...row.task,...details,weekdays:[...details.weekdays]}})));
     setNotice("Details applied to all tasks, including tasks you add next in this batch. Titles and notes kept.");
@@ -99,7 +100,7 @@ export default function BulkTaskEditor({ categories, currentMemberId, members, c
             <div className={styles.bulkDetails}>
               <div className={styles.dateFields}><label className={styles.field}><span>Due date<span className={styles.srOnly}> for task {index+1}</span></span><input id={`${id}-date-${row.key}`} type="date" value={row.task.date} onInput={event=>{update(row.key,"date",event.currentTarget.value);if(!event.currentTarget.value)update(row.key,"time","");}} onChange={event=>{update(row.key,"date",event.target.value);if(!event.target.value)update(row.key,"time","");}} /></label><div className={styles.field}><span>Time <span className={styles.optional}>optional</span></span><TaskTime value={row.task.time} onChange={value=>update(row.key,"time",value)} label={`Time for task ${index+1}`}/></div></div>
               <p className={styles.editorHint}>India time · Mumbai</p>
-              <TaskRepeat task={row.task} onChange={rule=>update(row.key,"repeat",rule)} onDaysChange={days=>update(row.key,"weekdays",days)} label={`Repeat for task ${index+1}`}/>
+              {category==="Special Meeting"?<SpecialMeetingSchedule task={row.task} onChange={days=>update(row.key,"specialDays",days)} label={`Number of days for task ${index+1}`}/>:<TaskRepeat task={row.task} onChange={rule=>update(row.key,"repeat",rule)} onDaysChange={days=>update(row.key,"weekdays",days)} label={`Repeat for task ${index+1}`}/>}
               <label className={styles.property}><span>Priority<span className={styles.srOnly}> for task {index+1}</span></span><select value={row.task.priority} onChange={event=>update(row.key,"priority",event.target.value as Priority)}>{PRIORITIES.map(item=><option key={item}>{item}</option>)}</select></label>
               <button type="button" className={styles.applyDetails} onClick={()=>applyDetails(row.task)}>Apply these details to all tasks</button>
               <p className={styles.editorHint}>Applies assignee, date, time, days, priority and repeat{category==="Sunday Service"?", including subcategory,":""} to this batch and tasks added next. Keeps each task’s title and notes.</p>
