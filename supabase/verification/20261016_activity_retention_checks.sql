@@ -1,0 +1,7 @@
+-- Read-only checks; each violations count must be zero. Activation is separate.
+select 'retention_configuration_rls' as check_name,count(*)as violations from pg_class where oid='public.task_activity_retention_configuration'::regclass and not relrowsecurity;
+select 'retention_configuration_access' as check_name,count(*)as violations from information_schema.role_table_grants where table_schema='public'and table_name='task_activity_retention_configuration'and grantee in('PUBLIC','anon','authenticated','service_role');
+select 'retention_purge_access' as check_name,count(*)as violations from unnest(array['anon','authenticated','service_role'])role_name where has_function_privilege(role_name,'public.task_app_purge_activity()','execute');
+select 'retention_purge_safety' as check_name,count(*)as violations from pg_proc where oid='public.task_app_purge_activity()'::regprocedure and(not prosecdef or proconfig is distinct from array['search_path=""']);
+select 'retention_reader_access' as check_name,count(*)as violations from pg_proc where oid='public.task_app_activity(uuid,text,text,text,timestamptz,timestamptz,uuid)'::regprocedure and(not has_function_privilege('authenticated',oid,'execute')or has_function_privilege('anon',oid,'execute')or has_function_privilege('service_role',oid,'execute'));
+select 'retention_time_index' as check_name,1-count(*)as violations from pg_indexes where schemaname='public'and tablename='task_activity_log'and indexname='activity_retention_time';

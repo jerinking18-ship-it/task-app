@@ -32,7 +32,8 @@
     "test:notifications": "node --test scripts/notifications.test.mjs",
     "test:notifications:sql": "python3 supabase/tests/notifications.py",
     "test:activity": "node --test scripts/activity.test.mjs",
-    "test:activity:sql": "python3 supabase/tests/activity_log.py"
+    "test:activity:sql": "python3 supabase/tests/activity_log.py",
+    "test:activity:retention:sql": "python3 supabase/tests/activity_retention.py"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

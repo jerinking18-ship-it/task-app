@@ -91,3 +91,22 @@ test('Changed completion requires the actual helper author and original assignee
  assert.equal(assignments.isChangedCompletion(completed),true);
  for(const patch of [{completed:false},{claimOrigin:null},{completedById:other},{completedById:null},{assignedToId:other},{claimOrigin:{...completed.claimOrigin,memberId:id}}])assert.equal(assignments.isChangedCompletion({...completed,...patch}),false);
 });
+
+test('Assigned Special Meeting section partitions only the viewer’s retained tasks',()=>{
+ const now=new Date('2026-10-16T12:00:00+05:30'),clock=tasks.accountClock(now,'Asia/Kolkata'),filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
+ const base={...tasks.blankTask(),assignedToId:id,createdAt:'2026-10-16T04:00:00Z',date:'2026-10-16',time:'23:50'};
+ const rows=[{...base,id:'regular',category:'Revival Meeting'},{...base,id:'special',category:'Special Meeting'},{...base,id:'other-person',category:'Special Meeting',assignedToId:other}];
+ const selected=scope=>rows.filter(row=>assignments.matchesAssignedTask(row,id,filters,clock.date,clock.time,now,scope)).map(row=>row.id);
+ assert.deepEqual(selected('regular'),['regular']);assert.deepEqual(selected('special'),['special']);assert.deepEqual(selected(undefined),['regular','special']);
+ assert.equal(assignments.matchesAssignedTask(rows[1],id,{...filters,status:'Completed'},clock.date,clock.time,now,'special'),false);
+ assert.equal(assignments.matchesAssignedTask({...rows[1],completed:true,completedAt:now.toISOString()},id,{...filters,status:'Completed'},clock.date,clock.time,now,'special'),true);
+ assert.equal(assignments.matchesAssignedTask(rows[1],id,{...filters,search:'no match'},clock.date,clock.time,now,'special'),false);
+});
+test('Special assigned sections keep existing midnight expiry and future-task rules',()=>{
+ const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''},task={...tasks.blankTask(),assignedToId:id,category:'Special Meeting',createdAt:'2026-10-16T04:00:00Z',date:'2026-10-16',time:'23:50'};
+ const visible=(row,stamp)=>{const now=new Date(stamp),clock=tasks.accountClock(now,'Asia/Kolkata');return assignments.matchesAssignedTask(row,id,filters,clock.date,clock.time,now,'special');};
+ assert.equal(visible(task,'2026-10-17T23:59:59+05:30'),true);assert.equal(visible(task,'2026-10-18T00:00:00+05:30'),false);
+ assert.equal(visible({...task,completed:true,completedAt:'2026-10-16T10:00:00Z'},'2026-10-18T00:00:00+05:30'),false);
+ assert.equal(visible({...task,date:'2026-10-25'},'2026-10-18T00:00:00+05:30'),true);
+ assert.equal(visible({...task,date:''},'2026-10-18T00:00:00+05:30'),true);
+});

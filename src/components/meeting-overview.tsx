@@ -35,7 +35,9 @@ export type OverviewProps = {
   onRefresh: () => void; onSetup: () => void; onAllTasks?: () => void;
 };
 
-export default function MeetingOverview(props: OverviewProps) {
+type MeetingOverviewProps = OverviewProps & {onNeedsHelp: () => void};
+
+export default function MeetingOverview(props: MeetingOverviewProps) {
   const { tasks, now, workspaceName, loaded, ready, timezone, loading, pending, error, deferred, onRefresh, onSetup } = props;
   const category = automaticOverviewCategory(now);
   const special = meetingOverview(tasks, "Special Meeting", now, props.coverageNow);
@@ -51,7 +53,7 @@ export default function MeetingOverview(props: OverviewProps) {
   </div>;
 }
 
-function MeetingSection({ category, tasks, members, currentMemberId, now, coverageNow, pending }: OverviewProps & {category: string}) {
+function MeetingSection({ category, tasks, members, currentMemberId, now, coverageNow, pending, onNeedsHelp }: MeetingOverviewProps & {category: string}) {
   const [filter, setFilter] = useState<OverviewFilter>("Remaining");
   const shownTasks = overviewTasks(tasks, category, filter, now, coverageNow);
   const detailHeading = filter === "Remaining" ? "Left to do" : filter === "Completed" ? "Completed tasks" : filter === "Needs help" ? "Tasks needing help" : "All task details";
@@ -95,6 +97,6 @@ function MeetingSection({ category, tasks, members, currentMemberId, now, covera
             {task.completed && <div className={styles.completionDetails}><span className={styles.completedBy}><Symbol name={task.missedCompletionRole?"shield":"people"}/>Completed by <strong className={task.missedCompletionRole?styles.missedRole:undefined}>{completionRoleLabel(task)||displayMemberName(task.completedById, task.completedByName, members)||"Not recorded"}</strong></span>{task.completedAt && Number.isFinite(Date.parse(task.completedAt)) && <time dateTime={task.completedAt}><Symbol name="clock"/>Completed on {new Intl.DateTimeFormat("en-US", {timeZone:"Asia/Kolkata",month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true,weekday:"short"}).format(new Date(task.completedAt))}</time>}</div>}
           </article>;
         })}</div> : <div className={styles.empty}><span className={styles.emptyIcon}><Symbol name={summary.tasks.length ? "check" : "calendar"}/></span><h3>{filter === "Completed" ? "No completed tasks yet" : filter === "Needs help" ? "No tasks need help" : summary.tasks.length ? "Everything is ready" : "No tasks in this meeting period"}</h3><p>{filter === "Completed" ? "Completed work in this category will appear here until its deadline." : filter === "Needs help" ? "Tasks released by absent teammates will appear here while help is needed." : summary.tasks.length ? "All visible tasks are completed." : "Tasks will appear here when they are added. Earlier completed and overdue tasks remain saved in their main pages."}</p></div>}
-      </section><div>{summary.needsHelp.length > 0 && <section className={styles.attention}><div className={styles.attentionHeader}><span className={styles.attentionIcon}><Symbol name="people"/></span><h3>{summary.needsHelp.length === 1 ? "One task needs a teammate" : `${summary.needsHelp.length} tasks need a teammate`}</h3></div><p><strong>{summary.needsHelp.length} of the {summary.remaining.length} remaining tasks</strong> {summary.needsHelp.length === 1 ? "is" : "are"} available for a teammate to take.</p><button className={styles.helpLink} onClick={() => setFilter("Needs help")} disabled={disabled} aria-label="Show tasks needing help" aria-controls={detailsId}><span>View tasks needing help</span><Symbol name="arrow"/></button></section>}<p className={styles.deadline}><Symbol name="clock"/><span>{resetDay ? `Completed and overdue tasks leave this overview ${resetDay === clock.date ? "tonight" : dateLabel(resetDay,{weekday:"long",month:"short",day:"numeric"})} at 11:59 PM.` : "Each Special Meeting clears completed and overdue tasks at 11:59 PM the day after its selected date."} Active and future tasks stay visible. Saved data is kept.</span></p></div></div>
+      </section><div>{summary.needsHelp.length > 0 && <section className={styles.attention}><div className={styles.attentionHeader}><span className={styles.attentionIcon}><Symbol name="people"/></span><h3>{summary.needsHelp.length === 1 ? "One task needs a teammate" : `${summary.needsHelp.length} tasks need a teammate`}</h3></div><p><strong>{summary.needsHelp.length} of the {summary.remaining.length} remaining tasks</strong> {summary.needsHelp.length === 1 ? "is" : "are"} available for a teammate to take.</p><button className={styles.helpLink} onClick={onNeedsHelp} disabled={disabled} aria-label="Open Needs help page"><span>View tasks needing help</span><Symbol name="arrow"/></button></section>}<p className={styles.deadline}><Symbol name="clock"/><span>{resetDay ? `Completed and overdue tasks leave this overview ${resetDay === clock.date ? "tonight" : dateLabel(resetDay,{weekday:"long",month:"short",day:"numeric"})} at 11:59 PM.` : "Each Special Meeting clears completed and overdue tasks at 11:59 PM the day after its selected date."} Active and future tasks stay visible. Saved data is kept.</span></p></div></div>
   </section>;
 }
