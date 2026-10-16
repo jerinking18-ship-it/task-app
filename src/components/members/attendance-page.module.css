@@ -25,3 +25,6 @@
 
 /* Optional personal inbox action beside the existing Attendance button. */
 .dock{gap:10px;align-items:center}
+
+/* Missed restriction action; all existing Attendance styles stay unchanged. */
+.removeRestriction{display:inline-flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;min-height:36px;padding:7px 10px;background:#fff1e1;border:1px solid #cf8a46;border-radius:8px;color:#a85b1a;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer}.removeRestriction:hover{background:#ffe6cd}.removeRestriction:disabled,.removeConfirm:disabled{opacity:.55;cursor:default}.unlockIcon{display:flex;align-items:center;justify-content:center;color:#a85b1a;margin:0 0 18px}.keepFine{padding:12px;background:#fff1e1;border-radius:8px;color:#a85b1a!important}.removeConfirm{border:1px solid #bd702c;background:#c47b39;color:white;border-radius:8px;padding:10px 14px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}

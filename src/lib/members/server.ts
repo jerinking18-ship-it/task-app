@@ -6,6 +6,7 @@ export class MemberError extends Error {
 }
 function failure(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code==="P0015")throw new MemberError(403,"This absence was recorded after a Missed task. Only an Owner or Coordinator can remove its restriction on Attendance.");
   if(error.code==="P0403")throw new MemberError(403,"Your current role or verified email does not allow this action.");
   if(error.code==="P0409")throw new MemberError(409,"This invitation or membership changed. Refresh and try again.");
   if (["42501", "PGRST301", "PGRST302"].includes(error.code ?? "")) throw new MemberError(401, "Your session has ended. Sign in again to continue.");

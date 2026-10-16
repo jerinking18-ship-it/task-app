@@ -66,6 +66,9 @@ function decodeState(value: unknown, format: "database" | "api"): MemberState {
       const sundayService=(format==="database"?a.sunday_service:a.sundayService)??null;
       const morningReturnedAt=(format==="database"?a.morning_returned_at:a.morningReturnedAt)??null;
       const eveningReturnedAt=(format==="database"?a.evening_returned_at:a.eveningReturnedAt)??null;
+      const restrictionRole=(format==="database"?a.restriction_role:a.restrictionRole)??null;
+      const restrictionActorId=(format==="database"?a.restriction_actor_id:a.restrictionActorId)??null;
+      if(restrictionRole!==null?(!["owner","coordinator"].includes(restrictionRole as string)||!uuid(restrictionActorId)):restrictionActorId!==null)throw new Error("Incomplete restriction response.");
       const meetingDate=(format==="database"?a.meeting_date:a.meetingDate)??null;
       if(!uuid(a.id)||!uuid(memberId)||!members.some(m=>m.id===memberId)||!uuid(categoryId)||typeof a.category!=="string"
         ||!["Sunday Service","Healing Meeting","Revival Meeting","Special Meeting"].includes(a.category)
@@ -75,13 +78,13 @@ function decodeState(value: unknown, format: "database" | "api"): MemberState {
         ||(a.category!=="Sunday Service"&&(sundayService!==null||morningReturnedAt!==null||eveningReturnedAt!==null))
         ||(sundayService!==null&&(morningReturnedAt!==null||eveningReturnedAt!==null))
         ||[morningReturnedAt,eveningReturnedAt].some(t=>t!==null&&(!timestamp(t)||Date.parse(t)<Date.parse(createdAt)||Date.parse(t)>=Date.parse(expiresAt))))throw new Error("Incomplete absence response.");
-      absences.push({...(sundayService===null?{}:{sundayService:sundayService as "morning"|"evening"}),
+      absences.push({...(restrictionRole===null?{}:{restrictionRole:restrictionRole as "owner"|"coordinator",restrictionActorId:restrictionActorId as string}),...(sundayService===null?{}:{sundayService:sundayService as "morning"|"evening"}),
         ...(morningReturnedAt===null?{}:{morningReturnedAt:morningReturnedAt as string}),...(eveningReturnedAt===null?{}:{eveningReturnedAt:eveningReturnedAt as string}),id:a.id,memberId,categoryId,category:a.category,createdAt,expiresAt,meetingDate:meetingDate as string|null});
     }
     const absenceClock=typeof serverNow==="string"?Date.parse(serverNow):Date.now();
     const scopes=absences.flatMap(a=>{
       const key=a.memberId+":"+a.categoryId;
-      if(a.category!=="Sunday Service")return [key];
+      if(a.category!=="Sunday Service")return [a.category==="Special Meeting"?key+":"+a.meetingDate:key];
       const services=a.sundayService?[a.sundayService]:["morning","evening"].filter(service=>{
         const returned=service==="morning"?a.morningReturnedAt:a.eveningReturnedAt;
         return !returned||Date.parse(returned)>absenceClock;
