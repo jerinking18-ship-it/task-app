@@ -58,7 +58,7 @@ test('Confirmed template hook removal updates the library only after a complete 
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');const css={default:new Proxy({},{get:(_,key)=>String(key)})};
 const drag=load('../src/lib/tasks/use-bin-drag.ts',{'react':React});
 const sundayLabel=load('../src/components/sunday-service-label.tsx',{'react/jsx-runtime':require('react/jsx-runtime'),'./sunday-service.module.css':css});
-const TaskBin=load('../src/components/task-bin.tsx',{'./sunday-service-label':sundayLabel,'@/lib/members/display-name':load('../src/lib/members/display-name.ts'),'react':React,'react/jsx-runtime':require('react/jsx-runtime'),'@/lib/tasks/bin':bin,'@/lib/tasks/model':tasks,'@/lib/tasks/use-bin-drag':drag,'./task-bin.module.css':css}).default;
+const TaskBin=load('../src/components/task-bin.tsx',{'./sunday-service-label':sundayLabel,'./special-meeting-title':{SpecialMeetingLabel:()=>null},'@/lib/tasks/category-display':load('../src/lib/tasks/category-display.ts'),'@/lib/members/display-name':load('../src/lib/members/display-name.ts'),'react':React,'react/jsx-runtime':require('react/jsx-runtime'),'@/lib/tasks/bin':bin,'@/lib/tasks/model':tasks,'@/lib/tasks/use-bin-drag':drag,'./task-bin.module.css':css}).default;
 test('Bin renders tasks and templates in distinct sections, hides selection initially and searches template notes',()=>{
  const deleted=bin.decodeBinResponse({tasks:[],categories:[],templates:[removed]}).templates;
  const task={...tasks.blankTask(),id,title:'A deleted task',deletedAt:later,deletedByName:'Daniel'};

@@ -4,6 +4,7 @@ import CapitalizedInput from "./capitalized-input";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { newTaskDraft, categoryWeekdays, repeatError, MAX_BATCH_TASKS, PRIORITIES, type Priority, type Task } from "@/lib/tasks/model";
 import SundayServiceField from "./sunday-service-field";
+import {SpecialMeetingTitleField} from "./special-meeting-title";
 import TaskRepeat from "./task-repeat";
 import TaskTime from "./task-time";
 import TaskAssignee from "./task-assignee";
@@ -12,8 +13,8 @@ import styles from "./task-app.module.css";
 import { templateDrafts, type TemplateItem } from "@/lib/templates/model";
 
 type DraftRow = { key: number; task: Task; details: boolean; notesOpen: boolean; daysCustomized: boolean };
-export default function BulkTaskEditor({ categories, currentMemberId, members, canManage=true, initialCategory, initialTemplate, onSave, onClose, onDirty, pending, uncertain }: {
-  categories: string[]; currentMemberId?:string; members:Member[];canManage?:boolean;initialCategory: string; onSave: (tasks: Task[], category: string)=>Promise<void>;
+export default function BulkTaskEditor({ categories, currentMemberId, members, canManage=true, specialMeetingTitle="Special Meeting", initialCategory, initialTemplate, onSave, onClose, onDirty, pending, uncertain }: {
+  categories: string[]; currentMemberId?:string; members:Member[];canManage?:boolean;specialMeetingTitle?:string;initialCategory: string; onSave: (tasks: Task[], category: string)=>Promise<void>;
   initialTemplate?: {name:string;items:TemplateItem[]}|null;
   onClose: ()=>void; onDirty: (dirty:boolean)=>void; pending:boolean; uncertain:boolean;
 }) {
@@ -91,6 +92,7 @@ export default function BulkTaskEditor({ categories, currentMemberId, members, c
           <div className={styles.bulkTitleRow}><span className={styles.taskNumber}>{index+1}</span><label className={styles.field}><span className={styles.srOnly}>Task {index+1} title</span><CapitalizedInput id={`${id}-title-${row.key}`} value={row.task.title} onValueChange={value=>update(row.key,"title",value)} maxLength={200} required placeholder="What would you like to do?" data-autofocus={index===0} aria-invalid={!!error && !row.task.title.trim()} /></label><button type="button" className={styles.iconButton} aria-label={`Remove task ${index+1}`} disabled={rows.length===1} onClick={()=>removeRow(row.key)}>×</button></div>
           {row.notesOpen?<label className={styles.field}>Notes <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span><textarea value={row.task.notes} onChange={event=>update(row.key,"notes",event.target.value)} rows={2} maxLength={4000} placeholder="A few helpful details…" /></label>:<button type="button" className={styles.textButton} onClick={()=>setRows(current=>current.map(item=>item.key===row.key?{...item,notesOpen:true}:item))}>+ Add notes <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span></button>}
           {category==="Sunday Service"&&<SundayServiceField value={row.task.sundayService??"evening"} onChange={value=>update(row.key,"sundayService",value)} label={`Subcategory for task ${index+1}`}/>}
+          {category==="Special Meeting"&&<SpecialMeetingTitleField title={specialMeetingTitle} label={`Meeting title for task ${index+1}`}/>}
           <TaskAssignee currentMemberId={currentMemberId} context={`Task ${index+1}`} value={row.task.assignedToId} members={members} onChange={id=>update(row.key,"assignedToId",id)}/>
           <button type="button" className={styles.detailsToggle} aria-expanded={row.details} aria-controls={`${id}-details-${row.key}`} onClick={()=>setRows(current=>current.map(item=>item.key===row.key?{...item,details:!item.details}:item))}>{row.details?"Hide details":"Task details"}<span aria-hidden="true">{row.details?"−":"+"}</span></button>
           <div id={`${id}-details-${row.key}`} hidden={!row.details}>
