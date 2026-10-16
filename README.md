@@ -195,3 +195,9 @@ The sign-in page includes an Install app action below the existing form. Support
 Internet is required. This implementation adds no service worker, offline task queue, private-response cache, push subscription, APK/native package or database migration. In-app notifications keep their existing behavior. Publish the matching application and static icons to make installation available on the live site; physical Android and iPhone installation, session persistence and resume must be checked on devices.
 
 Validation: `npm run test:install`, all existing Node suites and `npm run build`. Current-schema notification and Missed SQL checks are available as `npm run test:current:notifications:sql` and `npm run test:current:missed:sql`; they use a private deterministic clock only inside disposable network-isolated PostgreSQL. Historical migration-specific suites remain available separately. Never run these fixture scripts against hosted data or replay installed migrations001–037.
+
+### App Back and Forward navigation
+
+In-app views and category selections create browser-history entries without changing the existing layout or URL. Back returns to the previous view; Forward restores it. Status/priority filter changes update the current entry. Existing dedicated routes keep their normal navigation. When an in-app history entry is available, Back first dismisses an open dialog/drawer through its normal close handler; unsaved changes retain their existing confirmation. No extra launch entry is added to trap users inside the app, so Back at the first screen can still leave normally. Navigation history stores only view/filter metadata, never tasks, account records or credentials.
+
+Regression checks: `node --test scripts/view-history.test.mjs`, the existing Node suites and production build. Physical Android/iPhone Back gestures still require checking after deployment.
