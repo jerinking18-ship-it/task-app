@@ -30,7 +30,9 @@
     "test:overview": "node --test scripts/meeting-overview.test.mjs",
     "test:help": "node --test scripts/needs-help.test.mjs",
     "test:notifications": "node --test scripts/notifications.test.mjs",
-    "test:notifications:sql": "python3 supabase/tests/notifications.py"
+    "test:notifications:sql": "python3 supabase/tests/notifications.py",
+    "test:activity": "node --test scripts/activity.test.mjs",
+    "test:activity:sql": "python3 supabase/tests/activity_log.py"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
