@@ -54,7 +54,7 @@ export type TaskAction =
   | { action: "create"; fields: TaskFields }
   | { action: "create_many"; fields: TaskFields[] }
   | { action: "delete"; id: string; version: string }
-  | { action: "update"; id: string; version: string; fields: TaskFields; scope?: EditScope; assignmentScope?: EditScope; seriesVersion?:string }
+  | { action: "update"; id: string; version: string; fields: TaskFields; scope?: EditScope; assignmentScope?: EditScope; seriesVersion?:string;specialStart?:import("@/lib/special-meetings/model").SpecialDateChange }
   | { action:"missed";id:string;version:string;confirmed:true }
   | { action:"take";id:string;version:string;absenceId:string;confirmed:true }
   | { action: "status"; id: string; version: string; status: "active" | "completed" };

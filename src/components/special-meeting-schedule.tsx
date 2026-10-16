@@ -5,8 +5,8 @@ import {specialDaysLabel,specialEndDay,type SpecialMeeting} from "@/lib/special-
 import app from "./task-app.module.css";
 import styles from "./special-meeting-schedule.module.css";
 function Lock({open=false}:{open?:boolean}){return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/>{open?<path d="M8 10V7a4 4 0 0 1 7-2"/>:<path d="M8 10V7a4 4 0 0 1 8 0v3"/>}</svg>;}
-export function SpecialMeetingSchedule({task,onChange,label="Number of days"}:{task:Task;onChange:(days:number|null)=>void;label?:string}){
- const start=task.specialMeeting?.startDate??task.date,days=task.specialDays??null;
+export function SpecialMeetingSchedule({task,onChange,startDate,label="Number of days"}:{task:Task;onChange:(days:number|null)=>void;startDate?:string;label?:string}){
+ const start=startDate??task.specialMeeting?.startDate??task.date,days=task.specialDays??null;
  const validDays=days===null||Number.isInteger(days)&&days>=1&&days<=31;
  return <section className={styles.schedule} aria-label="Special Meeting schedule"><label className={app.field}>{label}<span className={app.optional}>optional</span><input type="number" min="1" max="31" step="1" value={days??""} readOnly={!!task.specialPlanId} onChange={e=>onChange(e.target.value===""?null:Number(e.target.value))} placeholder="Existing next-day deadline"/></label>
  {start&&validDays&&<><p className={styles.days}>{specialDaysLabel(start,days)}</p><p className={app.editorHint}>Ends {specialEndDay(start,days)} at 11:59 PM India time.</p></>}

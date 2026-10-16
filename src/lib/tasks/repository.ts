@@ -150,7 +150,8 @@ export class TaskRepository {
     // Permanent reassignment is one transaction, independent of repeat-edit scope.
     // Older clients and occurrence-only saves retain the existing mutation path.
     const permanent=input.action==="update" && input.assignmentScope==="future";
-    const {data,error} = await this.client.rpc(permanent?(input.action==="update"&&input.fields.special_days!==undefined?"task_app_reassign_special":"task_app_reassign_permanently"):"task_app_mutate",{
+    const {data,error} = await this.client.rpc(input.action==="update"&&input.specialStart?"task_app_reschedule_special_task":permanent?(input.action==="update"&&input.fields.special_days!==undefined?"task_app_reassign_special":"task_app_reassign_permanently"):"task_app_mutate",{
+      ...(input.action==="update"&&input.specialStart?{meeting_date:input.specialStart.date,meeting_version:input.specialStart.version,confirmed:true,assignment_future:permanent}:{}),
       task_id:input.id,expected_version:input.version,operation:input.action,
       fields:input.action==="update"?input.fields:null,new_status:input.action==="status"?input.status:null,
       edit_scope:input.action==="update"?(input.scope??"this"):"this",
@@ -166,7 +167,7 @@ export class TaskRepository {
           throw new TaskError(503,"We couldn’t confirm moving this task. Refresh to check Bin before trying again.");
         return {deleted:deleted.id};
       }
-      return {task:await this.withOrigin(decodeRow(data))};
+      return {task:await this.withOrigin(decodeRow(data)),...(input.action==="update"&&input.specialStart?{dataset:await this.read()}:{})};
     }
     const current = await this.client.from("tasks").select(TASK_COLUMNS).eq("id",input.id).eq("owner_id",this.owner).is("deleted_at",null).maybeSingle();
     check(current.error);

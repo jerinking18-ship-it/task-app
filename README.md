@@ -159,9 +159,9 @@ Checks: `npm run test:overview`, `npm run test:activity`, `npm run test:activity
 
 Assigned to me now separates the viewer’s retained Special Meeting tasks below the regular list, with the shared custom meeting title (or Special Meeting by default). It appears only if the viewer has eligible Special Meeting assignments. The new section has independent Active/Completed/Overdue/All tabs and scoped counts; regular task filters keep their behaviour and task actions keep their existing permissions. Both sections use the same category visibility/deadline rules as before. Existing CSS is reused. This addition requires no database migration;035 remains pending only for Activity retention above.
 
-## Special Meeting events — local only (16 October 2026)
+## Special Meeting events — published (16 October 2026)
 
-Migration `202610160036_special_meeting_events.sql` and the matching application changes are prepared locally. They have **not** been applied to hosted Supabase or published. Installed migrations001–035 must never be replayed.
+Migration `202610160036_special_meeting_events.sql` and its matching application changes are published through PR53. Installed migrations001–036 must never be replayed.
 
 - Create Special Meeting tasks in the existing forms. They are saved locked in their category automatically. The heading lock sits beside the existing title edit button; only Owners and Coordinators can confirm activation or relocking. Members can read the title and activation status.
 - Choose a start date and optionally1–31 consecutive days. Weekday names appear automatically. A blank duration preserves one meeting-day occurrence and visibility through the following day’s11:59PM. An explicit duration ends at11:59PM on its final day.
@@ -173,4 +173,15 @@ Migration `202610160036_special_meeting_events.sql` and the matching application
 
 Validation: `npm run test:special`, `npm run test:special:sql`, the existing Node test suites, TypeScript and the Node24 production build. SQL tests use disposable PostgreSQL16 with networking disabled, including populated legacy adoption, authorization, finite daily rollover, concurrent release, relocking, future activation, Missed without fines, historical replacement exemption and preservation checks. The fictional UI fixture (`node scripts/special-meeting-ui-fixture.mjs`, port3052) has no credentials or hosted connections; it is not a live cross-device test.
 
-For a later approved deployment, review and apply **only036**, deploy matching code, and run `supabase/verification/special_meeting_events.sql`. The migration is transactional, guards prior task fields/function grants/trigger modes, rejects replay, does not create or enable a new job, and does not delete records. Existing bounded-release catch-up uses the established repeat maintenance entry point.
+036 has already been applied once. Never apply it again. Read-only verification is available in `supabase/verification/special_meeting_events.sql`. The migration is transactional, guards prior task fields/function grants/trigger modes, rejects replay, does not create or enable a new job, and does not delete records. Existing bounded-release catch-up uses the established repeat maintenance entry point.
+
+
+## Special Meeting date editing — migration037
+
+Owners and Coordinators can edit the Due date in an existing Special Meeting task form. The field edits the shared meeting start date; its weekday list and end date update immediately. Confirming moves every task/plan in that meeting by the same number of days, including already-materialized daily occurrences and Bin records. Duration stays unchanged. The meeting locks again and requires explicit activation for the new dates. Completion timestamps, history records, assignments, cancellation state, existing fines and yearly totals are preserved. Historical activation snapshots keep earlier regular-meeting fine exemptions tied to the dates originally replaced. A stale task/meeting version or duplicate target schedule rejects the complete operation.
+
+Locked preparations remain visible in their category, but contribute zero to the Special Meeting menu counter. Only activated, enabled tasks in the current meeting window contribute. Other counters and all CSS remain unchanged.
+
+This release requires additive migration `202610160037_special_meeting_date_edit.sql` and matching application code. Check the deployment record before applying it: once installed, never replay037 or any earlier migration. The migration performs no task deletion, activation, account/role update or job installation. It requires the installed036 baseline.
+
+Validation: all263 Node tests,76 disposable PostgreSQL checks (the existing036 suite plus shared-date tests), TypeScript/Node24 production build, and fictional desktop/mobile UI save/counter/confirmation checks. Run `python3 supabase/tests/special_meeting_date_edit.py` for isolated SQL verification. No hosted mutations or physical two-device checks were performed for this local update.

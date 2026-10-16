@@ -16,3 +16,13 @@ test('duration validation catches invalid drafts before submission without affec
 
 test('locked future preparations remain accessible in Special category during another active event',()=>{const active={...event,locked:false},future={...event,id:id(44),startDate:'2026-11-01',startsAt:'2026-10-31T18:30:00Z',endsAt:'2026-11-03T18:30:00Z'};const row=task('2026-11-01',{id:id(45),specialMeeting:future});assert.deepEqual(ids(special.currentSpecialTasks([row],[active,future],now)),[]);assert.deepEqual(ids(special.currentSpecialTasks([row],[active,future],now,'Special Meeting')),[id(45)]);assert.equal(special.specialTaskOpen(row,now),false);});
 test('undated adopted legacy tasks remain visible in preparation without changing their saved date',()=>{const row=task('',{specialMeeting:event});assert.equal(special.currentSpecialTasks([row],[event],now,'Special Meeting').length,1);assert.equal(period.isCategoryTaskVisible(row,now,'2026-10-21','20:00:00'),true);assert.equal(row.date,'');});
+
+test('shared Special Meeting date edits require explicit confirmation, date and version',()=>{
+ const fields=model.taskFields({...task(),title:'Sound',priority:'Medium',assignedToId:id(77),repeat:'Daily',specialDays:3},[{id:id(78),name:'Special Meeting'}]);
+ const update={action:'update',id:id(2),version:stamp,fields,specialStart:{date:'2026-10-28',version:stamp,confirmed:true}};
+ assert.equal(validation.validateAction(update).specialStart.date,'2026-10-28');
+ for(const specialStart of [{date:'2026-10-28',version:stamp,confirmed:false},{date:'2026-02-30',version:stamp,confirmed:true},{date:'2026-10-28',version:'stale',confirmed:true},{date:'2026-10-28',version:stamp,confirmed:true,role:'owner'}])assert.equal(validation.validateAction({...update,specialStart}),null);
+ assert.match(special.specialDaysLabel('2026-10-28',3),/Wed/);
+ assert.equal(special.specialDaysLabel('2026-10-28',3).split(' · ').length,3);
+ assert.equal(special.specialEndDay('2026-10-28',3),'2026-10-30');
+});
