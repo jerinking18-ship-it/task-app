@@ -52,7 +52,8 @@ import MemberHistoryPanel from "./members/member-history-panel";
 import { useMemberHistory } from "@/lib/member-history/use-member-history";
 import ProfilePanel from "./members/profile-panel";
 import { decodeMemberResponse, canManageTasks, canChangeTaskStatus, type MemberState, type Member } from "@/lib/members/model";
-type View = "Activity" | "Notifications" | "Attendance" | "Needs help" | "Meeting overview" | "Fines" | "All tasks" | "Today" | "Overdue" | "Completed" | "Member history" | "Users" | "Assigned to me" | "My profile" | "Bin";
+import {useViewHistory} from "@/lib/navigation/use-view-history";
+import type {AppView as View} from "@/lib/navigation/view-history";
 type IconName = "shield" | "grid" | "rupee" | "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "back" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning" | "trash" | "history" | "active" | "users" | "templates" | "person" | "lock";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
@@ -308,6 +309,16 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     const warn=(event:BeforeUnloadEvent)=>{if(endingSession.current)return; event.preventDefault(); event.returnValue="";};
     window.addEventListener("beforeunload",warn); return ()=>window.removeEventListener("beforeunload",warn);
   },[dirty,busy]);
+  useViewHistory({view,category,status,priority},{
+    restore:snapshot=>{finishEditor();setBulkCategory(null);setMenuOpen(false);setSearch("");setView(snapshot.view);setCategory(snapshot.category);setStatus(snapshot.status);setPriority(snapshot.priority);},
+    blocked:()=>dirty||busy||!!document.querySelector("dialog[open]"),
+    attempt:proceed=>{
+      const dialogs=document.querySelectorAll<HTMLDialogElement>("dialog[open]");
+      const top=dialogs[dialogs.length-1];
+      if(top){if(typeof top.requestClose==="function")top.requestClose();else top.dispatchEvent(new Event("cancel",{cancelable:true}));return;}
+      requestAction(proceed);
+    },
+  });
   useEffect(() => {
     if (!message) return;
     const timeout = window.setTimeout(() => setMessage(""), 3500);
