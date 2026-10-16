@@ -3,6 +3,9 @@ import NoMeeting from "../no-meeting";
 import { automaticOverviewCategory } from "@/lib/tasks/meeting-overview";
 
 import type {ReactNode} from "react";
+import RestrictionRemoval from "./restriction-removal";
+import { activeAbsences,absenceCoversService,type Absence } from "@/lib/members/absence";
+import {canManageTasks} from "@/lib/members/model";
 import type { Member, MemberState } from "@/lib/members/model";
 import { attendanceMeetings, meetingAttendance } from "@/lib/members/attendance";
 import type { Task } from "@/lib/tasks/model";
@@ -18,11 +21,12 @@ export function AttendanceEntry({ onOpen, disabled,children }: { onOpen: () => v
 }
 
 type Props = {
+  onSaved:(state:MemberState)=>void;onPending:(pending:boolean)=>void;
   state: MemberState | null; tasks: Task[]; tasksReady: boolean; tasksError: string;
   search: string; now: Date; loading: boolean; error: string; onRefresh: () => void; onBack: () => void;
 };
 
-export default function AttendancePanel({ state, tasks, tasksReady, tasksError, search, now, loading, error, onRefresh, onBack }: Props) {
+export default function AttendancePanel({ onSaved,onPending,state, tasks, tasksReady, tasksError, search, now, loading, error, onRefresh, onBack }: Props) {
   const meetings = attendanceMeetings(tasksReady ? tasks : [], now);
   const query = search.trim().toLocaleLowerCase();
   const ready = meetingAttendance(state, "", now).ready;
@@ -36,8 +40,8 @@ export default function AttendancePanel({ state, tasks, tasksReady, tasksError, 
         const title=sundayService==="morning"?"Morning Service":sundayService==="evening"?"Evening Service":category;
         return <section className={styles.meetingSection} key={`${category}:${sundayService??meetingDate ?? "regular"}`} aria-label={`${title}${meetingDate ? ` ${meetingDate}` : ""} attendance`}>
           <div className={styles.meetingHeading}><span>{sundayService?"Sunday Service":category === "Special Meeting" ? "Special meeting" : "Current meeting"}</span><h2>{title}</h2>{meetingDate && <time dateTime={meetingDate}>{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", weekday: "long", month: "short", day: "numeric" }).format(new Date(`${meetingDate}T12:00:00+05:30`))}</time>}</div>
-          <MemberGroup people={groups.absent} currentId={state?.current?.id} category={title} query={query}/>
-          <MemberGroup present people={groups.present} currentId={state?.current?.id} category={title} query={query}/>
+          <MemberGroup people={groups.absent} currentId={state?.current?.id} category={title} query={query} now={now} disabled={loading} onSaved={onSaved} onPending={onPending} restrictions={canManageTasks(state)?activeAbsences(state,now).filter(a=>!!a.restrictionRole&&a.category===category&&absenceCoversService(a,sundayService,now)&&(category!=="Special Meeting"||a.meetingDate===meetingDate)):[]}/>
+          <MemberGroup present people={groups.present} currentId={state?.current?.id} category={title} query={query} now={now} disabled={loading} onSaved={onSaved} onPending={onPending} restrictions={canManageTasks(state)?activeAbsences(state,now).filter(a=>!!a.restrictionRole&&a.category===category&&absenceCoversService(a,sundayService,now)&&(category!=="Special Meeting"||a.meetingDate===meetingDate)):[]}/>
         </section>;
       })}
       <p className={styles.note}>Present members haven’t marked absent for this meeting.</p>
@@ -45,11 +49,11 @@ export default function AttendancePanel({ state, tasks, tasksReady, tasksError, 
   </section>;
 }
 
-function MemberGroup({ people, currentId, category, query, present = false }: { people: Member[]; currentId?: string; category: string; query: string; present?: boolean }) {
+function MemberGroup({ people, currentId, category, query, present = false,restrictions,now,disabled,onSaved,onPending }: { restrictions:Absence[];now:Date;disabled:boolean;onSaved:(state:MemberState)=>void;onPending:(pending:boolean)=>void;people: Member[]; currentId?: string; category: string; query: string; present?: boolean }) {
   const visible = people.filter(member => member.name.toLocaleLowerCase().includes(query));
   const title = present ? "Present members" : "Absent members";
   return <section className={shared.absentCard} aria-label={title}>
     <div className={shared.absentHeading}><h2>{title}</h2><span className={present ? styles.presentCount : undefined} aria-live="polite">{visible.length}</span></div>
-    {visible.length ? <ul>{visible.map(member => <li key={member.id}><span className={`${shared.absentAvatar} ${present ? styles.presentAvatar : ""}`} aria-hidden="true">{Array.from(member.name)[0]?.toLocaleUpperCase()}</span><div><strong>{member.name}{member.id === currentId && <small className={shared.you}>You</small>}</strong><p>{category}</p></div><span className={`${shared.absentLabel} ${present ? styles.presentLabel : ""}`}>{present ? "Present" : "Absent"}</span></li>)}</ul> : <div className={`${shared.empty} ${styles.groupEmpty}`}><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2"/></svg><h3>{query ? "No members found" : `No ${present ? "present" : "absent"} members`}</h3><p>{query ? "Try another name." : present ? "Everyone is marked absent for this meeting." : "No one is marked absent for this meeting."}</p></div>}
+    {visible.length ? <ul>{visible.map(member => <li key={member.id}><span className={`${shared.absentAvatar} ${present ? styles.presentAvatar : ""}`} aria-hidden="true">{Array.from(member.name)[0]?.toLocaleUpperCase()}</span><div><strong>{member.name}{member.id === currentId && <small className={shared.you}>You</small>}</strong><p>{category}</p>{!present&&restrictions.filter(a=>a.memberId===member.id).map(a=><RestrictionRemoval key={a.id} absence={a} name={member.name} meeting={category} now={now} disabled={disabled} onSaved={onSaved} onPending={onPending}/>)}</div><span className={`${shared.absentLabel} ${present ? styles.presentLabel : ""}`}>{present ? "Present" : "Absent"}</span></li>)}</ul> : <div className={`${shared.empty} ${styles.groupEmpty}`}><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2"/></svg><h3>{query ? "No members found" : `No ${present ? "present" : "absent"} members`}</h3><p>{query ? "Try another name." : present ? "Everyone is marked absent for this meeting." : "No one is marked absent for this meeting."}</p></div>}
   </section>;
 }

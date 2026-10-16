@@ -36,13 +36,13 @@ function MeetingAttendance({state,category,now,disabled,onSaved,onPending,onRefr
  },[reviewed]);
  function close(){if(!busy.current){setReviewed(null);setProblem("");}}
  function review(event:FormEvent){
-  event.preventDefault();if(disabled||pending||!ready||!category)return;setProblem("");
+  event.preventDefault();if(disabled||pending||!ready||!category||absent?.restrictionRole)return;setProblem("");
   if(special&&!absent&&!date(meetingDate)){setProblem("Choose a valid meeting date.");return;}
   if(!changeWindow.open){setProblem(changeWindow.message);return;}
   setReviewed({categoryId:category.id,category:category.name,meetingDate:special?absent?.meetingDate??meetingDate:null,absenceId:absent?.id??null,expiresAt:absent?.expiresAt??null,sundayService});
  }
  async function submit(){
-  if(busy.current||disabled||!ready||!state.current||!reviewed)return;
+  if(busy.current||disabled||!ready||!state.current||!reviewed||absent?.restrictionRole)return;
   const reviewedWindow=absenceChangeWindow(reviewed.category,now,reviewed.meetingDate,reviewed.sundayService);
   if(!reviewedWindow.open){setProblem(reviewedWindow.message);return;}
   if(category?.id!==reviewed.categoryId||reviewed.absenceId!== (absent?.id??null)
@@ -72,10 +72,11 @@ function MeetingAttendance({state,category,now,disabled,onSaved,onPending,onRefr
    <h3>{meetingLabel??(special?"Special Meeting":"Meeting unavailable")}</h3>
   </div>
   {special&&<label>Meeting date<input type="date" required min="0001-01-01" max="9999-12-30" value={absent?.meetingDate??meetingDate} disabled={disabled||pending||!!absent} onChange={e=>{setMeetingDate(e.target.value);setProblem("");}}/></label>}
-  <button ref={trigger} className={`${styles.absentButton} ${absent?styles.unmarkButton:""}`} disabled={disabled||pending||!ready||!changeWindow.open}>
+  <button ref={trigger} className={`${styles.absentButton} ${absent?styles.unmarkButton:""}`} disabled={disabled||pending||!ready||!changeWindow.open||!!absent?.restrictionRole}>
    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{absent?<><circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/></>:<><circle cx="9" cy="7" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M17 10l5 5m0-5-5 5"/></>}</svg>
    {pending?"Saving…":absent?"Unmark absent":"Mark myself absent"}
   </button>
+  {absent?.restrictionRole&&<p className={styles.status}>An Owner or Coordinator must remove this restriction on Attendance.</p>}
   {absent&&<p className={styles.status}>You’re marked absent for {meetingLabel}.</p>}
   {ready&&!changeWindow.open&&(!special||!!selectedMeetingDate)&&<p className={styles.windowNotice} role="status">{changeWindow.message}</p>}
   {!ready&&<p role="status">Attendance is unavailable. Refresh your profile to check again.</p>}

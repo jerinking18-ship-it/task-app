@@ -3,7 +3,7 @@ import type { SundayService, Task } from "@/lib/tasks/model";
 
 export type Absence = { id:string; memberId:string; categoryId:string; category:string;
   meetingDate:string|null; createdAt:string; expiresAt:string; sundayService?:SundayService|null;
-  morningReturnedAt?:string|null; eveningReturnedAt?:string|null };
+  morningReturnedAt?:string|null; eveningReturnedAt?:string|null; restrictionRole?:"owner"|"coordinator"|null; restrictionActorId?:string|null };
 export type Coverage = { absenceId:string; memberId:string; memberName:string; expiresAt:string };
 
 // Missing scope is a legacy Sunday mark covering both services until expiry.
@@ -35,9 +35,22 @@ export function taskCoverage(task:Task,now:Date):Coverage|null {
 }
 export function canTakeTask(task:Task,state:MemberState|null,now:Date):boolean {
   const coverage=taskCoverage(task,now);
-  if(!coverage||!state?.workspace||!state.current||coverage.memberId===state.current.id
+  if(taskRestriction(task,state,now)||!coverage||!state?.workspace||!state.current||coverage.memberId===state.current.id
     ||!state.members.some(m=>m.id===coverage.memberId))return false;
   return !activeAbsences(state,now).some(a=>a.memberId===state.current!.id&&a.category===task.category
     &&absenceCoversService(a,task.category==="Sunday Service"?task.sundayService??"evening":null,now)
     &&(a.category!=="Special Meeting"||!task.date||a.meetingDate===task.date));
+}
+
+// Restricted absence keeps work assigned; it never releases work for Take task.
+export function taskRestriction(task:Task,state:MemberState|null,now:Date):Absence|null {
+ if(task.completed||!task.assignedToId||(task.availableAt&&Date.parse(task.availableAt)>now.getTime()))return null;
+ return activeAbsences(state,now).find(a=>{
+  if(!a.restrictionRole||a.memberId!==task.assignedToId||a.category!==task.category
+   ||!absenceCoversService(a,task.category==="Sunday Service"?task.sundayService??"evening":null,now))return false;
+  if(!task.date)return true;
+  const end=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(a.expiresAt));
+  const start=new Date(Date.parse(end+"T00:00:00Z")-2*86400000).toISOString().slice(0,10);
+  return task.date>=start&&task.date<end&&(a.category!=="Special Meeting"||task.date===a.meetingDate);
+ })??null;
 }

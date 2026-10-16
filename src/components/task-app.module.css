@@ -1969,3 +1969,8 @@
 .notificationsWorkspace .overline{display:none}
 @media(max-width:760px){.notificationsWorkspace .header{min-height:121px;padding:24px 20px 25px}.notificationsWorkspace .accountBar,.notificationsWorkspace .accountBar:not(:has([role=status],[role=alert])){top:24px;right:20px}.notificationsWorkspace .header h1{font-size:25px;letter-spacing:-.7px;font-weight:500}.notificationsWorkspace .accountBar+.header .heading{padding-right:79px;gap:13px}.notificationsWorkspace .date{font-size:11px;margin-top:10px;color:#aebdd0}.notificationsWorkspace .mobileMenu{width:40px;height:44px}.notificationsWorkspace .accountBar button{font-size:11px;padding:0 11px;min-height:44px}}
 @media(max-width:350px){.notificationsWorkspace .header{padding-left:16px;padding-right:16px}.notificationsWorkspace .accountBar,.notificationsWorkspace .accountBar:not(:has([role=status],[role=alert])){right:16px}.notificationsWorkspace .header h1{font-size:21px}.notificationsWorkspace .accountBar+.header .heading{gap:10px;padding-right:76px}}
+
+/* Missed restriction additions only; existing task styles remain intact. */
+.restrictionLabels{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.takenByManager,.noAccessTag{display:inline-flex;align-items:center;width:fit-content;padding:3px 9px;border:1px solid #cf8a46;border-radius:6px;background:#fff1e1;color:#a85b1a;font-size:11px;font-weight:500;line-height:1.4}
+.noAccessTag{border-color:#df9799;background:#fff0ee;color:#bb3b43}
