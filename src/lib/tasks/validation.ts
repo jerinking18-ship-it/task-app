@@ -43,10 +43,12 @@ export function validateAction(v: unknown): TaskAction | null {
     }
     case "delete": return keys(v,["action","id","version"]) && uuid(v.id) && timestamp(v.version)
       ? {action:"delete",id:v.id,version:v.version} : null;
-    case "update": return keys(v,["action","id","version","fields","scope","seriesVersion"]) && uuid(v.id) && timestamp(v.version) && validFields(v.fields)
+    case "update": return keys(v,["action","id","version","fields","scope","assignmentScope","seriesVersion"]) && uuid(v.id) && timestamp(v.version) && validFields(v.fields)
       && (v.scope===undefined || v.scope==="this" || v.scope==="future")
+      && (v.assignmentScope===undefined || v.assignmentScope==="this" || v.assignmentScope==="future")
       && (v.seriesVersion===undefined || timestamp(v.seriesVersion))
-      ? { action:"update", id:v.id, version:v.version, fields:{...v.fields,title:v.fields.title.trim()},scope:v.scope as "this"|"future"|undefined,seriesVersion:v.seriesVersion as string|undefined } : null;
+      && (v.assignmentScope!=="future" || (timestamp(v.seriesVersion) && !!v.fields.assigned_to_member_id && !!v.fields.repeat_rule && v.fields.repeat_rule!=="off"))
+      ? { action:"update", id:v.id, version:v.version, fields:{...v.fields,title:v.fields.title.trim()},scope:v.scope as "this"|"future"|undefined,assignmentScope:v.assignmentScope as "this"|"future"|undefined,seriesVersion:v.seriesVersion as string|undefined } : null;
     case "missed": return keys(v,["action","id","version","confirmed"]) && uuid(v.id) && timestamp(v.version) && v.confirmed===true ? v as TaskAction : null;
     case "take": return keys(v,["action","id","version","absenceId","confirmed"]) && uuid(v.id) && timestamp(v.version) && uuid(v.absenceId) && v.confirmed===true ? v as TaskAction : null;
     case "status": return keys(v,["action","id","version","status"]) && uuid(v.id) && timestamp(v.version) && ["active","completed"].includes(v.status as string)

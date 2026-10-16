@@ -126,7 +126,10 @@ export class TaskRepository {
       if(task.id!==input.id)throw new TaskError(503,"Taking this task could not be confirmed. Refresh before trying again.");
       return {task:await this.withOrigin(task)};
     }
-    const {data,error} = await this.client.rpc("task_app_mutate",{
+    // Permanent reassignment is one transaction, independent of repeat-edit scope.
+    // Older clients and occurrence-only saves retain the existing mutation path.
+    const permanent=input.action==="update" && input.assignmentScope==="future";
+    const {data,error} = await this.client.rpc(permanent?"task_app_reassign_permanently":"task_app_mutate",{
       task_id:input.id,expected_version:input.version,operation:input.action,
       fields:input.action==="update"?input.fields:null,new_status:input.action==="status"?input.status:null,
       edit_scope:input.action==="update"?(input.scope??"this"):"this",

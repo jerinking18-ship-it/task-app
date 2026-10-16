@@ -440,3 +440,23 @@ test("completion author reads use the current scoped profile name, including ret
  const nameRead=f.calls.find(call=>op(call,'rpc')?.[1]==='task_app_member_names');assert.equal(op(nameRead,'rpc')[2],undefined);assert.equal(f.calls.some(call=>call.table==='account_members'),false);
  const broken=fixture(call=>op(call,'rpc')?.[1]==='task_app_member_names'?{data:[{id:taskId,name:'One'},{id:taskId,name:'Two'}],error:null}:normal(call));await assert.rejects(()=>broken.repo.read());
 });
+
+test('reassignment duration is independent of calendar scope and rejects injected or incomplete permanent saves',()=>{
+  const input={action:'update',id:taskId,version,fields:{...fields,due_date:'2026-10-18',repeat_rule:'daily'},scope:'this',assignmentScope:'future',seriesVersion:version};
+  assert.equal(validation.validateAction(input).assignmentScope,'future');
+  assert.equal(validation.validateAction({...input,scope:'future',assignmentScope:'this'}).assignmentScope,'this');
+  for(const patch of [{assignmentScope:'permanent'},{assignmentScope:true},{seriesVersion:undefined},{fields:{...input.fields,repeat_rule:'off'}},{fields:{...input.fields,assigned_to_member_id:null}},{owner_id:owner}])assert.equal(validation.validateAction({...input,...patch}),null);
+  assert.equal(validation.validateAction({action:'status',id:taskId,version,status:'completed',assignmentScope:'future'}),null);
+});
+test('only explicit permanent assignment uses the atomic RPC; calendar future and one occurrence keep original path',async()=>{
+  for(const [assignmentScope,scope,rpcName]of [['future','this','task_app_reassign_permanently'],['this','future','task_app_mutate'],[undefined,'future','task_app_mutate']]){
+    const f=fixture(call=>call.table==='rpc'&&op(call,'rpc')[1]===rpcName?{data:row,error:null}:normal(call));
+    await f.repo.mutate({action:'update',id:taskId,version,fields,scope,assignmentScope,seriesVersion:version});
+    const args=op(f.calls[0],'rpc');assert.equal(args[1],rpcName);assert.equal(args[2].edit_scope,scope);assert.equal(args[2].expected_series_version,version);assert.equal(args[2].fields.assigned_to_member_id,taskId);assert.equal('owner_id'in args[2],false);assert.equal('role'in args[2],false);
+  }
+});
+test('failed permanent reassignment never falls back to an occurrence-only partial save',async()=>{
+  const f=fixture(()=>({data:null,error:{code:'P0403'}}));
+  await assert.rejects(f.repo.mutate({action:'update',id:taskId,version,fields,assignmentScope:'future',seriesVersion:version}),error=>error.status===403);
+  assert.equal(f.calls.length,1);assert.equal(op(f.calls[0],'rpc')[1],'task_app_reassign_permanently');
+});
