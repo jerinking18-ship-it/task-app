@@ -5,11 +5,12 @@ for who in [users[14],member,unverified]:expect('Member/departed/unverified fine
 expect('private ledger table denied','select * from public.task_fines;',owner,'42501')
 expect('client cannot assess another workspace',f"select public.task_app_assess_fines('{owner}',now());",owner,'42501')
 expect('client cannot enable fines','select public.task_app_enable_fines();',owner,'42501')
-for category,day in [('Sunday Service','2026-10-12'),('Healing Meeting','2026-10-15'),('Revival Meeting','2026-10-17'),('Special Meeting','2026-10-12')]:
+for category,day in [('Sunday Service','2026-10-12'),('Healing Meeting','2026-10-15'),('Revival Meeting','2026-10-17')]:
  scheduled={'Sunday Service':'2026-10-11','Healing Meeting':'2026-10-14','Revival Meeting':'2026-10-16','Special Meeting':'2026-10-11'}[category]
  safe=category.replace("'","''")
  check('01:00 India cutoff '+category,sql(f"select public.task_app_fine_cutoff('{safe}','{scheduled}','23:50')=('{day}T01:00:00+05:30')::timestamptz;")=='t')
 check('future custom due time never fined early',sql("select public.task_app_fine_cutoff('Sunday Service','2026-10-12','23:50')='2026-10-19T01:00:00+05:30'::timestamptz;")=='t')
+check('Special Meeting has no new fine cutoff',sql("select public.task_app_fine_cutoff('Special Meeting','2026-10-11','23:50')is null;")=='t')
 check('undated tasks have no guessed fine cutoff',sql("select public.task_app_fine_cutoff('Special Meeting',null,'23:50')is null;")=='t')
 original_task_digest=sql("select md5(coalesce(string_agg(to_jsonb(t)::text,'|'order by id),''))from public.tasks t;")
 activation=sql('select public.task_app_enable_fines();')
@@ -18,7 +19,7 @@ sql("select public.task_app_assess_scheduled_fines();")
 check('old cutoffs not backcharged at activation',sql('select count(*)from public.task_fines;')=='0')
 # Use a future actual occurrence so the production trigger records it normally.
 meeting_date=sql("select ((now()at time zone 'Asia/Kolkata')::date+8)::text;")
-category=sql(f"select id from public.categories where owner_id='{owner}'and name='Special Meeting';")
+category=sql(f"select id from public.categories where owner_id='{owner}'and name='Healing Meeting';")
 member_active=joined[0]['current']['id']
 seq=900
 def create_fine_task(assignee=ownmember):

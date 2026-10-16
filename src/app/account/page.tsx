@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { verifiedIdentity } from "@/lib/auth/flow";
 import { MemberError, readMembers } from "@/lib/members/server";
 
-export const metadata: Metadata = { title: "My tasks · Task App", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Assigned to me · Task App", robots: { index: false, follow: false } };
 export default async function Account({ searchParams }: PageProps<"/account">) {
   let client;
   let identity;
@@ -18,5 +18,5 @@ export default async function Account({ searchParams }: PageProps<"/account">) {
   }
   if (!members?.current || !members.workspace) redirect("/account/member");
   const query = await searchParams;
-  return <TaskApp saved accountId={members.workspace.ownerId} today={new Date().toISOString().slice(0, 10)} initialMembers={members} accountEmail={identity.email} passwordUpdated={query.password === "updated"} />;
+  return <TaskApp initialView="Assigned to me" saved accountId={members.workspace.ownerId} today={new Date().toISOString().slice(0, 10)} initialMembers={members} accountEmail={identity.email} passwordUpdated={query.password === "updated"} />;
 }

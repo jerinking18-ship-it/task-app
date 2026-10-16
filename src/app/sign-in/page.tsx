@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import AuthShell from "@/components/auth/auth-shell";
 import AuthForm from "@/components/auth/auth-form";
+import InstallApp from "@/components/install/install-app";
 
 export const metadata: Metadata = { title: "Sign in · BGM Task App", robots: { index: false, follow: false } };
 
@@ -11,5 +12,5 @@ export default async function SignIn({ searchParams }: PageProps<"/sign-in">) {
     : query.notice === "password-updated" ? "Password updated. Sign in with your new password."
     : query.notice === "profile-left" ? "You’ve left this workspace. Your shared tasks and past completion names were kept."
     : query.notice === "signed-out" ? "You’re signed out of this browser." : "";
-  return <AuthShell eyebrow="PRAISE THE LORD" title="Sign in to Task App" description="Your tasks, right where you left them."><AuthForm initialMessage={message} initialError={linkError} /></AuthShell>;
+  return <AuthShell eyebrow="PRAISE THE LORD" title="Sign in to Task App" description="Your tasks, right where you left them." afterCard={<InstallApp />}><AuthForm initialMessage={message} initialError={linkError} /></AuthShell>;
 }

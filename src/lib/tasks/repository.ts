@@ -100,8 +100,11 @@ export class TaskRepository {
     // Owner-scoped, server-clock catch-up also covers a delayed Cron run. Before
     // midnight this is a no-op. Failed maintenance must never show a partial list.
     const {error}=await this.client.rpc("task_app_release_my_repeats"); check(error);
-    const [timezone,tasks,categories,names,special] = await Promise.all([this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory),readMemberNames(this.client),this.specialState()]);
-    const [{data:coverage,error:coverageError},origins]=await Promise.all([this.client.rpc("task_app_available_coverage"),this.origins()]);check(coverageError);
+    // These workspace-scoped reads are independent after schedule catch-up.
+    const [timezone,tasks,categories,names,special,{data:coverage,error:coverageError},origins] = await Promise.all([
+      this.timezone(),this.pages("tasks",decodeRow),this.pages("categories",decodeCategory),readMemberNames(this.client),
+      this.specialState(),this.client.rpc("task_app_available_coverage"),this.origins()
+    ]);check(coverageError);
     if(!Array.isArray(coverage))throw new TaskError(503,"Task availability could not be confirmed. Refresh before continuing.");
     const released=new Map<string,{version:string;coverage:NonNullable<TaskRow["coverage"]>}>();
     for(const value of coverage){

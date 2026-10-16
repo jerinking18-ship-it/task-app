@@ -207,7 +207,7 @@ test("an open app refreshes once at India midnight, preserves dirty drafts and c
     let clock=Date.parse("2026-10-12T18:29:59.500Z"), stateIndex=0, reads=0;
     const effects=[],timers=new Map();let timerId=0;
     class FixtureDate extends Date {constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}}
-    const react={useCallback:fn=>fn,useRef:value=>({current:value}),useEffect:fn=>effects.push(fn),
+    const react={useCallback:fn=>fn,useMemo:fn=>fn(),useRef:value=>({current:value}),useEffect:fn=>effects.push(fn),
       useState:value=>[stateIndex++===0?{timezone:"Asia/Kolkata",tasks:[],categories:[]}:stateIndex===6?true:value,()=>{}]};
     const window={addEventListener(){},removeEventListener(){},setTimeout(fn,delay){timers.set(++timerId,{fn,delay});return timerId;},clearTimeout(id){timers.delete(id);}};
     const document={visibilityState:"visible",addEventListener(){},removeEventListener(){}};
@@ -459,4 +459,44 @@ test('failed permanent reassignment never falls back to an occurrence-only parti
   const f=fixture(()=>({data:null,error:{code:'P0403'}}));
   await assert.rejects(f.repo.mutate({action:'update',id:taskId,version,fields,assignmentScope:'future',seriesVersion:version}),error=>error.status===403);
   assert.equal(f.calls.length,1);assert.equal(op(f.calls[0],'rpc')[1],'task_app_reassign_permanently');
+});
+
+test('task reads begin together after catch-up, without waiting for the task page',async()=>{
+ let release,finishTasks;
+ const releaseGate=new Promise(resolve=>{release=resolve;}),taskGate=new Promise(resolve=>{finishTasks=resolve;});
+ const f=fixture(call=>op(call,'rpc')?.[1]==='task_app_release_my_repeats'?releaseGate:call.table==='tasks'?taskGate:normal(call));
+ const result=f.repo.read();await new Promise(setImmediate);
+ assert.equal(f.calls.length,1);assert.equal(op(f.calls[0],'rpc')[1],'task_app_release_my_repeats');
+ release({data:null,error:null});await new Promise(setImmediate);
+ assert.ok(f.calls.some(call=>op(call,'rpc')?.[1]==='task_app_available_coverage'));
+ assert.ok(f.calls.some(call=>op(call,'rpc')?.[1]==='task_app_coverage_origins'));
+ finishTasks({data:[],error:null});assert.equal((await result).tasks.length,0);
+});
+
+test('saved task mapping reuses unchanged data and refreshes after task/category edits',()=>{
+ let stateIndex=0,memoIndex=0;
+ const memos=[],states=[{timezone:'Asia/Kolkata',tasks:[{...row,category_id:catId}],categories:[{id:catId,name:'Healing Meeting'}]}];
+ const react={useCallback:fn=>fn,useEffect(){},useRef:value=>({current:value}),useState(value){const i=stateIndex++;if(!(i in states))states[i]=value;return[states[i],next=>{states[i]=typeof next==='function'?next(states[i]):next;}];},useMemo(factory,deps){const i=memoIndex++,old=memos[i];if(!old||deps.some((v,n)=>!Object.is(v,old.deps[n])))memos[i]={deps,value:factory()};return memos[i].value;}};
+ const hook=load('../src/lib/tasks/use-saved-tasks.ts',{'react':react,'./model':model,'./validation':validation,'./completed':completed});
+ const render=()=>{stateIndex=0;memoIndex=0;return hook.useSavedTasks(true,false);};
+ const first=render();assert.equal(first.tasks[0].category,'Healing Meeting');
+ assert.equal(render().tasks,first.tasks);
+ states[0]={...states[0],tasks:[{...states[0].tasks[0],title:'Updated task'}]};
+ const changed=render();assert.notEqual(changed.tasks,first.tasks);assert.equal(changed.tasks[0].title,'Updated task');
+ states[0]={...states[0],categories:[{id:catId,name:'Special Meeting'}]};
+ const renamed=render();assert.equal(renamed.tasks[0].category,'Special Meeting');assert.notEqual(renamed.tasks,changed.tasks);
+});
+
+test('reused clock formatters preserve zone boundaries, DST and independent results',()=>{
+ let constructors=0;
+ const CountingFormatter=new Proxy(Intl.DateTimeFormat,{construct(target,args){constructors++;return Reflect.construct(target,args);}});
+ const cached=load('../src/lib/tasks/model.ts',{}, {Intl:{DateTimeFormat:CountingFormatter}});
+ const reference=(now,timezone)=>{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(now);const part=name=>parts.find(p=>p.type===name).value;return{date:`${part('year')}-${part('month')}-${part('day')}`,time:`${part('hour')}:${part('minute')}:${part('second')}`};};
+ const zones=['Asia/Kolkata','UTC','America/New_York'];
+ const instants=['2026-10-17T18:29:59Z','2026-10-17T18:30:00Z','2026-03-08T06:59:59Z','2026-03-08T07:00:00Z','2026-11-01T05:59:59Z','2026-11-01T06:00:00Z','2028-02-29T00:00:00Z'];
+ for(const zone of zones)for(const value of instants){const now=new Date(value);assert.deepEqual({...cached.accountClock(now,zone)},reference(now,zone));}
+ assert.equal(constructors,zones.length);
+ const value=cached.accountClock(new Date(instants[0]),zones[0]);value.date='Changed locally';assert.notEqual(cached.accountClock(new Date(instants[0]),zones[0]).date,value.date);
+ assert.throws(()=>cached.accountClock(new Date(), 'Not/A_Zone'));
+ assert.throws(()=>cached.accountClock(new Date('invalid'),'UTC'));
 });

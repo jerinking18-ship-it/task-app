@@ -6,7 +6,7 @@ export function CheckMark({ large = false }: { large?: boolean }) {
   return <span className={large ? styles.largeMark : styles.mark} aria-hidden="true"><svg width={large ? 28 : 21} height={large ? 28 : 21} viewBox="0 0 24 24" fill="none"><path d="m5 12 4.5 4.5L19 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></span>;
 }
 
-export default function AuthShell({ title, description, children, eyebrow = "YOUR TASK APP" }: { title: string; description: string; children: ReactNode; eyebrow?: string }) {
+export default function AuthShell({ title, description, children, afterCard, eyebrow = "YOUR TASK APP" }: { title: string; description: string; children: ReactNode; afterCard?: ReactNode; eyebrow?: string }) {
   return <div className={styles.shell}>
     <a href="#auth-content" className={styles.skipLink}>Skip to form</a>
     <header className={styles.header}>
@@ -20,6 +20,7 @@ export default function AuthShell({ title, description, children, eyebrow = "YOU
         <p className={styles.description}>{description}</p>
         {children}
       </section>
+      {afterCard}
       <p className={styles.footer}><svg width="13" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="2" stroke="currentColor" /><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" /></svg> A private space for your tasks.</p>
     </main>
   </div>;

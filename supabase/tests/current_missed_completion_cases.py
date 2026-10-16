@@ -1,0 +1,53 @@
+# Full037 schema; all records and clock changes are disposable test fixtures.
+rpc('task_app_setup',"'bootstrap',null",owner)
+category=sql(f"select id from public.categories where owner_id='{owner}'and name='Healing Meeting';")
+fields={'title':'Current Missed audit','notes':None,'status':'active','due_date':'2026-12-23','due_time':'23:50','priority':'medium','category_id':category,'weekdays':[],'repeat_rule':'off','assigned_to_member_id':mm}
+def create(**changes):return rpc('task_app_create_tasks',literal([{**fields,**changes}]),owner)[0]
+def current(t):return json.loads(sql(f"select to_jsonb(t)from public.tasks t where id='{t['id']}';"))
+def missed(t,who=coord):return rpc('task_app_complete_missed',f"'{t['id']}','{t['updated_at']}',true",who)
+def status(t,who,value='active',fail=None):
+ q=f"select public.task_app_mutate('{t['id']}','{t['updated_at']}','status',null,'{value}','this',null);"
+ return sql(q,who,fail)if fail else json.loads(sql(q,who))
+def count(mid):return int(sql(f"select coalesce(sum(completed_count),0)from public.member_completion_totals where member_id='{mid}';"))
+t=create();remaining=create(title='Other current-day task');later=create(due_date='2026-12-30')
+sql(f"select public.task_app_complete_missed('{t['id']}','{t['updated_at']}',true);",member,fail='P0403')
+sql(f"select public.task_app_complete_missed('{t['id']}','{t['updated_at']}',true);",coord,fail='P0409')
+check('regular Missed requires fine setup before any task change',current(t)['status']=='active')
+sql('select public.task_app_enable_fines();')
+base=count(cm);done=missed(t)
+check('current eligible Missed records actor and preserves assignee',done['status']=='completed'and done['missed_completion_role']=='coordinator'and done['completed_by_member_id']==cm and done['assigned_to_member_id']==mm)
+check('Missed immediately issues one fifty-rupee fine',sql(f"select count(*)||'|'||sum(amount_paise)from public.task_fines where task_id='{t['id']}';")=='1|5000')
+check('actual completer receives one annual credit',count(cm)==base+1)
+a=json.loads(sql(f"select to_jsonb(a)from public.account_member_absences a where member_id='{mm}'and category_id='{category}'and restriction_role is not null;"))
+check('Missed forces absence only for current meeting',sql(f"select public.task_app_restriction_covers(t,a,public.audit_test_now())from public.tasks t,public.account_member_absences a where t.id='{remaining['id']}'and a.id='{a['id']}';")=='t'and sql(f"select not public.task_app_restriction_covers(t,a,public.audit_test_now())from public.tasks t,public.account_member_absences a where t.id='{later['id']}'and a.id='{a['id']}';")=='t')
+check('forced absence does not publicly release the remaining task',not any(x['task_id']==remaining['id']for x in rpc('task_app_available_coverage','',owner)))
+status(done,owner,fail='P0403');status(done,member,fail='P0403')
+check('only recorded completer reopens Missed',True)
+q=rpc('task_app_request_reopening',f"'{done['id']}','{done['completed_at']}','Work needs correction',true",member)
+q=json.loads(sql(f"select to_jsonb(q)from public.task_reopen_requests q where id='{q['id']}';"))
+check('reopen request targets exact recorded actor',q['reviewer_id']==cm)
+sql(f"select public.task_app_review_reopening('{q['id']}','{q['updated_at']}','approved',true);",owner,fail='P0403')
+rpc('task_app_review_reopening',f"'{q['id']}','{q['updated_at']}','approved',true",coord)
+active=current(t)
+check('approval reopens and subtracts annual credit without deleting fine',active['status']=='active'and active['missed_completion_role']is None and count(cm)==base and sql(f"select count(*)from public.task_fines where task_id='{t['id']}';")=='1')
+status(active,member,'completed',fail='P0015')
+check('approved reopen still respects the separate meeting restriction',True)
+rpc('task_app_remove_restriction',f"'{a['id']}','{a['expires_at']}',true",owner)
+normal=status(current(t),member,'completed')
+check('removing restriction permits normal assignee completion',normal['completed_by_member_id']==mm and normal['missed_completion_role']is None)
+# Another coordinator remains unable to reopen someone else's Missed task.
+inv=rpc('task_app_invite',"'person7@example.test','coordinator',null",owner)
+other=rpc('task_app_accept_invitation',f"'{inv['token']}','Other coordinator'",users[6])['current']['id']
+fresh=create(title='Exact actor only');finished=missed(fresh);status(finished,users[6],fail='P0403')
+check('different coordinator cannot reopen recorded Missed',True)
+# No old task is revived when its category returns the following week.
+old=create(due_date='2026-12-16');future=create(due_date='2026-12-30')
+for row in [old,future]:sql(f"select public.task_app_complete_missed('{row['id']}','{row['updated_at']}',true);",owner,fail='P0014')
+check('Missed rejects both past and future occurrence windows',True)
+# Separate Special tests verify unlock, bounded final-day windows and no fines.
+special=sql(f"select id from public.categories where owner_id='{owner}'and name='Special Meeting';")
+s=create(category_id=special,special_days=3)
+sql(f"select public.task_app_complete_missed('{s['id']}','{s['updated_at']}',true);",coord,fail='P0014')
+check('locked Special preparation cannot be marked Missed',current(s)['status']=='active')
+check('Special has no automatic fine deadline',sql("select public.task_app_fine_cutoff('Special Meeting','2026-12-23','23:50')is null;")=='t')
+print('All current037 Missed integration checks passed.',flush=True)

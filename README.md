@@ -185,3 +185,13 @@ Locked preparations remain visible in their category, but contribute zero to the
 This release requires additive migration `202610160037_special_meeting_date_edit.sql` and matching application code. Check the deployment record before applying it: once installed, never replay037 or any earlier migration. The migration performs no task deletion, activation, account/role update or job installation. It requires the installed036 baseline.
 
 Validation: all263 Node tests,76 disposable PostgreSQL checks (the existing036 suite plus shared-date tests), TypeScript/Node24 production build, and fictional desktop/mobile UI save/counter/confirmation checks. Run `python3 supabase/tests/special_meeting_date_edit.py` for isolated SQL verification. No hosted mutations or physical two-device checks were performed for this local update.
+
+## Home Screen installation — Android and iPhone
+
+BGM Task can be installed from its HTTPS website. The web manifest requests a standalone app window, with the existing navy/gold icon, and launches `/account` through the existing authentication flow. The default authenticated view is Assigned to me. Existing account credentials, workspace permissions and saved data are shared with the website.
+
+The sign-in page includes an Install app action below the existing form. Supported browsers use their native install prompt when offered. Android users can also use Chrome’s menu → Install app. On iPhone/iPad, use Safari → Share → Add to Home Screen and enable Open as Web App when shown. Browser wording and availability vary; a browser shortcut is not the standalone installation. Install guidance hides while running standalone.
+
+Internet is required. This implementation adds no service worker, offline task queue, private-response cache, push subscription, APK/native package or database migration. In-app notifications keep their existing behavior. Publish the matching application and static icons to make installation available on the live site; physical Android and iPhone installation, session persistence and resume must be checked on devices.
+
+Validation: `npm run test:install`, all existing Node suites and `npm run build`. Current-schema notification and Missed SQL checks are available as `npm run test:current:notifications:sql` and `npm run test:current:missed:sql`; they use a private deterministic clock only inside disposable network-isolated PostgreSQL. Historical migration-specific suites remain available separately. Never run these fixture scripts against hosted data or replay installed migrations001–037.

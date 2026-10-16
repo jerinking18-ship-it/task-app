@@ -1,0 +1,21 @@
+.install { display:flex; align-items:center; gap:12px; width:100%; max-width:460px; margin:16px 0 0; padding:13px 16px; border:1px solid #ddd6c7; border-radius:12px; color:#101c2d; background:#fffdf8; text-align:left; }
+.install>span:nth-child(2) { flex:1; min-width:0; }
+.install strong,.install small { display:block; }
+.install strong { font-size:13px; font-weight:600; }
+.install small { margin-top:3px; color:#69717c; font-size:11px; }
+.install:hover { border-color:#9c7e44; }
+.install:disabled { opacity:.65; cursor:wait; }
+.icon { display:grid; place-items:center; flex-shrink:0; width:36px; height:36px; border-radius:10px; color:#101c2d; background:#f0e6cf; }
+.dialog { position:fixed; inset:0; margin:auto; width:calc(100% - 32px); max-width:420px; max-height:calc(100dvh - 32px); padding:0; border:1px solid #ddd6c7; border-radius:18px; color:#101c2d; background:#fff; overflow:auto; overscroll-behavior:contain; }
+.dialog::backdrop { background:#101c2d80; }
+.content { padding:24px; font-size:13px; line-height:1.65; }
+.heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px; }
+.heading button { display:grid; place-items:center; width:36px; height:36px; border:1px solid #e6e3dc; border-radius:9px; color:#526071; background:#fff; font-size:23px; line-height:1; }
+.eyebrow { font-size:9px; font-weight:700; letter-spacing:1.6px; color:#806841; margin:0 0 6px; }
+.content h2 { font-size:24px; line-height:1.25; letter-spacing:-.6px; margin:0 0 12px; font-weight:600; }
+.content h3 { font-size:13px; margin:20px 0 10px; }
+.content p { margin-top:0; }
+.content ol { padding-left:20px; margin:0 0 18px; }
+.content li { padding-left:4px; margin:10px 0; }
+.note { color:#69717c; font-size:11px; line-height:1.7; }
+.done { width:100%; min-height:44px; margin-top:8px; padding:10px 16px; border:1px solid #cfb67e; border-radius:9px; background:#d4bc87; color:#101c2d; font-weight:600; }
