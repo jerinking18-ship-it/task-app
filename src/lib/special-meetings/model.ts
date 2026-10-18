@@ -11,7 +11,7 @@ export function specialCurrentDay(m:SpecialMeeting,now:Date){const today=account
 export function specialTaskOpen(t:Task,now:Date){const m=t.specialMeeting;return !!(m&&!m.locked&&t.specialEnabled&&Date.parse(m.startsAt)<=now.getTime()&&now.getTime()<Date.parse(m.endsAt));}
 export function specialTaskLocked(t:Task,now:Date){return t.category==="Special Meeting"&&!!t.specialMeeting&&!specialTaskOpen(t,now);}
 // Preserve raw records for History/Bin; current views show one occurrence per plan.
-export function currentSpecialTasks(tasks:Task[],meetings:SpecialMeeting[],now:Date,category="Any",history=false){
+export function currentSpecialTasks(tasks:Task[],meetings:SpecialMeeting[],now:Date,category="Any",history=false,preparations=false){
  if(history)return tasks;
  const active=activeSpecialMeeting(meetings,now);
  return tasks.filter(t=>{
@@ -20,7 +20,7 @@ export function currentSpecialTasks(tasks:Task[],meetings:SpecialMeeting[],now:D
   if(!m)return !active; // Reviewed legacy fixture compatibility; live036 adopts existing rows.
   if(now.getTime()>=Date.parse(m.endsAt))return false;
   if(active&&(m.id!==active.id||!t.specialEnabled))return category==="Special Meeting"&&(t.date||m.startDate)===specialCurrentDay(m,now);
-  if(!active&&category!=="Special Meeting")return false;
+  if(!active&&category!=="Special Meeting"&&!preparations)return false;
   return (t.date||m.startDate)===specialCurrentDay(m,now);
  });
 }

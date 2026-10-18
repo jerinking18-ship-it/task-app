@@ -88,7 +88,20 @@ export function isCategoryTaskVisible(task: Task, now: Date, date: string, time:
   return ends === null || now.getTime() < ends;
 }
 
+// Category pages/counts open only in their own meeting window. Keep this gate
+// separate from occurrence expiry: other saved views still retain active work.
+export function isCategoryWindowTaskVisible(task: Task, now: Date, date: string, time: string): boolean {
+  if (Object.prototype.hasOwnProperty.call(RESET_WEEKDAYS, task.category)
+    && regularMeetingWindow(now).category !== task.category) return false;
+  if (task.category === "Special Meeting") {
+    if (task.specialMeeting) {
+      if (task.specialMeeting.locked || !task.specialEnabled || now.getTime() < Date.parse(task.specialMeeting.startsAt)) return false;
+    } else if (!specialMeetingIsOpen(task, now)) return false;
+  }
+  return isCategoryTaskVisible(task, now, date, time);
+}
+
 export function matchesCategoryTask(task: Task, filters: Filters, date: string, time: string, now: Date): boolean {
   return matchesTask(task, filters, date, time, now)
-    && (filters.view !== "All tasks" || filters.category === "Any" || isCategoryTaskVisible(task, now, date, time));
+    && (filters.view !== "All tasks" || filters.category === "Any" || isCategoryWindowTaskVisible(task, now, date, time));
 }
