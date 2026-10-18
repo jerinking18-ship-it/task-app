@@ -9,6 +9,7 @@ export class TaskError extends Error {
 }
 function check(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code === "P0038")throw new TaskError(409,"This task is locked until its meeting starts. Special Meeting also requires activation. Refresh before completing it.");
   if(error.code === "P0037")throw new TaskError(409,"Another activated Special Meeting overlaps these dates. Lock it before activating this meeting.");
   if(error.code === "P0036")throw new TaskError(409,"This meeting is locked or another Special Meeting is active. Refresh to check the current meeting.");
   if(error.code === "P0015") throw new TaskError(403,"This task is restricted after a Missed completion. An Owner or Coordinator can remove the restriction on Attendance.");

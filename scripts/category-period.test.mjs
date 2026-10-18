@@ -15,6 +15,7 @@ const stamp='2026-10-11T07:25:00Z';
 const task=(fields={})=>({...model.blankTask(),id:'task',category:'Sunday Service',date:'2026-10-11',time:'12:55',createdAt:stamp,updatedAt:stamp,...fields});
 const filters=(fields={})=>({view:'All tasks',status:'All',priority:'Any',category:'Sunday Service',search:'',...fields});
 function visible(row,now){const d=new Date(now),clock=model.accountClock(d,'Asia/Kolkata');return periods.isCategoryTaskVisible(row,d,clock.date,clock.time);}
+function categoryVisible(row,now){const d=new Date(now),clock=model.accountClock(d,'Asia/Kolkata');return periods.isCategoryWindowTaskVisible(row,d,clock.date,clock.time);}
 function matches(row,f,now){const d=new Date(now),clock=model.accountClock(d,'Asia/Kolkata');return periods.matchesCategoryTask(row,f,clock.date,clock.time,d);}
 
 test('Each weekly category hides completed and overdue rows at exactly its own India reset',()=>{
@@ -38,15 +39,76 @@ test('Category All/Completed/Overdue tabs expire rows, while global pages and th
   assert.equal(matches(overdue,filters({view:'Overdue',status:'Overdue'}),now),true);
   assert.equal(matches(overdue,filters({view:'Overdue',status:'Overdue',category:'Any'}),now),true);
 });
-test('Category counters count every retained status and never force zero when active/upcoming work remains',()=>{
+test('Category rows and counters clear all statuses outside the window while saved active/future records remain',()=>{
   const rows=[task(),task({id:'done',completed:true,completedAt:stamp}),task({id:'future',date:'2026-10-18'}),task({id:'undated',date:'',time:''}),task({id:'other',category:'Healing Meeting'})];
   const original=JSON.stringify(rows);
-  const count=now=>rows.filter(row=>row.category==='Sunday Service'&&visible(row,now)).length;
+  const count=now=>rows.filter(row=>row.category==='Sunday Service'&&categoryVisible(row,now)).length;
   assert.equal(count('2026-10-12T18:29:59Z'),4);
-  assert.equal(count('2026-10-12T18:30:00Z'),2);
-  for(const row of rows.slice(2,4))for(const status of ['Active','All'])assert.equal(matches(row,filters({status}),'2026-10-12T18:30:00Z'),true,'Active/upcoming stay in '+status);
+  assert.equal(count('2026-10-12T18:30:00Z'),0);
+  for(const row of rows.slice(2,4))for(const status of ['Active','All']){
+    assert.equal(matches(row,filters({status}),'2026-10-12T18:30:00Z'),false,'Closed category hides active/upcoming in '+status);
+    assert.equal(matches(row,filters({status,category:'Any'}),'2026-10-12T18:30:00Z'),true,'Main All retains active/upcoming in '+status);
+    assert.equal(visible(row,'2026-10-12T18:30:00Z'),true,'Shared occurrence visibility used by Assigned is unchanged');
+  }
   assert.equal(JSON.stringify(rows),original,'Visibility must never mutate or remove saved records');
   assert.equal(visible(rows[4],'2026-10-12T18:30:00Z'),true,'Other categories retain their own period');
+});
+
+test('Every regular category opens at India midnight and closes after the full final 11:59 PM minute',()=>{
+  for(const [category,start,end] of [['Sunday Service','2026-10-18','2026-10-20'],['Healing Meeting','2026-10-21','2026-10-23'],['Revival Meeting','2026-10-23','2026-10-25']]){
+    const opens=Date.parse(start+'T00:00:00+05:30'),closes=Date.parse(end+'T00:00:00+05:30');
+    const rows=[task({category,date:'',time:''}),task({category,date:'2026-11-01'}),task({category,date:start,completed:true,completedAt:new Date(opens).toISOString()}),task({category,date:start,time:'01:00',createdAt:new Date(opens).toISOString()})];
+    const original=JSON.stringify(rows);
+    for(const row of rows){
+      assert.equal(categoryVisible(row,new Date(opens-1)),false,category+' before opening');
+      assert.equal(categoryVisible(row,new Date(opens)),true,category+' exact opening');
+      assert.equal(categoryVisible(row,new Date(closes-1)),true,category+' final millisecond');
+      assert.equal(categoryVisible(row,new Date(closes)),false,category+' exact close');
+      for(const status of ['Active','All'])if(!row.completed)assert.equal(matches(row,filters({category,status}),new Date(closes)),false);
+    }
+    assert.equal(JSON.stringify(rows),original);
+  }
+});
+
+test('Tuesday has zero regular category rows and year rollover follows India weekdays',()=>{
+  for(const category of ['Sunday Service','Healing Meeting','Revival Meeting'])assert.equal(categoryVisible(task({category,date:'',time:''}),'2026-10-20T12:00:00+05:30'),false);
+  const row=task({category:'Revival Meeting',date:'',time:''});
+  assert.equal(categoryVisible(row,'2026-12-31T23:59:59.999+05:30'),false);
+  assert.equal(categoryVisible(row,'2027-01-01T00:00:00+05:30'),true);
+  assert.equal(categoryVisible(row,'2027-01-02T23:59:59.999+05:30'),true);
+  assert.equal(categoryVisible(row,'2027-01-03T00:00:00+05:30'),false);
+});
+
+test('Opening a category next week never resurrects expired completed/overdue occurrences',()=>{
+  for(const row of [task(),task({completed:true,completedAt:stamp})])assert.equal(categoryVisible(row,'2026-10-18T12:00:00+05:30'),false);
+  assert.equal(categoryVisible(task({date:'2026-10-25',availableAt:'2026-10-24T18:30:00Z'}),'2026-10-18T12:00:00+05:30'),false);
+  assert.equal(categoryVisible(task({date:'2026-10-25',availableAt:'2026-10-24T18:30:00Z'}),'2026-10-25T00:00:00+05:30'),true);
+});
+
+test('Special category requires activation, enabled plan, saved dates and only the current daily occurrence',()=>{
+  const event={id:'meeting',startDate:'2026-10-20',days:3,locked:false,startsAt:'2026-10-20T00:00:00+05:30',endsAt:'2026-10-23T00:00:00+05:30'};
+  const row=task({category:'Special Meeting',date:'2026-10-20',specialMeeting:event,specialEnabled:true});
+  assert.equal(categoryVisible(row,'2026-10-19T23:59:59.999+05:30'),false);
+  assert.equal(categoryVisible(row,'2026-10-20T00:00:00+05:30'),true);
+  assert.equal(categoryVisible({...row,specialMeeting:{...event,locked:true}},'2026-10-20T12:00:00+05:30'),false);
+  assert.equal(categoryVisible({...row,specialEnabled:false},'2026-10-20T12:00:00+05:30'),false);
+  assert.equal(categoryVisible(row,'2026-10-21T00:00:00+05:30'),false);
+  const final={...row,date:'2026-10-22'};
+  assert.equal(categoryVisible(final,'2026-10-22T23:59:59.999+05:30'),true);
+  assert.equal(categoryVisible(final,'2026-10-23T00:00:00+05:30'),false);
+  const grace={...row,specialMeeting:{...event,days:null,endsAt:'2026-10-22T00:00:00+05:30'}};
+  assert.equal(categoryVisible(grace,'2026-10-21T23:59:59.999+05:30'),true);
+  assert.equal(categoryVisible(grace,'2026-10-22T00:00:00+05:30'),false);
+  assert.equal(categoryVisible({...grace,date:''},'2026-10-20T12:00:00+05:30'),true,'Adopted undated occurrence uses saved meeting start');
+});
+
+test('Strict category gating preserves search/priority/status and custom categories',()=>{
+  const row=task({date:'2026-10-18',title:'Check camera',priority:'High',createdAt:'2026-10-18T01:00:00+05:30'}),now='2026-10-18T12:00:00+05:30';
+  assert.equal(matches(row,filters({search:'camera',priority:'High',status:'Active'}),now),true);
+  assert.equal(matches(row,filters({search:'missing'}),now),false);
+  assert.equal(matches(row,filters({priority:'Low'}),now),false);
+  assert.equal(matches(row,filters({status:'Completed'}),now),false);
+  assert.equal(categoryVisible(task({category:'Custom',date:'',time:''}),'2026-10-20T12:00:00+05:30'),true);
 });
 test('Late completions and newly entered overdue tasks get the next matching deadline',()=>{
   const late='2026-10-12T18:30:00Z',next='2026-10-19T18:30:00Z';
