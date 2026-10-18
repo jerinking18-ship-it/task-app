@@ -38,7 +38,9 @@
     "test:activity:sql": "python3 supabase/tests/activity_log.py",
     "test:activity:retention:sql": "python3 supabase/tests/activity_retention.py",
     "test:special": "node --test scripts/special-meetings.test.mjs",
-    "test:special:sql": "python3 supabase/tests/special_meeting_events.py"
+    "test:special:sql": "python3 supabase/tests/special_meeting_events.py",
+    "test:check-in": "node --test scripts/check-in.test.mjs scripts/attendance.test.mjs scripts/view-history.test.mjs",
+    "test:check-in:sql": "python3 supabase/tests/meeting_check_in.py"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

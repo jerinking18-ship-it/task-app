@@ -113,6 +113,8 @@ test("account and member pages verify authentication, gate unselected sessions a
       "@/lib/supabase/server": { createClient:async()=>({auth:{}}) },
       "@/lib/auth/flow": { verifiedIdentity:async()=>signedIn ? {userId:id,sessionId:id} : null },
       "@/lib/members/server": { MemberError:server.MemberError, readMembers:async()=>{memberReads++;return {current,members:model.decodeMembers(state).members,workspace:current?{ownerId:id}:null};} },
+      "@/lib/check-in/server": {readCheckIn:async()=>null},
+      "@/lib/check-in/model": {checkInLanding:()=>"Assigned to me"},
       "@/components/task-app": {default:"task-app"},
       "@/components/auth/auth-shell": {default:"auth-shell"},
       "@/components/members/member-form": {default:"member-form"},

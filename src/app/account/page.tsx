@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import TaskApp from "@/components/task-app";
 import { createClient } from "@/lib/supabase/server";
 import { verifiedIdentity } from "@/lib/auth/flow";
+import { readCheckIn } from "@/lib/check-in/server";
+import { checkInLanding } from "@/lib/check-in/model";
 import { MemberError, readMembers } from "@/lib/members/server";
 
 export const metadata: Metadata = { title: "Assigned to me · Task App", robots: { index: false, follow: false } };
@@ -17,6 +19,8 @@ export default async function Account({ searchParams }: PageProps<"/account">) {
     /* Recover other failures through the member step. */
   }
   if (!members?.current || !members.workspace) redirect("/account/member");
+  let checkIn = null;
+  try { checkIn = await readCheckIn(client); } catch { /* Keep Assigned available if check-in cannot load. */ }
   const query = await searchParams;
-  return <TaskApp initialView="Assigned to me" saved accountId={members.workspace.ownerId} today={new Date().toISOString().slice(0, 10)} initialMembers={members} accountEmail={identity.email} passwordUpdated={query.password === "updated"} />;
+  return <TaskApp freshLaunch initialCheckIn={checkIn} initialView={checkIn ? checkInLanding(checkIn) : "Assigned to me"} saved accountId={members.workspace.ownerId} today={new Date().toISOString().slice(0, 10)} initialMembers={members} accountEmail={identity.email} passwordUpdated={query.password === "updated"} />;
 }

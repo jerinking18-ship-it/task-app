@@ -14,7 +14,10 @@ category='00000000-0000-4000-8000-000000008001';task='00000000-0000-4000-8000-00
 sql(f"insert into public.categories(id,owner_id,name)values('{category}','{owner}','Revival Meeting');")
 def actor_sql(q,u=owner):return sql(q,u)
 # Validated RPC ensures real actor attribution and status authorization.
-fields={'title':'Activity task','notes':'Private notes must never enter the log','status':'active','priority':'medium','category_id':category,'due_date':None,'due_time':None,'weekdays':[],'repeat_rule':'off','assigned_to_member_id':mm}
+# A dated past occurrence remains completable on every weekday. This activity
+# test must not depend on the current day opening an undated meeting task.
+past_date=sql("select ((statement_timestamp()at time zone 'Asia/Kolkata')::date-7)::text;")
+fields={'title':'Activity task','notes':'Private notes must never enter the log','status':'active','priority':'medium','category_id':category,'due_date':past_date,'due_time':None,'weekdays':[],'repeat_rule':'off','assigned_to_member_id':mm}
 created=rpc('task_app_create_tasks',literal([fields]),owner)[0]
 task=created['id']
 check('Task create records real actor and assignee',any(e['kind']=='task_created'and e['actorId']==ownmember and mm in e['affectedIds']for e in activity()['entries']))

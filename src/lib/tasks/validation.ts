@@ -1,5 +1,5 @@
 import type { Category, Dataset, TaskAction, TaskFields, TaskRow } from "./model";
-import { MAX_BATCH_TASKS } from "./model";
+import { MAX_BATCH_TASKS, MEETING_CATEGORIES } from "./model";
 
 export const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 export const uuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
@@ -34,7 +34,7 @@ export function validateAction(v: unknown): TaskAction | null {
     case "reassign_all":return keys(v,["action","id","version","fields","snapshot","assignmentScope","confirmed"])&&uuid(v.id)&&timestamp(v.version)&&validFields(v.fields)&&v.fields.status==="active"&&uuid(v.fields.assigned_to_member_id)&&typeof v.snapshot==="string"&&/^[0-9a-f]{32}$/.test(v.snapshot)&&(v.assignmentScope==="this"||v.assignmentScope==="future")&&v.confirmed===true?v as TaskAction:null;
     case "setup": return keys(v,["action","timezone"]) && v.timezone === "Asia/Kolkata" ? v as TaskAction : null;
     case "bootstrap": return keys(v,["action"]) ? { action: "bootstrap" } : null;
-    case "category": return keys(v,["action","name"]) && typeof v.name === "string" && !!v.name.trim() && v.name.trim().length <= 40 ? { action: "category", name: v.name.trim() } : null;
+    case "category": return keys(v,["action","name"]) && typeof v.name === "string" && MEETING_CATEGORIES.includes(v.name.trim()) ? { action: "category", name: v.name.trim() } : null;
     case "create": return keys(v,["action","fields"]) && validFields(v.fields) && v.fields.status === "active"
       ? { action: "create", fields: {...v.fields, title:v.fields.title.trim()} } : null;
     case "create_many": {

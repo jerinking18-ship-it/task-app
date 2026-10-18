@@ -1,4 +1,4 @@
-export const APP_VIEWS = ["Activity", "Notifications", "Attendance", "Needs help", "Meeting overview", "Fines", "All tasks", "Today", "Overdue", "Completed", "Member history", "Users", "Assigned to me", "My profile", "Bin"] as const;
+export const APP_VIEWS = ["Check in", "Checked-in list", "Activity", "Notifications", "Attendance", "Needs help", "Meeting overview", "Fines", "All tasks", "Today", "Overdue", "Completed", "Member history", "Users", "Assigned to me", "My profile", "Bin"] as const;
 export type AppView = typeof APP_VIEWS[number];
 export type ViewSnapshot = { view: AppView; category: string; status: string; priority: string };
 type Entry = { owner: string; index: number; path: string; snapshot: ViewSnapshot };
@@ -19,9 +19,9 @@ function readEntry(state: unknown, path: string): Entry | null {
 /** Navigation metadata only: never task rows, account details or credentials.
  * The launch entry is replaced, not duplicated, so Back can still exit at root.
  */
-export function createViewHistory(port: Port, initial: ViewSnapshot, callbacks: Callbacks, owner: string) {
+export function createViewHistory(port: Port, initial: ViewSnapshot, callbacks: Callbacks, owner: string, fresh = false) {
   const path = port.location.pathname;
-  const existing = readEntry(port.history.state, path);
+  const existing = fresh ? null : readEntry(port.history.state, path);
   let current: Entry = existing ?? { owner, index: 0, path, snapshot: initial };
   let alive = true;
   let rollback: Entry | null = null;

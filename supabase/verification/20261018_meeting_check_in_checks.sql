@@ -1,0 +1,7 @@
+-- Read-only post-deployment checks: zero rows means the check passed.
+select 'check-in table missing or RLS disabled'issue where not exists(select 1 from pg_class where oid=to_regclass('public.task_member_check_ins')and relrowsecurity);
+select 'client table privilege exposed'issue where exists(select 1 from information_schema.role_table_grants where table_schema='public'and table_name='task_member_check_ins'and grantee in('PUBLIC','anon','authenticated','service_role'));
+select 'private context helper exposed'issue where exists(select 1 from pg_proc p where p.oid=to_regprocedure('public.task_app_check_in_contexts(uuid,timestamp with time zone)')and(has_function_privilege('anon',p.oid,'execute')or has_function_privilege('authenticated',p.oid,'execute')or has_function_privilege('service_role',p.oid,'execute')));
+select 'check-in function missing unsafe or ungranted'issue from(values('public.task_app_check_in_state(boolean)'),('public.task_app_check_in(uuid,date,text,uuid,boolean)'))v(signature)
+where not exists(select 1 from pg_proc p where p.oid=to_regprocedure(v.signature)and p.prosecdef and p.proconfig @> array['search_path=""']and has_function_privilege('authenticated',p.oid,'execute')and not has_function_privilege('anon',p.oid,'execute')and not has_function_privilege('service_role',p.oid,'execute'));
+select 'check-in sync trigger missing'issue where not exists(select 1 from pg_trigger where tgrelid=to_regclass('public.task_member_check_ins')and tgname='member_check_ins_sync'and tgenabled='O');
