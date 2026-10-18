@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mapTask, newestFirst, taskFields, type Category, type Dataset, type Task, type TaskAction } from "./model";
-import { decodeCategory, decodeDataset, decodeRow, isRecord } from "./validation";
+import { decodeCategory, decodeDataset,decodeReassignmentSnapshot, decodeRow, isRecord } from "./validation";
 import { decodeCompletedPurge, decodeCompletedSnapshot, type CompletedSnapshot } from "./completed";
 import { confirmedStatusRow, meetingCategoriesReady } from "./confirmed-state";
 
@@ -94,7 +94,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
         const future=Array.isArray(body.future)?body.future.map(row=>mapTask(decodeRow(row),categories)):undefined;
         throw new SaveError(typeof body.message==="string" ? body.message : "Unable to save. Please try again.",response.status,latest,future);
       }
-      if(input.action === "create" || input.action === "update" || input.action === "status" || input.action === "take" || input.action === "missed") decodeRow(body.task);
+      if(input.action === "create" || input.action === "update" || input.action === "reassign_all" || input.action === "status" || input.action === "take" || input.action === "missed") decodeRow(body.task);
       if(input.action === "create_many") {
         if(!Array.isArray(body.tasks) || body.tasks.length !== input.fields.length) throw new SaveError("The save response was incomplete. Refresh before retrying.");
         const rows=body.tasks.map(decodeRow);
@@ -130,14 +130,18 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     void initialize().catch(e=>setError(e instanceof Error ? e.message : "Category setup failed. Please retry."));
     // No automatic retry after failure. The visible Retry setup action is explicit.
   },[enabled,data?.timezone,initialized]);
-  async function save(task:Task,scope:"this"|"future"="this",assignmentScope:"this"|"future"="this",specialStart?:import("@/lib/special-meetings/model").SpecialDateChange) {
+  async function save(task:Task,scope:"this"|"future"="this",assignmentScope:"this"|"future"="this",specialStart?:import("@/lib/special-meetings/model").SpecialDateChange,bulk?:import("./model").ReassignmentSnapshot) {
     const fields=taskFields(task,data?.categories ?? []);
-    const reply=await mutate(task.id ? {action:"update",id:task.id,version:task.updatedAt,fields,scope,assignmentScope,seriesVersion:task.seriesVersion || task.updatedAt,...(specialStart?{specialStart}:{})}
+    const reply=await mutate(bulk?{action:"reassign_all",id:task.id,version:task.updatedAt,fields,snapshot:bulk.token,assignmentScope,confirmed:true}:task.id ? {action:"update",id:task.id,version:task.updatedAt,fields,scope,assignmentScope,seriesVersion:task.seriesVersion || task.updatedAt,...(specialStart?{specialStart}:{})}
       : {action:"create",fields:{...fields,status:"active"}});
     const row=decodeRow(reply.task); const mapped=mapTask(row,data?.categories ?? []);
-    if(specialStart){const next=decodeDataset(reply.dataset);setData(next);if(next.serverNow)setClockOffset(Date.parse(next.serverNow)-Date.now());}
+    if(bulk||specialStart){if(bulk&&reply.count!==bulk.count)throw new SaveError("The reassignment response changed. Refresh to review saved tasks.");const next=decodeDataset(reply.dataset);setData(next);if(next.serverNow)setClockOffset(Date.parse(next.serverNow)-Date.now());}
     else setData(current=>current ? {...current,tasks:[...current.tasks.filter(t=>t.id!==row.id),row]} : current);
     setDeferred(true); return mapped;
+  }
+  async function reviewReassignment(task:Task){
+    const reply=await mutate({action:"reassign_preview",id:task.id,version:task.updatedAt});
+    const snapshot=decodeReassignmentSnapshot(reply.snapshot);if(snapshot.sourceId!==task.assignedToId)throw new SaveError("The original assignee changed. Reopen the editor.");return snapshot;
   }
   async function toggle(task:Task) {
     const reply=await mutate({action:"status",id:task.id,version:task.updatedAt,status:task.completed ? "active" : "completed",cachedProjection:true});
@@ -193,6 +197,6 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   const tasks=useMemo(()=>data?newestFirst(data.tasks.map(t=>mapTask(t,data.categories))):[],[data?.tasks,data?.categories]);
   const categories:Category[]=data?.categories ?? [];
   return {tasks,categories,clockOffset,specialMeetings:data?.specialMeetings??[],setSpecialLocked,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && (initialized || meetingCategoriesReady(categories)),
-    loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,toggle,completeMissed,take,saveMany,remove,addCategory,
+    loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,reviewReassignment,toggle,completeMissed,take,saveMany,remove,addCategory,
     reviewCompleted:()=>completedRequest(),purgeCompleted:(snapshot:CompletedSnapshot)=>completedRequest(snapshot)};
 }

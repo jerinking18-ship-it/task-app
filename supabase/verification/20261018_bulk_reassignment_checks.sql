@@ -1,0 +1,6 @@
+-- Read-only. Expected zero rows. Does not install039 or change data.
+select 'missing_bulk_rpc'as issue where to_regprocedure('public.task_app_reassign_all(uuid,timestamptz,uuid,text,boolean,jsonb)')is null
+union all select 'missing_preview_rpc'where to_regprocedure('public.task_app_reassignment_preview(uuid,timestamptz)')is null
+union all select 'private_helper_exposed'where exists(select 1 from pg_proc where pronamespace='public'::regnamespace and proname in('task_app_reassignment_state','task_app_reassignment_fields')and(has_function_privilege('anon',oid,'execute')or has_function_privilege('authenticated',oid,'execute')or has_function_privilege('service_role',oid,'execute')))
+union all select 'unexpected_rpc_grant'where exists(select 1 from pg_proc where pronamespace='public'::regnamespace and proname in('task_app_reassign_all','task_app_reassignment_preview')and(not has_function_privilege('authenticated',oid,'execute')or has_function_privilege('anon',oid,'execute')or has_function_privilege('service_role',oid,'execute')))
+union all select 'unsafe_function_configuration'where exists(select 1 from pg_proc where pronamespace='public'::regnamespace and proname in('task_app_reassignment_state','task_app_reassignment_fields','task_app_reassign_all','task_app_reassignment_preview')and(not prosecdef or not coalesce(proconfig@>array['search_path=""'],false)));

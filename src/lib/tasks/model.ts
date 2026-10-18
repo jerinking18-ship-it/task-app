@@ -46,7 +46,10 @@ export type TaskRow = TaskFields & {
   series_id?: string | null; history_at?: string | null; available_at?: string | null; repeat_anchor_day?: number | null; series_version?:string;
 };
 export type Dataset = { tasks: TaskRow[]; categories: Category[]; timezone: "Asia/Kolkata" | null; specialMeetings?:import("@/lib/special-meetings/model").SpecialMeeting[]; serverNow?:string };
+export type ReassignmentSnapshot = { sourceId:string; count:number; repeatCount:number; token:string };
 export type TaskAction =
+  | { action:"reassign_preview";id:string;version:string }
+  | { action:"reassign_all";id:string;version:string;fields:TaskFields;snapshot:string;assignmentScope:EditScope;confirmed:true }
   | { action: "setup"; timezone: "Asia/Kolkata" }
   | { action: "special_lock";id:string;version:string;locked:boolean;confirmed:true }
   | { action: "bootstrap" }
