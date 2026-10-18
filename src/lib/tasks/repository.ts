@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Category, Dataset, TaskAction, TaskRow } from "./model";
 import { MEETING_CATEGORIES } from "./model";
-import { decodeCategory, decodeRow, decodeSpecialMeeting,timestamp, uuid, isRecord } from "./validation";
+import { decodeCategory, decodeRow, decodeSpecialMeeting,decodeReassignmentSnapshot,timestamp, uuid, isRecord } from "./validation";
 
 const TASK_COLUMNS = "id,title,notes,status,due_date,due_time,priority,category_id,sunday_service,weekdays,repeat_rule,series_id,history_at,available_at,repeat_anchor_day,created_at,updated_at,completed_at,completed_by_member_id,completed_by_name,missed_completion_role,assigned_to_member_id,special_plan_id,special_enabled";
 export class TaskError extends Error {
@@ -9,6 +9,7 @@ export class TaskError extends Error {
 }
 function check(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code === "P0039")throw new TaskError(409,"The task selection changed. Reopen the reassignment popup to review the current count. No tasks were reassigned.");
   if(error.code === "P0038")throw new TaskError(409,"This task is locked until its meeting starts. Special Meeting also requires activation. Refresh before completing it.");
   if(error.code === "P0037")throw new TaskError(409,"Another activated Special Meeting overlaps these dates. Lock it before activating this meeting.");
   if(error.code === "P0036")throw new TaskError(409,"This meeting is locked or another Special Meeting is active. Refresh to check the current meeting.");
@@ -120,6 +121,16 @@ export class TaskRepository {
     return {timezone,specialMeetings:special.meetings,serverNow:special.serverNow,tasks:decorated.map(task=>this.decorateSpecial({...task,series_version:task.series_id?versions.get(task.series_id):task.updated_at},special)),categories};
   }
   async mutate(input: TaskAction): Promise<Record<string,unknown>> {
+    if(input.action==="reassign_preview"){
+      const {data,error}=await this.client.rpc("task_app_reassignment_preview",{task_id:input.id,expected_version:input.version});check(error);
+      return {snapshot:decodeReassignmentSnapshot(data)};
+    }
+    if(input.action==="reassign_all"){
+      const {data,error}=await this.client.rpc("task_app_reassign_all",{task_id:input.id,expected_version:input.version,new_assignee:input.fields.assigned_to_member_id,expected_snapshot:input.snapshot,assignment_future:input.assignmentScope==="future",selected_fields:input.fields});check(error);
+      if(!isRecord(data)||!Number.isInteger(data.count)||Number(data.count)<1||Number(data.count)>10000)throw new TaskError(503,"Bulk reassignment could not be confirmed. Refresh before trying again.");
+      const row=decodeRow(data.task);if(row.id!==input.id||row.assigned_to_member_id!==input.fields.assigned_to_member_id||row.status!=="active")throw new TaskError(503,"Bulk reassignment could not be confirmed. Refresh before trying again.");
+      return {task:await this.withOrigin(row),count:data.count,dataset:await this.read()};
+    }
     if(input.action==="special_lock"){
       const {error}=await this.client.rpc("task_app_set_special_locked",{meeting_id:input.id,expected_version:input.version,locked:input.locked,confirmed:true});check(error);
       return {dataset:await this.read()};

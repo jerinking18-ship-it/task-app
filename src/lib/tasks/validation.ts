@@ -30,6 +30,8 @@ export function validFields(v: unknown): v is TaskFields {
 export function validateAction(v: unknown): TaskAction | null {
   if (!isRecord(v)) return null;
   switch (v.action) {
+    case "reassign_preview":return keys(v,["action","id","version"])&&uuid(v.id)&&timestamp(v.version)?v as TaskAction:null;
+    case "reassign_all":return keys(v,["action","id","version","fields","snapshot","assignmentScope","confirmed"])&&uuid(v.id)&&timestamp(v.version)&&validFields(v.fields)&&v.fields.status==="active"&&uuid(v.fields.assigned_to_member_id)&&typeof v.snapshot==="string"&&/^[0-9a-f]{32}$/.test(v.snapshot)&&(v.assignmentScope==="this"||v.assignmentScope==="future")&&v.confirmed===true?v as TaskAction:null;
     case "setup": return keys(v,["action","timezone"]) && v.timezone === "Asia/Kolkata" ? v as TaskAction : null;
     case "bootstrap": return keys(v,["action"]) ? { action: "bootstrap" } : null;
     case "category": return keys(v,["action","name"]) && typeof v.name === "string" && !!v.name.trim() && v.name.trim().length <= 40 ? { action: "category", name: v.name.trim() } : null;
@@ -112,4 +114,9 @@ export function decodeSpecialMeeting(v:unknown):import("@/lib/special-meetings/m
  const end=new Date(v.startDate+"T12:00:00Z");end.setUTCDate(end.getUTCDate()+(v.days===null?2:Number(v.days)));
  if(Date.parse(v.startsAt)!==Date.parse(v.startDate+"T00:00:00+05:30")||Date.parse(v.endsAt)!==Date.parse(end.toISOString().slice(0,10)+"T00:00:00+05:30"))throw Error("Incomplete Special Meeting dates.");
  return {id:v.id,startDate:v.startDate as string,days:v.days as number|null,locked:v.locked,version:v.version,startsAt:v.startsAt,endsAt:v.endsAt};
+}
+
+export function decodeReassignmentSnapshot(v:unknown):import("./model").ReassignmentSnapshot {
+ if(!isRecord(v)||!uuid(v.sourceId)||!Number.isInteger(v.count)||Number(v.count)<1||Number(v.count)>10000||!Number.isInteger(v.repeatCount)||Number(v.repeatCount)<0||Number(v.repeatCount)>Number(v.count)||typeof v.token!=="string"||!/^[0-9a-f]{32}$/.test(v.token))throw Error("Reassignment count could not be confirmed. Reopen the popup.");
+ return {sourceId:v.sourceId,count:Number(v.count),repeatCount:Number(v.repeatCount),token:v.token};
 }

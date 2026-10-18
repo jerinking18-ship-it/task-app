@@ -196,6 +196,16 @@ The additive `202610180038_meeting_completion_lock.sql` repeats this policy at t
 
 Validation: `node --test scripts/meeting-completion-lock.test.mjs`, the existing Node suites, Node24 production build, `python3 supabase/tests/meeting_completion_lock.py` and `python3 supabase/tests/workspace_assignments.py`. Database suites run only in disposable network-isolated PostgreSQL. Read-only post-install verification: `supabase/verification/20261018_meeting_completion_lock_checks.sql`.
 
+## Reassign one task or all of a member’s tasks — migration039 (local only)
+
+The existing reassignment confirmation has two independent choices. **This task only** changes the selected task; **All tasks assigned to [member]** changes that member’s currently saved unfinished tasks across meetings, including locked/future preparations. Completed/History records and Bin items are excluded. **This occurrence only** keeps future repeat assignees; **Permanently** also changes the selected ordinary repeat series and Special daily plans. Existing tasks already assigned to another member remain unchanged. Nonrepeating tasks have no future assignment to change. Default selection remains one task and one occurrence.
+
+Owners and Coordinators receive a server-confirmed task count before saving. The server checks a snapshot of the task selection and its repeat/meeting schedules under the existing locks; a concurrent change requires a fresh review. All selected changes commit together or roll back together. Existing assignment guards, completion locks, notifications, Activity and fine history retain their current rules. Bulk reassignment can include title, notes or priority edits for the selected task only; save schedule/date or future-content edits separately. The full task dataset is reconciled after a confirmed bulk save.
+
+Additive migration `202610180039_bulk_reassignment.sql` adds two verified manager-only RPCs and two private helpers. It performs no historical updates, deletion, account changes, job installation or changes to old function definitions/grants. Migration039 is prepared locally and is **not installed**. Installed001–038 must never be replayed. Existing popup CSS and unrelated UI are unchanged.
+
+Validation: `node --test scripts/bulk-reassignment.test.mjs`, the existing Node suites, production build/TypeScript, and `python3 supabase/tests/bulk_reassignment.py` in disposable network-isolated PostgreSQL. Read-only post-install checks: `supabase/verification/20261018_bulk_reassignment_checks.sql`.
+
 ## Home Screen installation — Android and iPhone
 
 BGM Task can be installed from its HTTPS website. The web manifest requests a standalone app window, with the existing navy/gold icon, and launches `/account` through the existing authentication flow. The default authenticated view is Assigned to me. Existing account credentials, workspace permissions and saved data are shared with the website.
