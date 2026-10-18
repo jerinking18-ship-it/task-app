@@ -303,7 +303,6 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
   useEffect(()=>{if(view==="Bin")binTitle.current?.focus({preventScroll:true});},[view]);
   const drag=useBinDrag(binButton,!canManage||busy||dirty||!!deleteTask||!!purgeTasks||!!removeTemplate||clearCompleted||(saved&&(!storage.ready||storage.expired)),askDelete,openEditor);
   useEffect(()=>{drag.cancel();},[view,status,priority,category,search]);
-  useEffect(()=>{if(saved)void bin.refresh();},[saved,storage.tasks.length,bin.refresh]);
   useEffect(()=>{
     if(!dirty && !busy) return;
     const warn=(event:BeforeUnloadEvent)=>{if(endingSession.current)return; event.preventDefault(); event.returnValue="";};
@@ -430,13 +429,14 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     }
   }
   function chooseView(next: View) {
-    if(saved && (next==="Assigned to me" || next==="Fines" || next==="Attendance" || next==="Activity")){
+    if(next==="Assigned to me" && view===next){setMenuOpen(false);return;}
+    if(saved && (next==="Fines" || next==="Attendance" || next==="Activity")){
       if(view===next){setMenuOpen(false);return;}
       requestAction(()=>window.location.assign(next==="Activity"?"/account/activity-log":next==="Attendance"?"/account/attendance":next==="Fines"?"/account/fines":"/account/assigned-to-me"));return;
     }
     if (next === "My profile" && view === next) { setMenuOpen(false); return; }
-    const change = () => { if (next === "Activity" || next === "Notifications" || next === "Attendance" || next === "Needs help" || next === "Meeting overview" || next === "Users" || next === "My profile" || next === "Bin" || next === "Member history" || next === "Fines" || view === "Fines" || view === "Bin" || view === "My profile") { finishEditor(); setBulkCategory(null); } setView(next); resetFilters(); setStatus(next === "Completed" ? "Completed" : next === "Overdue" ? "Overdue" : next === "Member history" ? "All" : "Active"); setMenuOpen(false); };
-    if (next === "Activity" || next === "Notifications" || next === "Attendance" || next === "Needs help" || next === "Meeting overview" || next === "Users" || next === "My profile" || next === "Bin" || next === "Member history" || next === "Fines" || view === "Fines" || view === "Bin" || view === "My profile" || busy) requestAction(change); else change();
+    const change = () => { if (next === "Assigned to me" || next === "Activity" || next === "Notifications" || next === "Attendance" || next === "Needs help" || next === "Meeting overview" || next === "Users" || next === "My profile" || next === "Bin" || next === "Member history" || next === "Fines" || view === "Fines" || view === "Bin" || view === "My profile") { finishEditor(); setBulkCategory(null); } setView(next); resetFilters(); setStatus(next === "Completed" ? "Completed" : next === "Overdue" ? "Overdue" : next === "Member history" ? "All" : "Active"); setMenuOpen(false); };
+    if (next === "Assigned to me" || next === "Activity" || next === "Notifications" || next === "Attendance" || next === "Needs help" || next === "Meeting overview" || next === "Users" || next === "My profile" || next === "Bin" || next === "Member history" || next === "Fines" || view === "Fines" || view === "Bin" || view === "My profile" || busy) requestAction(change); else change();
   }
   function openBin(){drag.cancel();chooseView("Bin");void bin.refresh();}
   function askClearCompleted() {

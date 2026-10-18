@@ -170,6 +170,14 @@ export class TaskRepository {
           throw new TaskError(503,"We couldn’t confirm moving this task. Refresh to check Bin before trying again.");
         return {deleted:deleted.id};
       }
+      if(input.action==="status" && input.cachedProjection) {
+        // The mutation already enforces live membership, assignment, restrictions
+        // and versions. Return its committed row without three directory/schedule
+        // reads; clients reconcile presentation through the background refresh.
+        const task=decodeRow(data);
+        if(task.id!==input.id || task.status!==input.status)throw new TaskError(503,"Task status could not be confirmed. Refresh before trying again.");
+        return {task};
+      }
       return {task:await this.withOrigin(decodeRow(data)),...(input.action==="update"&&input.specialStart?{dataset:await this.read()}:{})};
     }
     const current = await this.client.from("tasks").select(TASK_COLUMNS).eq("id",input.id).eq("owner_id",this.owner).is("deleted_at",null).maybeSingle();
