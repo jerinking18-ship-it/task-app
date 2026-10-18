@@ -14,6 +14,7 @@ function load(path,deps={},globals={}) {
 }
 const model=load("../src/lib/tasks/model.ts");
 const validation=load("../src/lib/tasks/validation.ts",{"./model":model});
+const confirmedState=load("../src/lib/tasks/confirmed-state.ts",{"./validation":validation,"./model":model});
 const completed=load("../src/lib/tasks/completed.ts",{"./validation":validation});
 const repository=load("../src/lib/tasks/repository.ts",{"./validation":validation,"./model":model});
 const owner="00000000-0000-4000-8000-000000000001";
@@ -211,7 +212,7 @@ test("an open app refreshes once at India midnight, preserves dirty drafts and c
       useState:value=>[stateIndex++===0?{timezone:"Asia/Kolkata",tasks:[],categories:[]}:stateIndex===6?true:value,()=>{}]};
     const window={addEventListener(){},removeEventListener(){},setTimeout(fn,delay){timers.set(++timerId,{fn,delay});return timerId;},clearTimeout(id){timers.delete(id);}};
     const document={visibilityState:"visible",addEventListener(){},removeEventListener(){}};
-    const hook=load("../src/lib/tasks/use-saved-tasks.ts",{"react":react,"./model":model,"./validation":validation,"./completed":completed},
+    const hook=load("../src/lib/tasks/use-saved-tasks.ts",{"react":react,"./model":model,"./validation":validation,"./completed":completed,"./confirmed-state":confirmedState},
       {window,document,Date:FixtureDate,AbortController,AbortSignal,fetch:async()=>{reads++;return {ok:true,json:async()=>({timezone:"Asia/Kolkata",tasks:[],categories:[]})};}});
     hook.useSavedTasks(true,dirty);
     const cleanups=effects.map(effect=>effect());
@@ -238,12 +239,33 @@ test("create sends one checked RPC with assignee and validates committed row",as
 test("status uses the atomic owner-checked RPC with original task/version",async()=>{
   const done={...row,status:"completed",completed_at:version};
   const f=fixture(call=>op(call,"rpc")?.[1]==="task_app_mutate" ? {data:done,error:null} : normal(call));
-  await f.repo.mutate({action:"status",id:taskId,version,status:"completed"});
+  await f.repo.mutate({action:"status",id:taskId,version,status:"completed",cachedProjection:true});
   const args=op(f.calls.find(c=>op(c,"rpc")),"rpc")[2];
   assert.equal(args.task_id,taskId);assert.equal(args.expected_version,version);
   assert.equal(args.operation,"status");assert.equal(args.new_status,"completed");
   assert.equal(args.fields,null);assert.equal(args.edit_scope,"this");
   assert.equal("owner_id" in args,false);
+  assert.equal(f.calls.length,1,"committed status must not wait for directory/origin reads");
+});
+
+test("status rejects wrong identity/status and preserves stale and permission failures",async()=>{
+  for(const data of [{...row,id:catId,status:"completed",completed_at:version},row]){
+    const f=fixture(()=>({data,error:null}));
+    await assert.rejects(()=>f.repo.mutate({action:"status",id:taskId,version,status:"completed",cachedProjection:true}),e=>e.status===503);
+    assert.equal(f.calls.length,1);
+  }
+  const denied=fixture(()=>({data:null,error:{code:"P0403"}}));
+  await assert.rejects(()=>denied.repo.mutate({action:"status",id:taskId,version,status:"completed"}),e=>e.status===403);
+  assert.equal(denied.calls.length,1);
+  const stale=fixture(call=>call.table==="tasks"?{data:row,error:null}:op(call,"rpc")?.[1]==="task_app_mutate"?{data:{conflict:true},error:null}:normal(call));
+  await assert.rejects(()=>stale.repo.mutate({action:"status",id:taskId,version,status:"completed"}),e=>e.status===409&&e.latest.id===taskId);
+  assert.equal(stale.calls.filter(c=>op(c,"rpc")?.[1]==="task_app_mutate").length,1,"never replay a stale mutation");
+});
+
+test("compact status responses are opt-in presentation only, never permission or field overrides",()=>{
+  const input={action:"status",id:taskId,version,status:"completed",cachedProjection:true};
+  assert.equal(validation.validateAction(input)?.cachedProjection,true);
+  for(const bad of [{...input,cachedProjection:false},{...input,cachedProjection:"true"},{...input,owner_id:owner},{...input,assigned_to_member_id:taskId},{...input,fields:{status:"completed"}}])assert.equal(validation.validateAction(bad),null);
 });
 
 test("stale edit returns latest owned row as conflict, missing row returns 404, no automatic replay",async()=>{
@@ -477,7 +499,7 @@ test('saved task mapping reuses unchanged data and refreshes after task/category
  let stateIndex=0,memoIndex=0;
  const memos=[],states=[{timezone:'Asia/Kolkata',tasks:[{...row,category_id:catId}],categories:[{id:catId,name:'Healing Meeting'}]}];
  const react={useCallback:fn=>fn,useEffect(){},useRef:value=>({current:value}),useState(value){const i=stateIndex++;if(!(i in states))states[i]=value;return[states[i],next=>{states[i]=typeof next==='function'?next(states[i]):next;}];},useMemo(factory,deps){const i=memoIndex++,old=memos[i];if(!old||deps.some((v,n)=>!Object.is(v,old.deps[n])))memos[i]={deps,value:factory()};return memos[i].value;}};
- const hook=load('../src/lib/tasks/use-saved-tasks.ts',{'react':react,'./model':model,'./validation':validation,'./completed':completed});
+ const hook=load('../src/lib/tasks/use-saved-tasks.ts',{'react':react,'./model':model,'./validation':validation,'./completed':completed,'./confirmed-state':confirmedState});
  const render=()=>{stateIndex=0;memoIndex=0;return hook.useSavedTasks(true,false);};
  const first=render();assert.equal(first.tasks[0].category,'Healing Meeting');
  assert.equal(render().tasks,first.tasks);

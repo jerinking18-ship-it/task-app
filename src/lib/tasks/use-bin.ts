@@ -11,10 +11,12 @@ export function useBin(enabled: boolean, blocked: boolean) {
   const [expired,setExpired]=useState(false);
   const [needsMember,setNeedsMember]=useState(false);
   const [templates,setTemplates]=useState<BinTemplate[]>([]);
-  const state=useRef({blocked,pending:false}); state.current.blocked=blocked;
+  const state=useRef({blocked,pending:false,queued:false}); state.current.blocked=blocked;
   const read=useRef<AbortController|null>(null); const sequence=useRef(0); const alive=useRef(true);
   const refresh=useCallback(async(background=false)=>{
-    if(!enabled || state.current.blocked || state.current.pending) return;
+    if(!enabled)return;
+    if(state.current.blocked || state.current.pending){state.current.queued=true;return;}
+    state.current.queued=false;
     read.current?.abort(); const controller=new AbortController(); read.current=controller;
     const seq=++sequence.current; if(!background)setLoading(true);setError("");
     try {
@@ -26,10 +28,10 @@ export function useBin(enabled: boolean, blocked: boolean) {
     } catch(reason){if(alive.current && seq===sequence.current && !controller.signal.aborted)setError(reason instanceof Error?reason.message:'Unable to load Bin.');}
     finally{if(alive.current && seq===sequence.current){setLoading(false);read.current=null;}}
   },[enabled]);
-  useEffect(()=>{alive.current=true;return()=>{alive.current=false;read.current?.abort();sequence.current++;};},[refresh]);
+  useEffect(()=>{alive.current=true;if(enabled)void refresh();return()=>{alive.current=false;read.current?.abort();sequence.current++;};},[enabled,refresh]);
   useEffect(()=>{
-    if(blocked && read.current){read.current.abort();read.current=null;sequence.current++;setLoading(false);}
-    if(!blocked)void refresh();
+    if(blocked && read.current){read.current.abort();read.current=null;sequence.current++;setLoading(false);state.current.queued=true;}
+    if(!blocked && state.current.queued)void refresh(true);
   },[blocked,refresh]);
   useEffect(()=>{if(!enabled)return;const returned=()=>{if(document.visibilityState==='visible')void refresh();};window.addEventListener('focus',returned);return()=>window.removeEventListener('focus',returned);},[enabled,refresh]);
   async function mutate(action:BinAction['action'], selected:BinEntry[]) {

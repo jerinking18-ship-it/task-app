@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mapTask, newestFirst, taskFields, type Category, type Dataset, type Task, type TaskAction } from "./model";
 import { decodeCategory, decodeDataset, decodeRow, isRecord } from "./validation";
 import { decodeCompletedPurge, decodeCompletedSnapshot, type CompletedSnapshot } from "./completed";
+import { confirmedStatusRow, meetingCategoriesReady } from "./confirmed-state";
 
 export class SaveError extends Error {
   constructor(message:string, public status=0, public latest?:Task, public future?:Task[]) { super(message); }
@@ -49,7 +50,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     }
   },[dirty]);
   useEffect(()=>{
-    if(enabled && deferred && !dirty && !pending) void refresh();
+    if(enabled && deferred && !dirty && !pending) void refresh(true);
   },[enabled,deferred,dirty,pending,refresh]);
   useEffect(()=>{
     if(!enabled) return;
@@ -124,7 +125,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   }
   const bootstrapRunning=useRef(false);
   useEffect(()=>{
-    if(!enabled || !data?.timezone || initialized || bootstrapRunning.current) return;
+    if(!enabled || !data?.timezone || initialized || meetingCategoriesReady(data.categories) || bootstrapRunning.current) return;
     bootstrapRunning.current=true;
     void initialize().catch(e=>setError(e instanceof Error ? e.message : "Category setup failed. Please retry."));
     // No automatic retry after failure. The visible Retry setup action is explicit.
@@ -139,8 +140,8 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     setDeferred(true); return mapped;
   }
   async function toggle(task:Task) {
-    const reply=await mutate({action:"status",id:task.id,version:task.updatedAt,status:task.completed ? "active" : "completed"});
-    const row=decodeRow(reply.task); const mapped=mapTask(row,data?.categories ?? []);
+    const reply=await mutate({action:"status",id:task.id,version:task.updatedAt,status:task.completed ? "active" : "completed",cachedProjection:true});
+    const row=confirmedStatusRow(state.current.data?.tasks.find(row=>row.id===task.id),reply.task,task.id,task.completed?"active":"completed"); const mapped=mapTask(row,data?.categories ?? []);
     setData(current=>current ? {...current,tasks:current.tasks.map(t=>t.id===row.id ? row : t)} : current);
     setDeferred(true); return mapped;
   }
@@ -191,7 +192,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   // A clock tick or opening a menu does not change saved task data.
   const tasks=useMemo(()=>data?newestFirst(data.tasks.map(t=>mapTask(t,data.categories))):[],[data?.tasks,data?.categories]);
   const categories:Category[]=data?.categories ?? [];
-  return {tasks,categories,clockOffset,specialMeetings:data?.specialMeetings??[],setSpecialLocked,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && initialized,
+  return {tasks,categories,clockOffset,specialMeetings:data?.specialMeetings??[],setSpecialLocked,timezone:data?.timezone ?? null,hasData:!!data,ready:!!data?.timezone && (initialized || meetingCategoriesReady(categories)),
     loading,pending,error,expired,needsMember,deferred,uncertain,refresh,setup,initialize,save,toggle,completeMissed,take,saveMany,remove,addCategory,
     reviewCompleted:()=>completedRequest(),purgeCompleted:(snapshot:CompletedSnapshot)=>completedRequest(snapshot)};
 }

@@ -54,7 +54,7 @@ export function validateAction(v: unknown): TaskAction | null {
       ? { action:"update", id:v.id, version:v.version, fields:{...v.fields,title:v.fields.title.trim()},scope:v.scope as "this"|"future"|undefined,assignmentScope:v.assignmentScope as "this"|"future"|undefined,seriesVersion:v.seriesVersion as string|undefined,specialStart:v.specialStart as Extract<TaskAction,{action:"update"}>["specialStart"] } : null;
     case "missed": return keys(v,["action","id","version","confirmed"]) && uuid(v.id) && timestamp(v.version) && v.confirmed===true ? v as TaskAction : null;
     case "take": return keys(v,["action","id","version","absenceId","confirmed"]) && uuid(v.id) && timestamp(v.version) && uuid(v.absenceId) && v.confirmed===true ? v as TaskAction : null;
-    case "status": return keys(v,["action","id","version","status"]) && uuid(v.id) && timestamp(v.version) && ["active","completed"].includes(v.status as string)
+    case "status": return keys(v,["action","id","version","status","cachedProjection"]) && (v.cachedProjection===undefined||v.cachedProjection===true) && uuid(v.id) && timestamp(v.version) && ["active","completed"].includes(v.status as string)
       ? v as TaskAction : null;
     default: return null;
   }

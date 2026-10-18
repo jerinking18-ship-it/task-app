@@ -14,6 +14,29 @@ const {BinRepository}=load('../src/lib/tasks/bin-repository.ts',{'./bin':bin,'./
 const id='00000000-0000-4000-8000-000000000091',owner='00000000-0000-4000-8000-000000000001',stamp='2026-10-13T07:25:00.123456+00:00';
 const row={id,title:'Example task',notes:'Notes remain',status:'completed',due_date:'2026-10-13',due_time:'12:55:00',priority:'high',category_id:null,weekdays:[2],repeat_rule:'off',series_id:null,created_at:stamp,updated_at:stamp,completed_at:stamp,completed_by_member_id:id,completed_by_name:'Example',deleted_at:stamp,deleted_by_name:'Example'};
 const action={action:'purge',confirmed:true,items:[{id,version:stamp}]};
+
+function binHookFixture(){
+ let cursor=0,blocked=false,changed=false,api;const slots=[],effects=[],calls=[],listeners=new Map();
+ const equal=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
+ const react={
+  useRef(value){const i=cursor++;return slots[i]??(slots[i]={current:value});},
+  useState(value){const i=cursor++;if(!(i in slots))slots[i]=value;return[slots[i],next=>{const v=typeof next==='function'?next(slots[i]):next;if(!Object.is(v,slots[i])){slots[i]=v;changed=true;}}];},
+  useCallback(fn,deps){const i=cursor++;if(!slots[i]||!equal(slots[i].deps,deps))slots[i]={deps,fn};return slots[i].fn;},
+  useEffect(fn,deps){const i=cursor++;if(!slots[i]||!equal(slots[i].deps,deps)){const old=slots[i];slots[i]={deps,cleanup:old?.cleanup};effects.push(()=>{old?.cleanup?.();slots[i].cleanup=fn();});}}
+ };
+ const hook=load('../src/lib/tasks/use-bin.ts',{'react':react,'./bin':bin,'./validation':validation},{AbortController,AbortSignal,document:{visibilityState:'visible'},window:{addEventListener:(k,fn)=>listeners.set(k,fn),removeEventListener:k=>listeners.delete(k)},fetch:async(url,init)=>{calls.push({url,init});return{ok:true,status:200,json:async()=>({tasks:[],templates:[],categories:[]})};}});
+ function render(){cursor=0;changed=false;api=hook.useBin(true,blocked);for(const effect of effects.splice(0))effect();return api;}
+ async function settle(){for(let i=0;i<8;i++){await new Promise(r=>setImmediate(r));if(changed)render();}return api;}
+ return{calls,render,settle,setBlocked(v){blocked=v;return render();},get api(){return api;},cleanup(){for(const s of slots)s?.cleanup?.();}};
+}
+test('Bin counter loads once and an unrelated save start/finish does not reload it',async()=>{
+ const f=binHookFixture();f.render();await f.settle();assert.equal(f.calls.length,1);assert.equal(f.api.loaded,true);
+ f.setBlocked(true);await f.settle();f.setBlocked(false);await f.settle();assert.equal(f.calls.length,1);f.cleanup();
+});
+test('Bin invalidations queued during a save reconcile once afterwards',async()=>{
+ const f=binHookFixture();f.render();await f.settle();f.setBlocked(true);await f.api.refresh();await f.api.refresh();assert.equal(f.calls.length,1);
+ f.setBlocked(false);await f.settle();assert.equal(f.calls.length,2);assert.equal(f.api.error,'');f.cleanup();
+});
 test('Bin action requires explicit confirmation, unique bounded versioned selections and rejects extra owner/metadata fields',()=>{
  assert.ok(bin.validateBinAction(action));assert.ok(bin.validateBinAction({...action,action:'restore'}));assert.equal(bin.validateBinAction({...action,action:'move'}),null);
  for(const value of [{...action,confirmed:false},{...action,confirmed:undefined},{...action,action:'delete'},{...action,owner_id:owner},{...action,items:[]},{...action,items:[action.items[0],action.items[0]]},{...action,items:[{id,version:'bad'}]},{...action,items:[{id,version:stamp,owner_id:owner}]},{...action,items:Array.from({length:1001},(_,i)=>({id:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,version:stamp}))}])assert.equal(bin.validateBinAction(value),null);

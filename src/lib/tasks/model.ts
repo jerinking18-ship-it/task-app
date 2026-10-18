@@ -57,7 +57,7 @@ export type TaskAction =
   | { action: "update"; id: string; version: string; fields: TaskFields; scope?: EditScope; assignmentScope?: EditScope; seriesVersion?:string;specialStart?:import("@/lib/special-meetings/model").SpecialDateChange }
   | { action:"missed";id:string;version:string;confirmed:true }
   | { action:"take";id:string;version:string;absenceId:string;confirmed:true }
-  | { action: "status"; id: string; version: string; status: "active" | "completed" };
+  | { action: "status"; id: string; version: string; status: "active" | "completed"; cachedProjection?: true };
 
 export function blankTask(): Task {
   return { sundayService:null, assignedToId:null, id: "", title: "", notes: "", completed: false, date: "", time: "", priority: "Medium",
