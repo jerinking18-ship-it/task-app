@@ -134,7 +134,7 @@ function sampleTasks(today: string): Task[] {
 }
 const navItems: { view: View; icon: IconName }[] = [
   { view: "Meeting overview", icon: "grid" },
-  { view: "All tasks", icon: "list" }, { view: "Today", icon: "calendar" },
+  { view: "All tasks", icon: "list" },
   { view: "Overdue", icon: "clock" }, {view:"Needs help",icon:"users"}, { view: "Completed", icon: "check" }, {view:"Member history",icon:"history"},
 ];
 function categoryClass(category: string) {
@@ -342,7 +342,6 @@ export default function TaskApp({ today: initialToday, accountControls, saved = 
     "Needs help":needsHelpCount(tasks,now,memberNow,specialMeetings),
     "Assigned to me":globalTasks.filter(task=>task.assignedToId===members?.current?.id && !task.completed && !inHistory(task,now) && isCategoryTaskVisible(task,now,today,saved?clock.time:"00:00:00")).length,
     "All tasks": globalTasks.filter(task => !inHistory(task, now)).length,
-    Today: globalTasks.filter(task => !task.completed && task.date === today).length,
     Overdue: globalTasks.filter(task => isOverdue(task, today, saved ? clock.time : "00:00:00")).length,
   };
   function openEditor(task: Task) {
