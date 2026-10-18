@@ -10,9 +10,10 @@ export function assignmentLabel(task:Task,currentId:string|undefined,members:Mem
  const name=members.find(member=>member.id===task.assignedToId)?.name;
  return task.completed?`Assigned to ${name??"a former member"}`:`Only ${name??"the assigned member"} can complete`;
 }
-export type AssignedTaskScope="regular"|"special";
+export type AssignedTaskScope="regular"|"special"|"morning"|"evening"|"other";
 export function matchesAssignedTask(task:Task,currentId:string|undefined,filters:Filters,date:string,time:string,now:Date,scope?:AssignedTaskScope):boolean {
- return !!currentId&&task.assignedToId===currentId&&(!scope||(scope==="special"?task.category==="Special Meeting":task.category!=="Special Meeting"))&&isCategoryTaskVisible(task,now,date,time)&&matchesTask(task,filters,date,time,now);
+ const inScope=!scope||(scope==="special"?task.category==="Special Meeting":scope==="morning"||scope==="evening"?task.category==="Sunday Service"&&(task.sundayService??"evening")===scope:scope==="other"?task.category!=="Sunday Service"&&task.category!=="Special Meeting":task.category!=="Special Meeting");
+ return !!currentId&&task.assignedToId===currentId&&inScope&&isCategoryTaskVisible(task,now,date,time)&&matchesTask(task,filters,date,time,now);
 }
 
 export function isChangedCompletion(task:Task):boolean {

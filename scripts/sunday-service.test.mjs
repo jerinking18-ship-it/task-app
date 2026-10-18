@@ -48,3 +48,19 @@ test('bulk shared details copy service into existing and subsequently added rows
  tree.find(n=>n.type==='select'&&n.props.value==='Sunday Service').props.onChange({target:{value:'Healing Meeting'}});tree=flatten(render());assert.equal(tree.filter(n=>n.props?.label?.startsWith('Subcategory for task')).length,0);
  globalThis.window=oldWindow;
 });
+
+test('Assigned Sunday headings hide missing services while category defaults and other meeting layouts stay intact',()=>{
+ const React=require('react'),jsx=require('react/jsx-runtime'),{renderToStaticMarkup}=require('react-dom/server');
+ const label=load('../src/components/sunday-service-label.tsx',{'react/jsx-runtime':jsx,'./sunday-service.module.css':{default:{}}});
+ const Sunday=load('../src/components/sunday-service-sections.tsx',{'react':React,'react/jsx-runtime':jsx,'@/lib/tasks/sunday-service':service,'./sunday-service-label':label,'./assigned-meeting-heading.module.css':{default:{}},'./sunday-service.module.css':{default:{}}}).default;
+ const Assigned=load('../src/components/assigned-meeting-sections.tsx',{'react':React,'react/jsx-runtime':jsx,'@/lib/tasks/sunday-service':service,'./assigned-meeting-heading':{default:()=>React.createElement('h2',null,'Current meeting')},'./sunday-service-sections':{default:Sunday},'./special-meeting-title':{SpecialMeetingHeading:()=>React.createElement('h2',null,'Special Meeting')},'./sunday-service.module.css':{default:{}}}).default;
+ const props={now:at('2026-10-18T10:00:00'),title:null,hasSpecial:false,pending:false,error:'',onRefresh(){},render:(scope,status)=>React.createElement('p',{'data-scope':scope},scope+':'+(status??'global'))};
+ const html=extra=>renderToStaticMarkup(React.createElement(Assigned,{...props,...extra}));
+ const morning=html({sundayServices:['morning']});assert.match(morning,/Morning Service/);assert.doesNotMatch(morning,/Evening Service/);assert.match(morning,/morning:Active/);assert.doesNotMatch(morning,/regular:global/);
+ const evening=html({sundayServices:['evening']});assert.match(evening,/Evening Service/);assert.doesNotMatch(evening,/Morning Service/);
+ const both=html({sundayServices:['morning','evening'],hasOtherRegular:true,hasSpecial:true});assert.match(both,/other:global/);assert.match(both,/special:Active/);assert.ok(both.indexOf('Morning Service')<both.indexOf('Evening Service'));
+ const after4=html({now:at('2026-10-18T16:00:00'),sundayServices:['morning','evening']});assert.ok(after4.indexOf('Evening Service')<after4.indexOf('Morning Service'));
+ const empty=html({sundayServices:[]});assert.match(empty,/regular:global/);assert.doesNotMatch(empty,/Morning Service|Evening Service/);
+ const wednesday=html({now:at('2026-10-21T10:00:00'),sundayServices:['morning','evening']});assert.match(wednesday,/regular:global/);assert.doesNotMatch(wednesday,/Morning Service|Evening Service/);
+ const replacement=html({activeSpecial:true,hasSpecial:true,sundayServices:['morning','evening']});assert.match(replacement,/special:Active/);assert.doesNotMatch(replacement,/Current meeting|Morning Service|Evening Service/);
+});

@@ -110,3 +110,26 @@ test('Special assigned sections keep existing midnight expiry and future-task ru
  assert.equal(visible({...task,date:'2026-10-25'},'2026-10-18T00:00:00+05:30'),true);
  assert.equal(visible({...task,date:''},'2026-10-18T00:00:00+05:30'),true);
 });
+
+test('Assigned Sunday scopes partition only the viewer’s retained work without dropping other meetings',()=>{
+ const now=new Date('2026-10-18T10:00:00+05:30'),clock=tasks.accountClock(now,'Asia/Kolkata');
+ const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
+ const base={...tasks.blankTask(),assignedToId:id,createdAt:'2026-10-17T04:00:00Z',date:'2026-10-18',time:'20:00',category:'Sunday Service'};
+ const rows=[{...base,id:'morning',sundayService:'morning'},{...base,id:'evening',sundayService:'evening'},{...base,id:'legacy-evening',sundayService:null},{...base,id:'other-member',assignedToId:other,sundayService:'morning'},{...base,id:'healing',category:'Healing Meeting'},{...base,id:'special',category:'Special Meeting'},{...base,id:'old-completed',sundayService:'morning',date:'2026-10-11',completed:true,completedAt:'2026-10-11T08:00:00Z'}];
+ const selected=(scope,f=filters)=>rows.filter(row=>assignments.matchesAssignedTask(row,id,f,clock.date,clock.time,now,scope)).map(row=>row.id);
+ assert.deepEqual(selected('morning'),['morning']);
+ assert.deepEqual(selected('evening'),['evening','legacy-evening']);
+ assert.deepEqual(selected('other'),['healing']);
+ assert.deepEqual(selected('special'),['special']);
+ assert.deepEqual(selected('regular'),['morning','evening','legacy-evening','healing']);
+ assert.deepEqual(selected('morning',{...filters,search:'no matching title'}),[]);
+ assert.deepEqual(selected('morning',{...filters,status:'Completed'}),[]);
+ // The same category expiry applies to every service and the old unsplit list.
+ for(const service of ['morning','evening']){
+  const row={...base,sundayService:service,date:'2026-10-18',completed:true,completedAt:'2026-10-18T08:00:00Z'};
+  for(const [stamp,expected]of [['2026-10-19T23:59:59+05:30',true],['2026-10-20T00:00:00+05:30',false]]){
+   const at=new Date(stamp),c=tasks.accountClock(at,'Asia/Kolkata');
+   assert.equal(assignments.matchesAssignedTask(row,id,filters,c.date,c.time,at,service),expected);
+  }
+ }
+});
