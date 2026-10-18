@@ -84,3 +84,10 @@ test("unrecognized history data cannot restore an arbitrary view or overwrite ro
   assert.equal(f.restored.length, 0); assert.equal(f.port.history.state.__NA, true); equal(f.port.history.state.bgmViewHistory.snapshot, initial);
   equal(Object.keys(f.port.history.state.bgmViewHistory.snapshot).sort(), ["category", "priority", "status", "view"]);
 });
+
+test("fresh launch uses server selected Check in instead of a stale saved view", () => {
+ const f=fixture();f.api.record(snapshot("Meeting overview"));f.api.dispose();
+ const fresh=createViewHistory(f.port,snapshot("Check in"),f.callbacks,"fresh-launch",true);
+ assert.equal(f.restored.length,0);equal(f.port.history.state.bgmViewHistory.snapshot,snapshot("Check in"));
+ fresh.record(snapshot("Assigned to me"));f.port.history.go(-1);f.flush();equal(f.restored.at(-1),snapshot("Check in"));fresh.dispose();
+});

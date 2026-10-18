@@ -8,7 +8,8 @@ const model=load('../src/lib/tasks/model.ts');
 const period=load('../src/lib/tasks/meeting-period.ts',{'./model':model});
 const absence=load('../src/lib/members/absence.ts');
 const overview=load('../src/lib/tasks/meeting-overview.ts',{'./model':model,'./meeting-period':period,'@/lib/members/absence':absence});
-const attendance=load('../src/lib/members/attendance.ts',{'./absence':absence,'@/lib/tasks/meeting-overview':overview});
+const rawAttendance=load('../src/lib/members/attendance.ts',{'./absence':absence,'@/lib/tasks/meeting-overview':overview});
+const attendance={...rawAttendance,meetingAttendance:(state,category,now,meetingDate=null,service=null)=>rawAttendance.meetingAttendance(state,category,now,meetingDate,service,{currentId:state?.current?.id,contexts:[],presence:[],own:[]})};
 const members=[{id:'sarah',name:'Sarah',activeUntil:null},{id:'jerin',name:'Jerin',activeUntil:null},{id:'daniel',name:'Daniel',activeUntil:'2099-01-01T00:00:00Z'}];
 const now=new Date('2026-10-15T12:00:00+05:30');
 const absent=(patch={})=>({id:'a',memberId:'sarah',category:'Healing Meeting',meetingDate:null,createdAt:'2026-10-15T00:00:00+05:30',expiresAt:'2026-10-15T24:00:00+05:30',...patch});
@@ -18,14 +19,14 @@ const ids=rows=>Array.from(rows,row=>row.id);
 test('Attendance partitions workspace members once, keeps You first and is independent of online status',()=>{
  const data=state([absent(),absent({id:'duplicate'}),absent({id:'departed',memberId:'former'})]);const before=JSON.stringify(data);
  const result=attendance.meetingAttendance(data,'Healing Meeting',now);
- assert.equal(result.ready,true);assert.deepEqual(ids(result.absent),['sarah']);assert.deepEqual(ids(result.present),['jerin','daniel']);assert.equal(JSON.stringify(data),before);
- assert.equal(result.absent.length+result.present.length,members.length);
+ assert.equal(result.ready,true);assert.deepEqual(ids(result.absent),['sarah']);assert.deepEqual(ids(result.present),[]);assert.deepEqual(ids(result.notChecked),['jerin','daniel']);assert.equal(JSON.stringify(data),before);
+ assert.equal(result.absent.length+result.present.length+result.notChecked.length,members.length);
 });
 test('Missing attendance or workspace identity fails closed instead of inferring everyone Present',()=>{
  for(const data of [null,{...state(),absences:undefined},{...state(),current:null},{...state(),workspace:null},{...state(),current:{id:'former'}}]){
   const result=attendance.meetingAttendance(data,'Healing Meeting',now);assert.equal(result.ready,false);assert.equal(result.present.length,0);assert.equal(result.absent.length,0);
  }
- assert.equal(attendance.meetingAttendance(state([]),'Healing Meeting',now).present.length,3);
+ assert.equal(attendance.meetingAttendance(state([]),'Healing Meeting',now).notChecked.length,3);
 });
 test('Meeting-specific absence ends exactly at its deadline; unmark and renamed profiles update without task changes',()=>{
  const data=state([absent(),absent({id:'other',memberId:'daniel',category:'Sunday Service'})]);
@@ -67,4 +68,14 @@ test('a helper absent only in Morning may take an Evening task but not a Morning
  const task={...model.blankTask(),category:'Sunday Service',assignedToId:'sarah',coverage:{memberId:'sarah',expiresAt:'2026-10-20T00:00:00+05:30'}};
  assert.equal(absence.canTakeTask({...task,sundayService:'morning'},data,time),false);
  assert.equal(absence.canTakeTask({...task,sundayService:'evening'},data,time),true);
+});
+
+test('Present requires scoped check-in; explicit absence wins and missing check-in data fails closed',()=>{
+ const context={categoryId:'cat',category:'Healing Meeting',meetingDate:'2026-10-14',service:null,meetingId:null,opensAt:'2026-10-14T16:00:00+05:30',closesAt:'2026-10-15T00:00:00+05:30',visibleUntil:'2026-10-16T00:00:00+05:30'};
+ const checkIns={currentId:'jerin',contexts:[context],presence:[{key:'cat:2026-10-14::',memberId:'jerin'},{key:'cat:2026-10-14::',memberId:'sarah'}],own:['cat:2026-10-14::']};
+ const result=rawAttendance.meetingAttendance(state([absent()]),'Healing Meeting',now,null,null,checkIns);
+ assert.deepEqual(ids(result.present),['jerin']);assert.deepEqual(ids(result.absent),['sarah']);assert.deepEqual(ids(result.notChecked),['daniel']);
+ assert.equal(rawAttendance.meetingAttendance(state(),'Healing Meeting',now).ready,false);
+ assert.equal(rawAttendance.meetingAttendance(state(),'Healing Meeting',now,null,null,{...checkIns,currentId:'other'}).ready,false);
+ assert.equal(rawAttendance.meetingAttendance(state(),'Healing Meeting',new Date('2026-10-16T00:00:00+05:30'),null,null,checkIns).present.length,0);
 });

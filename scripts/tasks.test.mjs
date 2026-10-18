@@ -522,3 +522,9 @@ test('reused clock formatters preserve zone boundaries, DST and independent resu
  assert.throws(()=>cached.accountClock(new Date(), 'Not/A_Zone'));
  assert.throws(()=>cached.accountClock(new Date('invalid'),'UTC'));
 });
+
+test('category creation accepts only the four supported canonical meeting names',()=>{
+ for(const name of model.MEETING_CATEGORIES)assert.equal(validation.validateAction({action:'category',name:' '+name+' '}).name,name);
+ for(const name of ['Work','Youth Meeting',"Woman’s Meeting",'sunday service','',null,123,'Sunday Service\nExtra'])assert.equal(validation.validateAction({action:'category',name}),null);
+ assert.equal(validation.validateAction({action:'category',name:'Sunday Service',owner_id:owner}),null);
+});
