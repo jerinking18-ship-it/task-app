@@ -49,7 +49,7 @@ function HelpSection({ title, rows, own, ...props }: Props & { title: string; ro
   return <section className={own ? styles.mine : styles.others} aria-label={title}>
     <div className={shared.sectionHead} aria-live="polite"><h3>{title}</h3><span>{rows.length} {rows.length === 1 ? "task" : "tasks"}</span></div>
     {!own && rows.length > 0 && <p className={styles.sectionIntro}>Released by absent teammates.</p>}
-    {rows.length ? <div className={styles.cards}>{rows.map(task => <HelpCard key={task.id} {...props} task={task} own={own}/>)}</div> : <div className={styles.empty}><span className={styles.emptyIcon}><Symbol name={searching ? "list" : "people"}/></span><div><h3>{searching ? "No matching tasks" : own ? "No tasks awaiting help" : "No tasks need help"}</h3><p>{searching ? "Try another search." : own ? "You haven’t released any tasks for this meeting." : "Released tasks will appear here when a teammate needs help."}</p></div></div>}
+    {rows.length ? <div className={styles.cards}>{rows.map(task => <HelpCard key={task.id} {...props} task={task} own={own}/>)}</div> : <div className={styles.empty}><span className={styles.emptyIcon}><Symbol name={searching ? "list" : "people"}/></span><div><h3>{searching ? "No tasks match your search" : own ? "None of your tasks are awaiting help" : "No tasks need help right now"}</h3><p>{searching ? "Try another task name or clear your search." : own ? "Tasks you release for this meeting will appear here until they are taken or completed." : "Tasks released by absent teammates will appear here while they still need help."}</p></div></div>}
   </section>;
 }
 
