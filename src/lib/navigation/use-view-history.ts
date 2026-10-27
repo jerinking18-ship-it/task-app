@@ -27,5 +27,5 @@ export function useViewHistory(snapshot: ViewSnapshot, callbacks: {
     // back over that restored entry before React commits the restored values.
     if (firstWrite.current) { firstWrite.current = false; return; }
     controller.current?.record(snapshot);
-  }, [snapshot.view, snapshot.category, snapshot.status, snapshot.priority]);
+  }, [snapshot.view, snapshot.category, snapshot.status, snapshot.priority, snapshot.sundayStatuses?.morning, snapshot.sundayStatuses?.evening]);
 }

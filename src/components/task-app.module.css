@@ -717,7 +717,7 @@
 .taskNote {
   display:block;
   font-size:11px;
-  color:#93918c;
+  color:#6e6c67;
   margin-top:5px;
   white-space:nowrap;
   text-overflow:ellipsis;
@@ -729,7 +729,7 @@
   display:flex;
   gap:12px;
   align-items:center;
-  color:#95948f;
+  color:#6e6c67;
   flex-wrap:wrap;
   font-size:10px
 }

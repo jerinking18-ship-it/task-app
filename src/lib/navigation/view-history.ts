@@ -1,6 +1,7 @@
 export const APP_VIEWS = ["Check in", "Checked-in list", "Activity", "Notifications", "Attendance", "Needs help", "Meeting overview", "Fines", "All tasks", "Today", "Overdue", "Completed", "Member history", "Users", "Assigned to me", "My profile", "Bin"] as const;
 export type AppView = typeof APP_VIEWS[number];
-export type ViewSnapshot = { view: AppView; category: string; status: string; priority: string };
+export type SundayStatuses = { morning: string; evening: string };
+export type ViewSnapshot = { view: AppView; category: string; status: string; priority: string; sundayStatuses?: SundayStatuses };
 type Entry = { owner: string; index: number; path: string; snapshot: ViewSnapshot };
 const KEY = "bgmViewHistory";
 type Port = Pick<Window, "history" | "location" | "addEventListener" | "removeEventListener">;
@@ -13,6 +14,11 @@ function readEntry(state: unknown, path: string): Entry | null {
   const snapshot = entry.snapshot;
   if (!snapshot || !APP_VIEWS.includes(snapshot.view) || typeof snapshot.category !== "string" || !snapshot.category || snapshot.category.length > 120
     || !["Active", "Completed", "Overdue", "All"].includes(snapshot.status) || !["Any", "Low", "Medium", "High"].includes(snapshot.priority)) return null;
+  const services = snapshot.sundayStatuses;
+  if (services !== undefined && (!services || typeof services !== "object" || Array.isArray(services)
+    || Object.keys(services).some(key => key !== "morning" && key !== "evening")
+    || !["Active", "Completed", "Overdue", "All"].includes(services.morning)
+    || !["Active", "Completed", "Overdue", "All"].includes(services.evening))) return null;
   return entry;
 }
 
