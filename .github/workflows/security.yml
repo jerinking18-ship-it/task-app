@@ -1,0 +1,46 @@
+name: Security checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      # Fictional build configuration; never use production secrets in CI.
+      NEXT_PUBLIC_SUPABASE_URL: https://security-check.example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+      APP_ORIGIN: https://task-app.example
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Reject high and critical dependency vulnerabilities
+        run: npm audit --audit-level=high
+      - name: App and security regression tests
+        run: node --test scripts/*.test.mjs
+      - name: Production build and TypeScript
+        run: npm run build
+      - name: Production security headers and access checks
+        run: node scripts/security-ci.mjs
