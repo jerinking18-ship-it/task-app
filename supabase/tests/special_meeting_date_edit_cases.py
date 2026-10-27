@@ -5,6 +5,12 @@ auth_before=sql("select md5(jsonb_agg(to_jsonb(t)order by id)::text)from auth.us
 sql((root/'supabase/migrations/202610160037_special_meeting_date_edit.sql').read_text())
 check('037 installation preserves all tasks, completion totals and accounts',all_tasks_before==sql("select md5(jsonb_agg(to_jsonb(t)order by id)::text)from public.tasks t;")and credits_before==sql("select md5(coalesce(jsonb_agg(to_jsonb(t)order by member_id)::text,''))from public.member_completion_totals t;")and auth_before==sql("select md5(jsonb_agg(to_jsonb(t)order by id)::text)from auth.users t;"))
 check('activation snapshots backfilled without changing interval bounds',sql("select bool_and(scheduled_start<scheduled_end)from public.task_special_activations;")=='t')
+# The preceding Missed scenario deliberately leaves a service restriction in
+# place after reopening. End it through the normal manager RPC before testing
+# an unrelated ordinary completion; reopening itself must not clear it.
+restriction=json.loads(sql(f"select jsonb_build_object('id',id,'expires',coalesce(previous_expires_at,expires_at))from public.account_member_absences where id='{a}';"))
+rpc('task_app_remove_restriction',f"'{restriction['id']}','{restriction['expires']}',true",owner)
+check('separate schedule scenario explicitly ends the prior Missed restriction',sql(f"select cancelled_at is not null from public.account_member_absences where id='{a}';")=='t')
 # Use the existing three-day event, including multiple plans/materialized days.
 fresh=rpc('task_app_create_tasks',literal([{**fields,'title':'Shared date move fixture'}]),owner)[0]
 se=event_for(fresh)

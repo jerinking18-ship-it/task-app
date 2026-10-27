@@ -47,6 +47,14 @@ npm run test:workspace:sql
 
 The Node suite uses local fixtures, no real credentials. The workspace SQL runner uses an already-installed `postgres:16-alpine` Docker image with `--pull=never`, no network/ports/persistent volume and removes its disposable container. It tests the actual migrations and forbidden database access using fictional Auth/session identities. **Never run local Auth fixtures or earlier reset scripts against hosted Supabase.**
 
+### Supabase explicit Data API grants
+
+The October30,2026 change removes automatic Data API grants for newly created public tables; it does not revoke grants on existing tables. This app grants authenticated SELECT explicitly on `tasks`, `categories`, `account_settings` and `task_templates`, with RLS. All app writes and private reads go through explicitly granted, verified-session RPCs; private tables and internal helpers stay inaccessible to API roles. Do not add blanket anonymous or full CRUD grants from generic examples.
+
+Every future table migration must state its intended grants/revokes and RLS in the same transaction. New private tables need no client table grant. New RPCs must revoke default PUBLIC/API execution, use a fixed search path, verify identity/workspace/role and grant only their intended entry points. Update the verifier's table/RPC inventory when adding an object. Add sequence privileges only when an approved API operation actually needs them.
+
+`python3 supabase/tests/explicit_grants.py catalog platform` rebuilds001–041 in disposable offline PostgreSQL with the announced defaults disabled. `catalog legacy` and `catalog strict` compare old defaults and no table/sequence defaults; effective table/RPC permissions must match. Run `suite workspace`, `suite check-in`, `suite notifications`, `suite missed`, `suite special`, `suite bulk`, `suite retention` and `suite completion-lock` with the `platform` argument for feature regressions. No hosted connection is used. The SELECT-only `supabase/verification/20261027_explicit_grants_checks.sql` checks live grants, RLS and RPC boundaries without changing them. Installed migrations001–041 and completed reset/activation scripts must never be replayed on the hosted project.
+
 For isolated browser QA, `node scripts/workspace-ui-fixture.mjs` creates disposable ignored `.local-ui-fixture/workspace-ui` source and data at `http://127.0.0.1:3028/account`, without copying environment files. Its fictional role routes are test-only and never belong in the actual app or release. Stop the owned fixture server after testing.
 
 ## Release boundary
