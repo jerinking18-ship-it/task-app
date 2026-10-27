@@ -91,3 +91,37 @@ test("fresh launch uses server selected Check in instead of a stale saved view",
  assert.equal(f.restored.length,0);equal(f.port.history.state.bgmViewHistory.snapshot,snapshot("Check in"));
  fresh.record(snapshot("Assigned to me"));f.port.history.go(-1);f.flush();equal(f.restored.at(-1),snapshot("Check in"));fresh.dispose();
 });
+
+test("Sunday Morning and Evening filters survive Back, Forward and reload without extra history entries", () => {
+  const f = fixture();
+  const selected = snapshot("Assigned to me", { priority: "Medium", sundayStatuses: { morning: "Completed", evening: "Overdue" } });
+  f.api.record(selected);
+  assert.equal(f.entries.length, 1, "section filters replace the current entry");
+  f.api.record(snapshot("Meeting overview"));
+  f.port.history.go(-1); f.flush(); equal(f.restored.at(-1), selected);
+  f.api.record(selected); assert.equal(f.entries.length, 2);
+  f.port.history.go(1); f.flush(); equal(f.restored.at(-1), snapshot("Meeting overview"));
+  f.port.history.go(-1); f.flush(); f.api.dispose();
+  const reopened = createViewHistory(f.port, initial, f.callbacks, "reload-owner");
+  equal(f.restored.at(-1), selected); assert.equal(f.entries.length, 2);
+  reopened.dispose();
+});
+
+test("Assigned and Sunday category history keep independent service selections", () => {
+  const f = fixture();
+  const assigned = snapshot("Assigned to me", { sundayStatuses: { morning: "Completed", evening: "Active" } });
+  const category = snapshot("All tasks", { category: "Sunday Service", sundayStatuses: { morning: "All", evening: "Overdue" } });
+  f.api.record(assigned); f.api.record(category);
+  f.port.history.go(-1); f.flush(); equal(f.restored.at(-1), assigned);
+  f.port.history.go(1); f.flush(); equal(f.restored.at(-1), category);
+});
+
+test("invalid service selections in stored navigation cannot restore an arbitrary filter", () => {
+  for (const services of [null, [], { morning: "Execute task", evening: "Active" }, { morning: "Completed" }, { morning: "Active", evening: "All", taskRows: [] }]) {
+    const f = fixture(); f.api.dispose();
+    f.port.history.replaceState({ __NA: true, bgmViewHistory: { owner: "stored", path: "/account", index: 0, snapshot: snapshot("Assigned to me", { sundayStatuses: services }) } });
+    const reopened = createViewHistory(f.port, initial, f.callbacks, "safe-owner");
+    assert.equal(f.restored.length, 0); equal(f.port.history.state.bgmViewHistory.snapshot, initial);
+    reopened.dispose();
+  }
+});

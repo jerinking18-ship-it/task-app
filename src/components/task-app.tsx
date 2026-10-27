@@ -58,6 +58,7 @@ import { useMemberHistory } from "@/lib/member-history/use-member-history";
 import ProfilePanel from "./members/profile-panel";
 import { decodeMemberResponse, canManageTasks, canChangeTaskStatus, type MemberState, type Member } from "@/lib/members/model";
 import {useViewHistory} from "@/lib/navigation/use-view-history";
+import type {SundayStatuses} from "@/lib/navigation/view-history";
 import type {AppView as View} from "@/lib/navigation/view-history";
 type IconName = "shield" | "grid" | "rupee" | "check" | "plus" | "search" | "list" | "calendar" | "clock" | "chevron" | "back" | "close" | "menu" | "filter" | "repeat" | "bell" | "warning" | "trash" | "history" | "active" | "users" | "templates" | "person" | "lock";
 
@@ -191,6 +192,8 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
   const completedCancel=useRef<HTMLButtonElement>(null);
   const completedReturn=useRef(false);
   const [status, setStatus] = useState("Active");
+  const [assignedSundayStatuses,setAssignedSundayStatuses]=useState<SundayStatuses>({morning:"Active",evening:"Active"});
+  const [categorySundayStatuses,setCategorySundayStatuses]=useState<SundayStatuses>({morning:"Active",evening:"Active"});
   const [members, setMembers] = useState(initialMembers);
   const canManage=!saved||canManageTasks(members);
   const canOwnStatus=(task:Task)=>!saved||(!meetingCompletionLocked(task,now)&&(!task.specialMeeting||specialTaskOpen(task,now))&&(task.completed&&task.missedCompletionRole ? canReopenMissed(task,members?.current?.id) : canChangeTaskStatus(members,task.assignedToId)&&!taskRestriction(task,members,new Date(deviceNow.getTime()+memberOffset))&&!taskCoverage(task,new Date(deviceNow.getTime()+memberOffset))));
@@ -320,9 +323,10 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
     const warn=(event:BeforeUnloadEvent)=>{if(endingSession.current)return; event.preventDefault(); event.returnValue="";};
     window.addEventListener("beforeunload",warn); return ()=>window.removeEventListener("beforeunload",warn);
   },[dirty,busy]);
-  useViewHistory({view,category,status,priority},{
+  const sundayStatuses=view==="Assigned to me"?assignedSundayStatuses:view==="All tasks"&&category==="Sunday Service"?categorySundayStatuses:undefined;
+  useViewHistory({view,category,status,priority,...(sundayStatuses?{sundayStatuses}:{})},{
     fresh:freshLaunch,
-    restore:snapshot=>{finishEditor();setBulkCategory(null);setMenuOpen(false);setSearch("");setView(snapshot.view);setCategory(snapshot.category);setStatus(snapshot.status);setPriority(snapshot.priority);},
+    restore:snapshot=>{finishEditor();setBulkCategory(null);setMenuOpen(false);setSearch("");setView(snapshot.view);setCategory(snapshot.category);setStatus(snapshot.status);setPriority(snapshot.priority);if(snapshot.view==="Assigned to me")setAssignedSundayStatuses(snapshot.sundayStatuses??{morning:"Active",evening:"Active"});else if(snapshot.view==="All tasks"&&snapshot.category==="Sunday Service")setCategorySundayStatuses(snapshot.sundayStatuses??{morning:"Active",evening:"Active"});},
     blocked:()=>dirty||busy||!!document.querySelector("dialog[open]"),
     attempt:proceed=>{
       const dialogs=document.querySelectorAll<HTMLDialogElement>("dialog[open]");
@@ -665,7 +669,7 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
           {(!saved || storage.ready) && <>
           
           {view==="All tasks"&&category==="Special Meeting"&&<><SpecialMeetingHeading lock={<SpecialMeetingLock meeting={selectedSpecial} title={specialMeetingTitle} allowed={canManage} disabled={busy||dirty||!storage.ready||!!storage.error} pending={storage.pending} onOpenChange={setSpecialDialogOpen} onRefresh={()=>void storage.refresh()} onChange={async(meeting:SpecialMeeting,locked:boolean)=>{await storage.setSpecialLocked(meeting.id,meeting.version,locked);void refreshMembers();void history.refresh();void fines.refresh();void notifications.refresh();}}/>} value={specialTitle.data} editable={canManage} disabled={busy||dirty} error={specialTitle.error} onEdit={()=>{if(!busy&&!dirty&&specialTitle.data)setTitleEditing(specialTitle.data);}} onRefresh={()=>void specialTitle.refresh()}/><SpecialMeetingSelection meetings={specialMeetings} selected={selectedSpecial} now={now} disabled={busy||dirty} onSelect={id=>requestAction(()=>setSpecialSelection(id))}/></>}
-          {view==="Assigned to me"?<AssignedMeetingSections activeSpecial={!!specialActive} now={now} title={specialTitle.data} pending={busy} error={specialTitle.error} onRefresh={()=>void specialTitle.refresh()} hasSpecial={assignedSectionTasks.some(task=>task.category==="Special Meeting")} sundayServices={assignedSundayServices} hasOtherRegular={assignedSectionTasks.some(task=>task.category!=="Sunday Service"&&task.category!=="Special Meeting")} render={(scope,sectionStatus,onStatus)=>renderTaskSection(undefined,sectionStatus,onStatus,scope)}/>:view==="All tasks"&&category==="Sunday Service"?<SundayServiceSections now={now} render={(service,sectionStatus,onStatus)=>renderTaskSection(service,sectionStatus,onStatus)}/>:renderTaskSection()}
+          {view==="Assigned to me"?<AssignedMeetingSections activeSpecial={!!specialActive} now={now} title={specialTitle.data} pending={busy} error={specialTitle.error} onRefresh={()=>void specialTitle.refresh()} hasSpecial={assignedSectionTasks.some(task=>task.category==="Special Meeting")} sundayServices={assignedSundayServices} sundayStatuses={assignedSundayStatuses} onSundayStatus={(service,status)=>setAssignedSundayStatuses(current=>({...current,[service]:status}))} hasOtherRegular={assignedSectionTasks.some(task=>task.category!=="Sunday Service"&&task.category!=="Special Meeting")} render={(scope,sectionStatus,onStatus)=>renderTaskSection(undefined,sectionStatus,onStatus,scope)}/>:view==="All tasks"&&category==="Sunday Service"?<SundayServiceSections now={now} statuses={categorySundayStatuses} onStatusChange={(service,status)=>setCategorySundayStatuses(current=>({...current,[service]:status}))} render={(service,sectionStatus,onStatus)=>renderTaskSection(service,sectionStatus,onStatus)}/>:renderTaskSection()}
           </>}
           <p className={styles.listFooter}><span className={styles.smallLine} />A clear space for everything on your mind.</p>
         </section>
