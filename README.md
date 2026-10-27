@@ -59,6 +59,14 @@ For isolated browser QA, `node scripts/workspace-ui-fixture.mjs` creates disposa
 
 ## Release boundary
 
+### Browser headers and automated security checks
+
+The local hardening update adds same-origin framing/form/base restrictions, MIME-sniffing protection, a limited browser-feature policy and a CSP that permits only the app and its configured Supabase HTTPS/WebSocket origin. Current static Next.js hydration and React inline styles retain `unsafe-inline`; this compatibility policy is not a strict nonce-based CSP and cannot block every inline-script attack. Production forbids `unsafe-eval`; development retains local HMR. Existing authentication cache/referrer protections and UI files stay unchanged.
+
+`.github/workflows/security.yml` defines PR/main/weekly/manual checks: locked dependency install, high/critical vulnerability audit, app tests, production build/TypeScript and anonymous response/header/asset checks. It uses Node24, pinned official actions, read-only repository permission, no persisted checkout credentials and fictional public configuration without production secrets. `.github/dependabot.yml` proposes npm/action updates weekly; updates never auto-merge. These automations become active when their files reach GitHub; their presence locally is not evidence of a successful hosted run. Required branch checks and repository alert settings must be verified separately.
+
+Local checks: `node --test scripts/*.test.mjs`, `npm run build`, then `node scripts/security-ci.mjs`. Static CSP enforcement leaves app rendering and markup unchanged. Hosting/GitHub/Supabase account2FA is separate from members' app login and must be enrolled by the account holder, with recovery codes stored privately.
+
 Keep private planning, memory, screenshots, bootstrap identity details, database exports and environment values out of the public release. Migrations001–023 are already applied. Never replay migrations001–023, protected Owner bootstrap or any completed fresh-data reset against hosted Supabase. Protected initial Owner setup must preserve the existing verified account/password and refuse unexpected mappings or data. Read-only schema/privilege verification is in `supabase/verification/20261014_workspace_assignment_schema_checks.sql`.
 
 Hosted database/access changes, real invitations/account tests and Vercel publication require the user's approval. Local tests are evidence of local behavior, not proof of live email delivery, cross-device behavior or a hosted deployment.
