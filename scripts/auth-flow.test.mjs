@@ -171,6 +171,57 @@ test("callback grants recovery only for the SDK-verified recovery flow and binds
   assert.equal(await flow.completeCallback(null, null, signin.deps), "/sign-in?error=link");
 });
 
+test("repeated recovery callbacks preserve an existing verified grant without extending its lifetime", async () => {
+  const f = fixture({ async exchangeCodeForSession() { return { data: {}, error: { status: 400, code: "flow_state_not_found" } }; } });
+  f.deps.recoveryGrant = recovery.createRecoveryGrant(identity, secret, Date.now() - 590000);
+  const original = f.deps.recoveryGrant;
+  assert.equal(await flow.completeCallback("already-exchanged-code", null, f.deps), "/auth/reset-password");
+  assert.equal(f.deps.recoveryGrant, original);
+  assert.equal(f.cookies.length, 0, "retry must neither clear nor renew the original grant");
+  const expires = JSON.parse(Buffer.from(original.split(".")[0], "base64url").toString()).expires;
+  assert.equal(recovery.verifyRecoveryGrant(original, identity, secret, expires), false);
+});
+
+test("callback retry rejects absent, tampered, expired, other-user and other-session grants", async () => {
+  const grants = [undefined, "forged-grant", recovery.createRecoveryGrant(identity, secret, Date.now() - 600001),
+    recovery.createRecoveryGrant({ ...identity, userId: "other-user" }, secret),
+    recovery.createRecoveryGrant({ ...identity, sessionId: "other-session" }, secret)];
+  for (const grant of grants) {
+    const f = fixture({ async exchangeCodeForSession() { return { data: {}, error: { status: 400 } }; } });
+    f.deps.recoveryGrant = grant;
+    assert.equal(await flow.completeCallback("used-code", null, f.deps), "/sign-in?error=link");
+    assert.equal(f.cookies.at(-1).maxAge, 0);
+    assert.equal(f.cookies.at(-1).value, "");
+  }
+});
+
+test("a stored recovery grant cannot resume after current identity verification fails", async () => {
+  const f = fixture({ async getClaims() { return { data: { claims: null }, error: { status: 401 } }; } });
+  f.deps.recoveryGrant = recovery.createRecoveryGrant(identity, secret);
+  assert.equal(await flow.completeCallback(null, null, f.deps), "/sign-in?error=link");
+  assert.equal(f.cookies.at(-1).maxAge, 0);
+});
+
+test("missing codes and exchange exceptions can resume only an already authorized recovery", async () => {
+  for (const code of [null, "fixture-code"]) {
+    const f = fixture({ async exchangeCodeForSession() { throw new Error("private-provider-detail"); } });
+    f.deps.recoveryGrant = recovery.createRecoveryGrant(identity, secret);
+    assert.equal(await flow.completeCallback(code, null, f.deps), "/auth/reset-password");
+    assert.equal(f.cookies.length, 0);
+    f.deps.recoveryGrant = undefined;
+    assert.equal(await flow.completeCallback(code, null, f.deps), "/sign-in?error=link");
+    assert.equal(f.cookies.at(-1).maxAge, 0);
+  }
+});
+
+test("a fresh normal sign-in clears a previous recovery grant", async () => {
+  const f = fixture();
+  f.deps.recoveryGrant = recovery.createRecoveryGrant(identity, secret);
+  assert.equal(await flow.completeCallback("new-sign-in-code", null, f.deps), "/account");
+  assert.equal(f.cookies.at(-1).value, "");
+  assert.equal(f.cookies.at(-1).maxAge, 0);
+});
+
 test("password updates need a recovery grant; valid updates clear it and end only the current session", async () => {
   const missing = fixture();
   const denied = await flow.runAuthAction({ action: "reset", password: "fixture-password" }, missing.deps);
@@ -244,6 +295,22 @@ test("callback ignores external destinations and caller-supplied recovery types"
   assert.equal(f.cookies.every((cookie) => cookie.maxAge === 0), true);
   const invalid = await GET(new Request(`${f.deps.origin}/auth/callback?error=provider-private-error&next=https://other.example`));
   assert.equal(invalid.headers.get("location"), `${f.deps.origin}/sign-in?error=link`);
+});
+
+test("provider-error redirects resume only existing session-bound recovery and remain private", async () => {
+  for (const valid of [true, false]) {
+    const f = submitFixture();
+    f.deps.recoveryGrant = valid ? recovery.createRecoveryGrant(identity, secret) : "forged-grant";
+    const { GET } = load("../src/app/auth/callback/route.ts", { "@/lib/auth/flow": flow, "@/lib/auth/server": f.server });
+    const response = await GET(new Request(`${f.deps.origin}/auth/callback?error=private-provider-error&code=untrusted-code&type=recovery&next=https://other.example`));
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get("location"), `${f.deps.origin}${valid ? "/auth/reset-password" : "/sign-in?error=link"}`);
+    assert.match(response.headers.get("cache-control"), /no-store/);
+    assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+    assert.equal(f.calls.length, 0, "provider-error input must not exchange caller-supplied codes");
+    if (valid) assert.equal(f.cookies.length, 0);
+    else assert.equal(f.cookies.at(-1).maxAge, 0);
+  }
 });
 
 test("profile email comes only from the verified current Auth user", async () => {

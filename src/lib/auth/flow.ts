@@ -99,18 +99,36 @@ export async function runAuthAction(input: AuthInput, deps: AuthDependencies): P
   }
 }
 
-export async function completeCallback(code: string | null, flowId: string | null, deps: AuthDependencies) {
+async function failedCallback(deps: AuthDependencies) {
+  // A mail app or browser can revisit an already-exchanged, one-use link.
+  // Resume only the reset permission this browser already holds; never renew it.
+  if (deps.recoveryGrant) {
+    const identity = await verifiedIdentity(deps.auth);
+    if (identity && verifyRecoveryGrant(deps.recoveryGrant, identity, deps.secret)) {
+      return "/auth/reset-password";
+    }
+  }
   deps.setRecoveryGrant("", 0);
-  if (!code || code.length > 2048 || (flowId && !/^[a-zA-Z0-9_-]{1,128}$/.test(flowId))) return "/sign-in?error=link";
-  const { data, error } = await deps.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined);
-  if (error) return "/sign-in?error=link";
+  return "/sign-in?error=link";
+}
+
+export async function completeCallback(code: string | null, flowId: string | null, deps: AuthDependencies) {
+  if (!code || code.length > 2048 || (flowId && !/^[a-zA-Z0-9_-]{1,128}$/.test(flowId))) return failedCallback(deps);
+  let exchange;
+  try {
+    exchange = await deps.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined);
+  } catch {
+    return failedCallback(deps);
+  }
+  if (exchange.error) return failedCallback(deps);
   const identity = await verifiedIdentity(deps.auth);
+  deps.setRecoveryGrant("", 0);
   if (!identity) return "/sign-in?error=link";
   // Trust the SDK's redirect type recovered from its PKCE verifier, never a
   // user-controlled ?type=recovery or ?next= query parameter.
   // The installed SDK returns redirectType at runtime, but its public
   // AuthTokenResponse type omits it. If absent, never grant recovery access.
-  if ("redirectType" in data && data.redirectType === "recovery") {
+  if ("redirectType" in exchange.data && exchange.data.redirectType === "recovery") {
     deps.setRecoveryGrant(createRecoveryGrant(identity, deps.secret), RECOVERY_SECONDS);
     return "/auth/reset-password";
   }

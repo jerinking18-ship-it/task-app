@@ -6,9 +6,11 @@ export async function GET(request: Request) {
   let target = "/sign-in?error=link";
   try {
     const url = new URL(request.url);
-    if (!url.searchParams.has("error")) {
-      target = await completeCallback(url.searchParams.get("code"), url.searchParams.get("sb_flow_id"), await authDependencies());
-    }
+    target = await completeCallback(
+      url.searchParams.has("error") ? null : url.searchParams.get("code"),
+      url.searchParams.has("error") ? null : url.searchParams.get("sb_flow_id"),
+      await authDependencies(),
+    );
     return NextResponse.redirect(new URL(target, authOrigin()), { status: 303, headers: AUTH_HEADERS });
   } catch {
     // Fixed relative destination: never trust callback parameters or Host for
