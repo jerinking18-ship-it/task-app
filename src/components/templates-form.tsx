@@ -6,12 +6,14 @@ import type { TaskTemplate, TemplateAction, TemplateItem } from "@/lib/templates
 import { TemplateSaveError } from "@/lib/templates/use-templates";
 import styles from "./task-app.module.css";
 import ui from "./templates-form.module.css";
+import TaskAssignee from "./task-assignee";
+import type {Member} from "@/lib/members/model";
 
 function Glyph({kind}:{kind:"layers"|"edit"|"search"|"back"|"trash"}) {
   return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{kind==="trash"?<path d="M3 6h18M9 6V4h6v2M5 6l1 15h12l1-15M10 10v7M14 10v7"/>:kind==="layers"?<><path d="m12 3 10 5-10 5L2 8l10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5"/></>:kind==="edit"?<><path d="m15 4 5 5M4 20l4-1L20 7a2 2 0 0 0-4-4L4 15v5Z"/></>:kind==="search"?<><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></>:<path d="M20 12H4m7-7-7 7 7 7"/>}</svg>;
 }
 type Store = {templates:TaskTemplate[];loaded:boolean;loading:boolean;pending:boolean;error:string;uncertain?:boolean;refresh:(background?:boolean)=>Promise<void>;save:(input:TemplateAction)=>Promise<TaskTemplate>};
-export default function TemplatesForm({store,onUse,onClose,onDirty,requestAction,onRemove}:{store:Store;onUse:(template:TaskTemplate)=>void;onClose:()=>void;onDirty:(dirty:boolean)=>void;requestAction:(action:()=>void)=>void;onRemove:(template:TaskTemplate)=>void}) {
+export default function TemplatesForm({store,onUse,onClose,onDirty,requestAction,onRemove,members,currentMemberId}:{store:Store;onUse:(template:TaskTemplate)=>void;onClose:()=>void;onDirty:(dirty:boolean)=>void;requestAction:(action:()=>void)=>void;onRemove:(template:TaskTemplate)=>void;members:Member[];currentMemberId?:string}) {
   const [editor,setEditor]=useState<{template:TaskTemplate|null;key:number}|null>(null);
   const [search,setSearch]=useState("");const [expanded,setExpanded]=useState<string|null>(null);
   const [notice,setNotice]=useState("");const heading=useRef<HTMLHeadingElement>(null);
@@ -22,7 +24,7 @@ export default function TemplatesForm({store,onUse,onClose,onDirty,requestAction
   const unavailable=store.pending||store.loading||!!store.uncertain;
   const visible=[...store.templates].sort((a,b)=>b.updated_at.localeCompare(a.updated_at)||a.id.localeCompare(b.id))
     .filter(template=>[template.name,...template.items.flatMap(item=>[item.title,item.notes])].some(text=>text.toLowerCase().includes(search.trim().toLowerCase())));
-  if(editor)return <TemplateEditor key={editor.key} template={editor.template} pending={store.pending} onSave={save} onClose={onClose} onBack={back} onDirty={onDirty}/>;
+  if(editor)return <TemplateEditor key={editor.key} template={editor.template} members={members} currentMemberId={currentMemberId} pending={store.pending} onSave={save} onClose={onClose} onBack={back} onDirty={onDirty}/>;
   return <div className={`${styles.bulkEditor} ${ui.library}`}>
     <div className={styles.bulkHeader}><div><p className={styles.editorEyebrow}>MAKE ROOM FOR WHAT MATTERS</p><h2 id="templates-library-title" ref={heading} tabIndex={-1}>Your templates</h2><p>Save a task set. Use it in any category.</p></div><button type="button" className={styles.iconButton} aria-label="Close templates" onClick={onClose}>×</button></div>
     <div className={ui.libraryTools}><label className={ui.search}><Glyph kind="search"/><span className={styles.srOnly}>Search templates</span><input type="search" placeholder="Search templates…" value={search} onChange={event=>setSearch(event.target.value)} data-autofocus="true"/></label><button type="button" className={`${styles.saveButton} ${styles.goldSave}`} disabled={unavailable} onClick={()=>openEditor(null)}>+ New template</button></div>
@@ -40,36 +42,43 @@ export default function TemplatesForm({store,onUse,onClose,onDirty,requestAction
     <p className={ui.libraryHint}>Choose the category and schedule after copying. Removing a template moves it to Bin.</p>
   </div>;
 }
-function TemplateEditor({template,pending,onSave,onClose,onBack,onDirty}:{template:TaskTemplate|null;pending:boolean;onSave:(input:TemplateAction)=>Promise<void>;onClose:()=>void;onBack:()=>void;onDirty:(dirty:boolean)=>void}) {
+function TemplateEditor({template,pending,onSave,onClose,onBack,onDirty,members,currentMemberId}:{template:TaskTemplate|null;pending:boolean;onSave:(input:TemplateAction)=>Promise<void>;onClose:()=>void;onBack:()=>void;onDirty:(dirty:boolean)=>void;members:Member[];currentMemberId?:string}) {
   const id=useId();const key=useRef(template?.items.length??1);const createId=useRef("");const submitting=useRef(false);
-  const initial=useRef({name:template?.name??"",items:template?.items??[{title:"",notes:""}]});
+  const initial=useRef({name:template?.name??"",items:(template?.items??[{title:"",notes:""}]).map(item=>({...item,assignedToId:item.assignedToId??null}))});
   const [name,setName]=useState(initial.current.name);
   const [rows,setRows]=useState(()=>initial.current.items.map((item,index)=>({...item,key:index})));
   const [error,setError]=useState("");const [blocked,setBlocked]=useState(false);
+  const [notice,setNotice]=useState("");
   useEffect(()=>{document.getElementById(id+"-name")?.focus();},[id]);
-  useEffect(()=>{onDirty(name!==initial.current.name||JSON.stringify(rows.map(({title,notes})=>({title,notes})))!==JSON.stringify(initial.current.items));},[name,rows,onDirty]);
+  useEffect(()=>{onDirty(name!==initial.current.name||JSON.stringify(rows.map(({title,notes,assignedToId})=>({title,notes,assignedToId})))!==JSON.stringify(initial.current.items));},[name,rows,onDirty]);
   useEffect(()=>()=>onDirty(false),[onDirty]);
-  function update(rowKey:number,field:keyof TemplateItem,value:string){setRows(current=>current.map(row=>row.key===rowKey?{...row,[field]:value}:row));if(!blocked)setError("");}
-  function add(){const next=key.current++;setRows(current=>[...current,{key:next,title:"",notes:""}]);window.requestAnimationFrame(()=>document.getElementById(id+"-title-"+next)?.focus());}
+  function update(rowKey:number,field:keyof TemplateItem,value:string|null){setRows(current=>current.map(row=>row.key===rowKey?{...row,[field]:value}:row));setNotice("");if(!blocked)setError("");}
+  function assignBelow(){const assignedToId=rows[0]?.assignedToId;if(!assignedToId||!members.some(member=>member.id===assignedToId))return;setRows(current=>current.map((row,index)=>index===0?row:{...row,assignedToId}));setNotice("Assignee applied to all tasks below. Titles and notes kept.");if(!blocked)setError("");}
+  function add(){const next=key.current++;setRows(current=>[...current,{key:next,title:"",notes:"",assignedToId:null}]);setNotice("");window.requestAnimationFrame(()=>document.getElementById(id+"-title-"+next)?.focus());}
   function remove(rowKey:number){const index=rows.findIndex(row=>row.key===rowKey);const next=rows[index+1]??rows[index-1];if(!next)return;setRows(current=>current.filter(row=>row.key!==rowKey));window.requestAnimationFrame(()=>document.getElementById(id+"-title-"+next.key)?.focus());}
   async function submit(event:FormEvent){event.preventDefault();if(pending||submitting.current||blocked)return;
     if(!name.trim()){setError("Give your template a name.");document.getElementById(id+"-name")?.focus();return;}
     const empty=rows.find(row=>!row.title.trim());if(empty){setError("Give every task a title before saving.");document.getElementById(id+"-title-"+empty.key)?.focus();return;}
+    const unavailable=rows.find(row=>row.assignedToId&&!members.some(member=>member.id===row.assignedToId));if(unavailable){setError(`Choose an available member or clear the assignment for task ${rows.indexOf(unavailable)+1}.`);return;}
     if(!createId.current)createId.current=crypto.randomUUID();submitting.current=true;setError("");
-    try{await onSave({action:template?"update":"create",id:template?.id??createId.current,version:template?.updated_at??null,name:name.trim(),items:rows.map(({title,notes})=>({title:title.trim(),notes}))});}
+    try{await onSave({action:template?"update":"create",id:template?.id??createId.current,version:template?.updated_at??null,name:name.trim(),items:rows.map(({title,notes,assignedToId})=>({title:title.trim(),notes,assignedToId}))});}
     catch(reason){setError(reason instanceof Error?reason.message:"Unable to save. Your draft is kept.");if(reason instanceof TemplateSaveError&&(reason.status===409||reason.status>=500))setBlocked(true);}
     finally{submitting.current=false;}
   }
-  return <div className={`${styles.bulkEditor} ${ui.editor}`}><div className={styles.bulkHeader}><div><p className={styles.editorEyebrow}>MAKE ROOM FOR WHAT MATTERS</p><h2>{template?"Edit template":"New template"}</h2><p>Only titles and notes are saved.</p></div><button type="button" className={styles.iconButton} disabled={pending} aria-label="Close template editor" onClick={onClose}>×</button></div>
+  return <div className={`${styles.bulkEditor} ${ui.editor}`}><div className={styles.bulkHeader}><div><p className={styles.editorEyebrow}>MAKE ROOM FOR WHAT MATTERS</p><h2>{template?"Edit template":"New template"}</h2><p>Titles, notes and assignments are saved.</p></div><button type="button" className={styles.iconButton} disabled={pending} aria-label="Close template editor" onClick={onClose}>×</button></div>
     <form onSubmit={submit} noValidate aria-busy={pending}><fieldset disabled={pending} className={styles.formFields}>
       <button type="button" className={ui.back} onClick={onBack}><Glyph kind="back"/>Back to templates</button>
       <label className={styles.field}>Template name <span aria-hidden="true">*</span><CapitalizedInput id={id+"-name"} value={name} onValueChange={value=>{setName(value);if(!blocked)setError("");}} maxLength={100} required data-autofocus="true" placeholder="e.g. Sound team setup"/></label>
       <p className={ui.editorNote}>{template?"Changes apply the next time you use this template. Tasks already created stay unchanged.":"Use this task set in any category. Choose its schedule when you use it."}</p>
       <div className={styles.bulkSectionHeading}><h3>Tasks</h3><span>{rows.length} / {MAX_BATCH_TASKS}</span></div>
       <div className={styles.bulkRows}>{rows.map((row,index)=><section key={row.key} className={styles.bulkRow} aria-label={"Template task "+(index+1)}><div className={styles.bulkTitleRow}><span className={styles.taskNumber}>{index+1}</span><label className={styles.field}><span className={styles.srOnly}>Task {index+1} title</span><CapitalizedInput id={id+"-title-"+row.key} value={row.title} onValueChange={value=>update(row.key,"title",value)} required maxLength={200} placeholder="What would you like to do?"/></label><button type="button" className={styles.iconButton} disabled={rows.length===1} onClick={()=>remove(row.key)} aria-label={"Remove task "+(index+1)}>×</button></div>
-      <label className={styles.field}>Notes <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span><textarea rows={2} value={row.notes} onChange={event=>update(row.key,"notes",event.target.value)} maxLength={4000} placeholder="A few helpful details…"/></label></section>)}</div>
+      <label className={styles.field}>Notes <span className={styles.optional}>optional</span><span className={styles.srOnly}> for task {index+1}</span><textarea rows={2} value={row.notes} onChange={event=>update(row.key,"notes",event.target.value)} maxLength={4000} placeholder="A few helpful details…"/></label>
+      <TaskAssignee label="Assign to" context={`Template task ${index+1}`} value={row.assignedToId} members={members} currentMemberId={currentMemberId} disabled={pending} allowUnassigned onChange={value=>update(row.key,"assignedToId",value||null)}/>
+      {index===0&&<button type="button" className={ui.assignBelow} disabled={pending||rows.length<2||!members.some(member=>member.id===row.assignedToId)} onClick={assignBelow}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/></svg>Assign to all tasks below</button>}
+      </section>)}</div>
       <button type="button" className={styles.addAnother} disabled={rows.length>=MAX_BATCH_TASKS} onClick={add}>+ Add another task</button>
       {error&&<p className={styles.error} role="alert">{error}</p>}
+      {notice&&<p className={styles.inlineNotice} role="status">{notice}</p>}
       <div className={`${styles.editorActions} ${ui.editorActions}`}><button type="button" className={styles.cancelButton} onClick={onBack}>Cancel</button><button type="submit" className={`${styles.saveButton} ${styles.goldSave}`} disabled={blocked}>{pending?"Saving…":template?"Save changes":"Save template"}</button></div>
     </fieldset></form>
   </div>;

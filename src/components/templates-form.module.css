@@ -35,6 +35,8 @@
 .editor input:focus,.editor textarea:focus { outline:none!important; box-shadow:none!important; border-color:#7d8998!important; }
 .editor .editorActions { position:sticky; bottom:0; background:#fffdf9; padding-bottom:12px; margin-bottom:0; z-index:1; }
 .editorActions>button { flex:1; min-height:44px; }
+.assignBelow { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:40px; border:1px solid #c5ab70; border-radius:6px; background:transparent; padding:8px 12px; color:#101c2d; font:inherit; font-size:12px; font-weight:500; cursor:pointer; }
+.assignBelow:focus-visible { outline:none; border-color:#8d723c; }
 @media(max-width:760px) {
   .libraryTools { flex-direction:column; }
   .search input { font-size:16px; }

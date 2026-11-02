@@ -1,7 +1,7 @@
 import { MAX_BATCH_TASKS, newTaskDraft } from "@/lib/tasks/model";
 import { isRecord, timestamp, uuid } from "@/lib/tasks/validation";
 
-export type TemplateItem = { title: string; notes: string };
+export type TemplateItem = { title: string; notes: string; assignedToId?: string | null };
 export type TaskTemplate = { id: string; name: string; items: TemplateItem[]; created_at: string; updated_at: string };
 export type TemplateRemoveAction = { action:"remove";id:string;version:string;confirmed:true };
 export type TemplateMutation = TemplateAction | TemplateRemoveAction;
@@ -10,15 +10,19 @@ export type TemplateAction = { action: "create" | "update"; id: string; name: st
 const exact = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).every(key => keys.includes(key));
 export function validItems(value: unknown): value is TemplateItem[] {
   return Array.isArray(value) && value.length > 0 && value.length <= MAX_BATCH_TASKS && value.every(item =>
-    isRecord(item) && exact(item,["title","notes"]) && typeof item.title === "string" && item.title.trim().length > 0
-    && item.title.length <= 200 && typeof item.notes === "string" && item.notes.length <= 4000);
+    isRecord(item) && exact(item,["title","notes","assignedToId"]) && typeof item.title === "string" && item.title.trim().length > 0
+    && item.title.length <= 200 && typeof item.notes === "string" && item.notes.length <= 4000
+    && (item.assignedToId === undefined || item.assignedToId === null || uuid(item.assignedToId)));
+}
+function copyItem(item:TemplateItem):TemplateItem {
+  return {title:item.title,notes:item.notes,...(item.assignedToId===undefined?{}:{assignedToId:item.assignedToId})};
 }
 export function validateTemplateAction(value: unknown): TemplateAction | null {
   if (!isRecord(value) || !exact(value,["action","id","name","items","version"]) || !["create","update"].includes(value.action as string)
     || !uuid(value.id) || typeof value.name !== "string" || !value.name.trim() || value.name.length > 100 || !validItems(value.items)
     || (value.action === "create" ? value.version !== null : !timestamp(value.version))) return null;
   return {action:value.action as TemplateAction["action"],id:value.id,name:value.name.trim(),version:value.version as string|null,
-    items:value.items.map(item=>({title:item.title.trim(),notes:item.notes}))};
+    items:value.items.map(item=>copyItem({...item,title:item.title.trim()}))};
 }
 export function validateTemplateMutation(value:unknown):TemplateMutation|null {
   if(isRecord(value)&&value.action==="remove")return exact(value,["action","id","version","confirmed"])&&uuid(value.id)&&timestamp(value.version)&&value.confirmed===true
@@ -33,7 +37,7 @@ export function decodeTemplateRemoval(value:unknown,input:TemplateRemoveAction){
 export function decodeTemplate(value: unknown,allowDeleted=false): TaskTemplate {
   if (!isRecord(value) || (!allowDeleted && value.deleted_at != null) || !uuid(value.id) || typeof value.name !== "string" || !value.name.trim() || value.name.length > 100
     || !validItems(value.items) || !timestamp(value.created_at) || !timestamp(value.updated_at)) throw Error("Incomplete template response. Refresh before trying again.");
-  return {id:value.id,name:value.name,items:value.items.map(item=>({title:item.title,notes:item.notes})),created_at:value.created_at,updated_at:value.updated_at};
+  return {id:value.id,name:value.name,items:value.items.map(copyItem),created_at:value.created_at,updated_at:value.updated_at};
 }
 export function decodeDeletedTemplate(value:unknown):DeletedTemplate {
   const template=decodeTemplate(value,true);
@@ -47,7 +51,7 @@ export function decodeTemplates(value: unknown): TaskTemplate[] {
   return templates;
 }
 export function templateDrafts(items: TemplateItem[], category: string) {
-  // Explicitly copy only these two fields. Each task receives fresh category defaults
+  // Copy the reusable instructions and optional assignee. Each task receives fresh category defaults
   // and independent arrays; no saved ids, completion state or stale dates can leak in.
-  return items.map(item=>({...newTaskDraft(category),title:item.title,notes:item.notes}));
+  return items.map(item=>({...newTaskDraft(category),title:item.title,notes:item.notes,assignedToId:item.assignedToId??null}));
 }

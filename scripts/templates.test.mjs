@@ -15,10 +15,27 @@ const id='00000000-0000-4000-8000-000000000901',owner='00000000-0000-4000-8000-0
 const items=Array.from({length:5},(_,i)=>({title:'Task '+(i+1),notes:'Notes '+(i+1)}));
 const input={action:'create',id,name:'Sound team setup',items,version:null};
 const row={id,name:input.name,items,created_at:stamp,updated_at:stamp};
-test('Templates accept only name plus 1–20 titles/notes; reject schedules, owner fields, empty, oversize or invalid versions',()=>{
+test('Templates accept 1–20 titles/notes with optional assignees; reject schedules, owner fields, empty, oversize or invalid versions',()=>{
  assert.equal(model.validateTemplateAction({...input,name:'  Team setup  '}).name,'Team setup');
  assert.ok(model.validateTemplateAction({...input,action:'update',version:stamp}));
  for(const bad of [null,{...input,owner_id:owner},{...input,name:' '},{...input,name:'x'.repeat(101)},{...input,items:[]},{...input,items:Array(21).fill(items[0])},{...input,items:[{title:' ',notes:''}]},{...input,items:[{title:'x'.repeat(201),notes:''}]},{...input,items:[{title:'x',notes:'x'.repeat(4001)}]},{...input,items:[{title:'x',notes:null}]},{...input,items:[{...items[0],repeat:'Weekly'}]},{...input,version:stamp},{...input,action:'update',version:null},{...input,id:'bad'}])assert.equal(model.validateTemplateAction(bad),null);
+});
+test('Template assignment round-trip keeps legacy items, optional clears and chosen ids without trusting extra fields',()=>{
+ const assigned=[items[0],{...items[1],assignedToId:owner},{...items[2],assignedToId:null}];
+ const value={...input,items:assigned};
+ assert.equal(JSON.stringify(model.validateTemplateAction(value).items),JSON.stringify(assigned));
+ assert.equal(JSON.stringify(model.decodeTemplate({...row,items:assigned}).items),JSON.stringify(assigned));
+ for(const assignedToId of ['',12,false,{},[], 'someone@example.test','not-a-member-id'])assert.equal(model.validateTemplateAction({...input,items:[{...items[0],assignedToId}]}),null);
+ assert.equal(model.validateTemplateAction({...input,items:[{...items[0],assignedToId:owner,assignedToName:'Forged'}]}),null);
+ const deleted=model.decodeDeletedTemplate({...row,items:assigned,deleted_at:stamp,deleted_by_name:'Jerin'});
+ assert.equal(deleted.items[1].assignedToId,owner);
+});
+test('Template task drafts retain chosen assignees while keeping fresh schedules and separate rows',()=>{
+ const source=[{...items[0],assignedToId:owner},{...items[1],assignedToId:id},items[2]];
+ const drafts=model.templateDrafts(source,'Sunday Service');
+ assert.equal(drafts[0].assignedToId,owner);assert.equal(drafts[1].assignedToId,id);assert.equal(drafts[2].assignedToId,null);
+ assert.equal(drafts[0].id,'');assert.equal(drafts[0].date,'');assert.equal(drafts[0].completed,false);
+ drafts[0].assignedToId=id;assert.equal(source[0].assignedToId,owner);assert.equal(drafts[1].assignedToId,id);
 });
 test('Using five entries copies all titles/notes into independent fresh category defaults with no ids or stale schedule',()=>{
  const source=items.map(item=>({...item,date:'2020-01-01',id:owner,completed:true,repeat:'Daily'}));
@@ -41,6 +58,13 @@ test('Template save uses one atomic RPC without caller owner; verifies exact ech
  const f=repositoryFixture(()=>({data:row,error:null}));assert.equal((await f.repo.mutate(input)).template.id,id);assert.equal(f.calls.length,1);assert.equal(f.calls[0].name,'task_app_save_template');assert.equal('owner_id' in f.calls[0].args,false);assert.equal(f.calls[0].args.expected_version,null);
  for(const data of [{...row,id:owner},{...row,items:items.slice(0,4)},{...row,name:'Other'}])await assert.rejects(()=>repositoryFixture(()=>({data,error:null})).repo.mutate(input),e=>e.status===503);
  for(const [code,status] of [['P0013',409],['42501',401],['23514',400],['private-provider-detail',503]])await assert.rejects(()=>repositoryFixture(()=>({data:null,error:{code}})).repo.mutate(input),e=>e.status===status&&!e.message.includes(code));
+});
+test('Template saves must confirm assigned member ids, not just the titles and notes',async()=>{
+ const assigned=[{...items[0],assignedToId:owner}],value={...input,items:assigned};
+ const f=repositoryFixture(()=>({data:{...row,items:assigned},error:null}));
+ assert.equal((await f.repo.mutate(value)).template.items[0].assignedToId,owner);
+ assert.equal(f.calls[0].args.template_items[0].assignedToId,owner);
+ for(const echoed of [[items[0]],[{...items[0],assignedToId:id}]])await assert.rejects(()=>repositoryFixture(()=>({data:{...row,items:echoed},error:null})).repo.mutate(value),e=>e.status===503);
 });
 function routeFixture({signedIn=true,selected=true}={}){const calls=[];const route=load('../src/app/api/templates/route.ts',{'@/lib/supabase/server':{createClient:async()=>({auth:{}})},'@/lib/auth/flow':{verifiedIdentity:async()=>signedIn?{userId:owner}:null},'@/lib/auth/server':{authOrigin:()=> 'http://127.0.0.1:3003',AUTH_HEADERS:{'Cache-Control':'private, no-store'}},'@/lib/members/server':{MemberError:class extends Error{},readMembers:async()=>({current:selected?{id,role:"owner"}:null,workspace:selected?{ownerId:owner}:null})},'@/lib/tasks/repository':errors,'@/lib/templates/model':model,'@/lib/templates/repository':{TemplateRepository:class{async read(){calls.push('read');return {templates:[row]};}async mutate(){calls.push('write');return {template:row};}}}});return {route,calls};}
 const request=(body,origin='http://127.0.0.1:3003',type='application/json')=>new Request('http://127.0.0.1:3003/api/templates',{method:'POST',headers:{origin,'Content-Type':type},body:typeof body==='string'?body:JSON.stringify(body)});
