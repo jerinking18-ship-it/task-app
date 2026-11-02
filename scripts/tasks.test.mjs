@@ -528,3 +528,26 @@ test('category creation accepts only the four supported canonical meeting names'
  for(const name of ['Work','Youth Meeting',"Woman’s Meeting",'sunday service','',null,123,'Sunday Service\nExtra'])assert.equal(validation.validateAction({action:'category',name}),null);
  assert.equal(validation.validateAction({action:'category',name:'Sunday Service',owner_id:owner}),null);
 });
+
+function queuedReadFixture(){
+ const states=[],refs=[],effects=[],reads=[];let si=0,ri=0;
+ const react={useCallback:fn=>fn,useMemo:fn=>fn(),useEffect:fn=>effects.push(fn),useRef(value){const i=ri++;return refs[i]??(refs[i]={current:value});},useState(value){const i=si++;if(!(i in states))states[i]=value;return[states[i],next=>states[i]=typeof next==='function'?next(states[i]):next];}};
+ const globals={AbortController,AbortSignal,fetch:(_url,init)=>new Promise(resolve=>reads.push({init,finish:body=>resolve({ok:true,status:200,json:async()=>body})})),window:{addEventListener(){},removeEventListener(){},setTimeout(){return 1;},clearTimeout(){}},document:{visibilityState:'visible',addEventListener(){},removeEventListener(){}}};
+ const hook=load('../src/lib/tasks/use-saved-tasks.ts',{'react':react,'./model':model,'./validation':validation,'./completed':completed,'./confirmed-state':confirmedState},globals);
+ return{states,reads,effects,render(dirty=false){si=0;ri=0;effects.length=0;return hook.useSavedTasks(true,dirty);}};
+}
+const queueDataset=()=>({timezone:'Asia/Kolkata',tasks:[],categories:model.MEETING_CATEGORIES.map((name,i)=>({id:'00000000-0000-4000-8000-'+String(700+i).padStart(12,'0'),name}))});
+test('overlapping task refreshes keep the first request alive and coalesce into one background catch-up',async()=>{
+ const f=queuedReadFixture(),api=f.render();const first=api.refresh();
+ await api.refresh(true);await api.refresh(true);await api.refresh();assert.equal(f.reads.length,1);assert.equal(f.reads[0].init.signal.aborted,false);
+ f.reads[0].finish(queueDataset());await first;assert.equal(f.reads.length,2);assert.equal(f.states[2],false,'catch-up must not restart the initial loading screen');
+ assert.equal(f.render().hasData,true);f.reads[1].finish(queueDataset());await new Promise(setImmediate);assert.equal(f.reads.length,2);
+});
+test('dirty drafts defer a queued refresh instead of fetching over edits',async()=>{
+ const f=queuedReadFixture(),api=f.render();const first=api.refresh();await api.refresh(true);f.render(true);
+ f.reads[0].finish(queueDataset());await first;assert.equal(f.reads.length,1);assert.equal(f.render(true).deferred,true);
+});
+test('Strict Mode cleanup clears aborted reads so remount can load rather than stay stuck',async()=>{
+ const f=queuedReadFixture();f.render();const cleanup=f.effects[0]();assert.equal(f.reads.length,1);cleanup();assert.equal(f.reads[0].init.signal.aborted,true);
+ f.render();const unmount=f.effects[0]();assert.equal(f.reads.length,2);f.reads[1].finish(queueDataset());await new Promise(setImmediate);assert.equal(f.render().hasData,true);unmount();
+});

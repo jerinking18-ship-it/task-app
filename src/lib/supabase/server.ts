@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseConfig } from "./config";
+import { appFetch } from "./fetch";
 
 /** Create a new cookie-backed client for every server request. */
 export async function createClient() {
@@ -8,6 +9,7 @@ export async function createClient() {
   const { url, publishableKey } = getSupabaseConfig();
 
   return createServerClient(url, publishableKey, {
+    global: { fetch: appFetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();

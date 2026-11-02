@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import TaskApp from "@/components/task-app";
+import AccountOpening from "@/components/account-opening";
 import { createClient } from "@/lib/supabase/server";
 import { verifiedIdentity } from "@/lib/auth/flow";
 import { readCheckIn } from "@/lib/check-in/server";
@@ -13,14 +15,20 @@ export default async function Account({ searchParams }: PageProps<"/account">) {
   let identity;
   try { client = await createClient(); identity = await verifiedIdentity(client.auth); } catch { /* Fail closed. */ }
   if (!identity || !client) redirect("/sign-in");
+  return <Suspense fallback={<AccountOpening/>}><Workspace client={client} identity={identity} searchParams={searchParams}/></Suspense>;
+}
+
+async function Workspace({client,identity,searchParams}:{client:Awaited<ReturnType<typeof createClient>>;identity:NonNullable<Awaited<ReturnType<typeof verifiedIdentity>>>;searchParams:PageProps<"/account">["searchParams"]}) {
+  // Both RPCs enforce the verified workspace themselves. Start them together,
+  // but never render any account data until membership is confirmed below.
+  const checkInRequest = readCheckIn(client).catch(() => null);
   let members;
   try { members = await readMembers(client); } catch (error) {
     if (error instanceof MemberError && error.status === 401) redirect("/sign-in");
     /* Recover other failures through the member step. */
   }
   if (!members?.current || !members.workspace) redirect("/account/member");
-  let checkIn = null;
-  try { checkIn = await readCheckIn(client); } catch { /* Keep Assigned available if check-in cannot load. */ }
+  const checkIn = await checkInRequest;
   const query = await searchParams;
   return <TaskApp freshLaunch initialCheckIn={checkIn} initialView={checkIn ? checkInLanding(checkIn) : "Assigned to me"} saved accountId={members.workspace.ownerId} today={new Date().toISOString().slice(0, 10)} initialMembers={members} accountEmail={identity.email} passwordUpdated={query.password === "updated"} />;
 }

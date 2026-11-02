@@ -20,6 +20,8 @@ import SundayServiceLabel from "./sunday-service-label";
 import SundayServiceField from "./sunday-service-field";
 import type {SundayService} from "@/lib/tasks/model";
 import AssignedMeetingSections from "./assigned-meeting-sections";
+import MeetingCompleteCelebration, { completionDialogClass } from "./meeting-complete-celebration";
+import { completedMeeting, type MeetingCelebration } from "@/lib/tasks/meeting-celebration";
 import NeedsHelp from "./needs-help";
 import {meetingOverview} from "@/lib/tasks/meeting-overview";
 import {needsHelpCount} from "@/lib/tasks/needs-help";
@@ -27,7 +29,7 @@ import FinesPanel from "./fines/fines-panel";
 import {useFines} from "@/lib/fines/use-fines";
 import CapitalizedInput from "./capitalized-input";
 
-import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import styles from "./task-app.module.css";
 import { accountClock, completionAge, inHistory, isAvailable, sortTasksForStatus, repeatError, blankTask, newTaskDraft, categoryWeekdays, categoryOrder, MEETING_CATEGORIES, PRIORITIES, WEEKDAYS, isOverdue, type EditScope, type ReassignmentSnapshot, type Priority, type Task } from "@/lib/tasks/model";
@@ -195,6 +197,24 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
   const [assignedSundayStatuses,setAssignedSundayStatuses]=useState<SundayStatuses>({morning:"Active",evening:"Active"});
   const [categorySundayStatuses,setCategorySundayStatuses]=useState<SundayStatuses>({morning:"Active",evening:"Active"});
   const [members, setMembers] = useState(initialMembers);
+  const [celebration,setCelebration]=useState<MeetingCelebration|null>(null);
+  const celebratedMeetings=useRef(new Set<string>());
+  const completionContext=useRef({tasks:storage.tasks,view,memberId:members?.current?.id,clockOffset:storage.clockOffset,specialMeetings,specialMeetingTitle});
+  completionContext.current={tasks:storage.tasks,view,memberId:members?.current?.id,clockOffset:storage.clockOffset,specialMeetings,specialMeetingTitle};
+  const dismissCelebration=useCallback(()=>{
+    setCelebration(null);
+    window.requestAnimationFrame(()=>document.getElementById("task-page-title")?.focus());
+  },[]);
+  useEffect(()=>{setCelebration(null);},[view,members?.current?.id]);
+  function celebrateCompletion(previous:Task,result:Task) {
+    const context=completionContext.current;
+    if(context.view!=="Assigned to me")return;
+    const before=context.tasks.map(task=>task.id===previous.id?previous:task);
+    const completed=completedMeeting(before,result,context.memberId,new Date(Date.now()+context.clockOffset),context.specialMeetings,context.specialMeetingTitle);
+    if(completed&&!celebratedMeetings.current.has(completed.key)){
+      celebratedMeetings.current.add(completed.key);setCelebration(completed);
+    }
+  }
   const canManage=!saved||canManageTasks(members);
   const canOwnStatus=(task:Task)=>!saved||(!meetingCompletionLocked(task,now)&&(!task.specialMeeting||specialTaskOpen(task,now))&&(task.completed&&task.missedCompletionRole ? canReopenMissed(task,members?.current?.id) : canChangeTaskStatus(members,task.assignedToId)&&!taskRestriction(task,members,new Date(deviceNow.getTime()+memberOffset))&&!taskCoverage(task,new Date(deviceNow.getTime()+memberOffset))));
   const canMiss=(task:Task)=>saved&&canManageTasks(members)&&!!members?.members.some(member=>member.id===task.assignedToId)&&canCompleteMissed(task,members?.current?.id,members?.current?.role,new Date(deviceNow.getTime()+memberOffset));
@@ -270,7 +290,7 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [message, setMessage] = useState("");
   const returnFocus = useRef<HTMLElement | null>(null);
-  const bin=useBin(saved,dirty||storage.pending||accountPending);
+  const bin=useBin(saved&&(storage.hasData||view==="Bin"),dirty||storage.pending||accountPending);
   const busy=(saved && (storage.pending||bin.pending||templates.pending||specialTitle.pending)) || accountPending;
   useEffect(()=>{if(saved&&templates.expired)navigateAfterSignOut("/sign-in");},[saved,templates.expired]);
   const fines=useFines(saved&&view==="Fines"&&canManageTasks(members),dirty||busy);
@@ -286,9 +306,9 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
   useEffect(()=>{if(previousCheckInDay.current!==checkInDay){previousCheckInDay.current=checkInDay;void checkIn.refresh();}},[checkInDay,checkIn.refresh]);
   const activity=useActivity(saved&&view==="Activity"&&canManageTasks(members),dirty||busy);
   useEffect(()=>{if(activity.expired)navigateAfterSignOut("/sign-in");},[activity.expired]);
-  const notifications=useNotifications(saved&&!!members?.current&&!!members.workspace&&!storage.expired,dirty||busy);
+  const notifications=useNotifications(saved&&!!members?.current&&!!members.workspace&&!storage.expired&&(storage.hasData||view==="Users"||view==="Notifications"),dirty||busy);
   useEffect(()=>{if(notifications.expired)navigateAfterSignOut("/sign-in");},[notifications.expired]);
-  const notificationTaskKey=JSON.stringify(storage.tasks.map(task=>[task.id,task.updatedAt]));
+  const notificationTaskKey=useMemo(()=>JSON.stringify(storage.tasks.map(task=>[task.id,task.updatedAt])),[storage.tasks]);
   const previousNotificationTaskKey=useRef(notificationTaskKey);
   useEffect(()=>{
     if(previousNotificationTaskKey.current===notificationTaskKey)return;
@@ -549,6 +569,7 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
         const result=await storage.toggle(task);
         if(editing?.id===id) {setEditing(result);setEditorVersion(v=>v+1);}
         setMessage(result.completed ? "Task completed" : "Task reopened");
+        celebrateCompletion(task,result);
       } catch(error) {setWriteError(error instanceof Error ? error.message : "Unable to save status."); if(error instanceof SaveError && error.latest) setStatusConflict(error.latest);}
       return;
     }
@@ -560,8 +581,11 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
     if(!canManage)throw new SaveError("Your current role cannot save task details.",403);
     if(!saved && !task.id) {requestAction(()=>window.location.assign("/sign-in")); return;}
     if(saved) {
-      await storage.save(task,scope,assignmentScope,specialStart,bulk);
-      finishEditor(); setMessage(bulk?`${bulk.count} ${bulk.count===1?"task":"tasks"} reassigned`:task.id ? "Changes saved" : "Task created"); return;
+      const previous=storage.tasks.find(item=>item.id===task.id);
+      const result=await storage.save(task,scope,assignmentScope,specialStart,bulk);
+      finishEditor(); setMessage(bulk?`${bulk.count} ${bulk.count===1?"task":"tasks"} reassigned`:task.id ? "Changes saved" : "Task created");
+      if(previous&&!bulk&&!specialStart)celebrateCompletion(previous,result);
+      return;
     }
     const previewSaved = { ...task, id: task.id || crypto.randomUUID(), title: task.title.trim(), notes: task.notes.trim() };
     setTasks((current) => task.id ? current.map((item) => item.id === task.id ? previewSaved : item) : [...current, previewSaved]);
@@ -689,6 +713,7 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
     {takeTask&&<Modal label="Take this task?" onClose={cancelTakeTask} className={styles.confirmDialog}><div className={styles.confirmContent}><p className={styles.editorEyebrow}>TEAM COVERAGE</p><h2>Take this task?</h2><p className={styles.reassignTitle}>{takeTask.title}</p><div className={styles.reassignPeople}>{[displayMemberName(taskCoverage(takeTask,memberNow)?.memberId,taskCoverage(takeTask,memberNow)?.memberName,members?.members??[])??"Original assignee",members?.current?.name??"You"].map((name,index)=><Fragment key={index}>{index===1&&<span className={styles.reassignArrow} aria-hidden="true">→</span>}<div><span className={`${styles.reassignAvatar} ${index===1?styles.reassignNew:""}`} aria-hidden="true">{Array.from(name)[0]?.toLocaleUpperCase()}</span><strong>{name}</strong></div></Fragment>)}</div><p>This task will be assigned to you. Only you can complete or reopen it.</p><p className={styles.editorHint}>Future repeat assignments stay unchanged.</p>{takeError&&<p role="alert" className={styles.error}>{takeError}</p>}{!taskCoverage(takeTask,memberNow)&&<p role="alert" className={styles.error}>This meeting period has ended. Close and refresh tasks.</p>}<div className={styles.editorActions}><button className={styles.cancelButton} data-autofocus="true" disabled={busy} onClick={cancelTakeTask}>Cancel</button><button className={styles.takeTaskConfirm} disabled={busy||!!takeError||!canTakeTask(takeTask,members,memberNow)} onClick={()=>void confirmTakeTask()}>{busy?"Taking…":"Take task"}</button></div></div></Modal>}
     {missedTask && !missedCompletionTiming(missedTask,memberNow).open && <Modal label="Missed completion unavailable" onClose={cancelMissedTask} className={styles.confirmDialog}><div className={`${styles.confirmContent} ${styles.missedConfirmation}`}><span className={styles.missedConfirmIcon}><Icon name="shield" size={30}/></span><h2>Outside the Missed completion window</h2><p>{missedCompletionTiming(missedTask,memberNow).message}</p><div className={styles.editorActions}><button className={styles.cancelButton} data-autofocus="true" onClick={cancelMissedTask}>Close</button></div></div></Modal>}
     {missedTask && missedCompletionTiming(missedTask,memberNow).open && <Modal label={`Complete this task for ${displayMemberName(missedTask.assignedToId,null,members?.members??[])||"the assigned member"}?`} onClose={cancelMissedTask} className={styles.confirmDialog}><div className={`${styles.confirmContent} ${styles.missedConfirmation}`}><span className={styles.missedConfirmIcon}><Icon name="shield" size={30}/></span><h2>Complete this task for {displayMemberName(missedTask.assignedToId,null,members?.members??[])||"the assigned member"}?</h2><p>Confirm that {displayMemberName(missedTask.assignedToId,null,members?.members??[])||"the assigned member"} missed this task and you completed the work.</p>{missedTask.category!=="Special Meeting"&&<p className={styles.missedFineWarning}><Icon name="warning" size={22}/><span>A ₹50 fine will be applied to {displayMemberName(missedTask.assignedToId,null,members?.members??[])||"the assigned member"} immediately.</span></p>}{missedTask.category==="Special Meeting"&&<p>No fine applies to Special Meeting.</p>}<p className={styles.editorHint}>Their remaining tasks for this meeting service will be locked and they will be marked absent. Recorded as completed by {members?.current?.role==="owner"?"Owner":"Coordinator"}. {missedTask.category!=="Special Meeting"&&<> An existing fine for this task will not be charged again.</>}</p>{missedError&&<p role="alert" className={styles.error}>{missedError}</p>}<div className={styles.editorActions}><button className={styles.cancelButton} data-autofocus="true" disabled={busy} onClick={cancelMissedTask}>Cancel</button><button className={styles.saveButton} disabled={busy||dirty||!!missedError||!canMiss(missedTask)} onClick={()=>void confirmMissedTask()}>{busy?"Saving…":"Confirm completion"}</button></div></div></Modal>}
+    {celebration&&view==="Assigned to me"&&<Modal label={`${celebration.meeting}: all tasks completed`} onClose={dismissCelebration} className={completionDialogClass}><MeetingCompleteCelebration celebration={celebration} onClose={dismissCelebration}/></Modal>}
     {reopenTask && <Modal label="Reopen this task?" onClose={cancelReopenTask} className={styles.confirmDialog}><div className={styles.confirmContent}><p className={styles.editorEyebrow}>TASK STATUS</p><h2>Reopen this task?</h2><p>This task will be marked as active again.</p>{reopenTask.missedCompletionRole&&reopenTask.category!=="Special Meeting"&&<p>The existing ₹50 fine stays unchanged. It can be cancelled separately on the Fines page.</p>}{reopenTask.seriesId && <p>Its next scheduled task stays unchanged. Completing this task again won’t create a duplicate.</p>}<div className={styles.editorActions}><button className={styles.cancelButton} data-autofocus="true" onClick={cancelReopenTask}>Keep completed</button><button className={styles.saveButton} onClick={()=>{setReopenTask(null);void toggleTask(reopenTask.id,reopenTask);}}>Reopen task</button></div></div></Modal>}
     <div className={styles.toastRegion} role="status" aria-live="polite">{message && <div className={styles.toast}><Icon name="check" size={17} />{message}</div>}</div>
   </div>;

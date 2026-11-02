@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseConfig } from "./config";
+import { appFetch } from "./fetch";
 
 /** Refresh sessions without sharing clients or cookies between requests. */
 export async function updateSession(request: NextRequest) {
@@ -8,6 +9,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(url, publishableKey, {
+    global: { fetch: appFetch },
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -38,6 +40,9 @@ export async function updateSession(request: NextRequest) {
 
   // Verifies claims and refreshes when needed. Anonymous preview visitors are
   // allowed; protected routes must separately require valid claims when added.
-  await supabase.auth.getClaims();
+  try { await supabase.auth.getClaims(); } catch {
+    // A provider outage must not block the initial HTML indefinitely. Protected
+    // routes still verify claims, the current user and workspace independently.
+  }
   return response;
 }
