@@ -9,6 +9,9 @@ import { assignmentLabel, isChangedCompletion, isChangedAssignment, completionRo
 import { displayMemberName } from "@/lib/members/display-name";
 import { taskCoverage } from "@/lib/members/absence";
 import type { Member } from "@/lib/members/model";
+import {useSundaySelection} from "@/lib/tasks/use-sunday-selection";
+import {sundayServiceTasks} from "@/lib/tasks/sunday-selection";
+import SundayServiceSelector from "./sunday-service-selector";
 import styles from "./meeting-overview.module.css";
 
 type SymbolName = "shield" | "list" | "check" | "warning" | "people" | "arrow" | "clock" | "calendar" | "refresh" | "repeat";
@@ -56,9 +59,12 @@ export default function MeetingOverview(props: MeetingOverviewProps) {
 
 function MeetingSection({ category, tasks, members, currentMemberId, now, coverageNow, pending, onNeedsHelp,specialMeetingTitle,specialMeetings }: MeetingOverviewProps & {category: string}) {
   const [filter, setFilter] = useState<OverviewFilter>("Remaining");
-  const shownTasks = overviewTasks(tasks, category, filter, now, coverageNow);
+  const {service,selectService}=useSundaySelection(now,"overview");
+  const scopedTasks=category==="Sunday Service"?sundayServiceTasks(tasks,service):tasks;
+  const shownTasks = overviewTasks(scopedTasks, category, filter, now, coverageNow);
   const detailHeading = filter === "Remaining" ? "Left to do" : filter === "Completed" ? "Completed tasks" : filter === "Needs help" ? "Tasks needing help" : "All task details";
-  const summary = meetingOverview(tasks, category, now, coverageNow);
+  const summary = meetingOverview(scopedTasks, category, now, coverageNow);
+  const serviceTasks=category==="Sunday Service"?meetingOverview(tasks,category,now,coverageNow).tasks:[];
   const clock = accountClock(now, "Asia/Kolkata");
   const event=category==="Special Meeting"?specialMeetings?.find(e=>!e.locked&&Date.parse(e.startsAt)<=now.getTime()&&now.getTime()<Date.parse(e.endsAt)):null;
   const deadline = event?{resetAt:Date.parse(event.endsAt),meetingDate:clock.date}:overviewDeadline(category, now);
@@ -74,6 +80,7 @@ function MeetingSection({ category, tasks, members, currentMemberId, now, covera
   return <section className={styles.meetingSection} data-filter={filter} aria-label={`${category} overview`}>
       <section className={styles.meeting} aria-label={`${category} readiness`}>
         <div className={styles.meetingTop}><div><p className={styles.eyebrow}>YOUR MEETING AT A GLANCE</p><h2><i style={{background:CATEGORY_COLORS[category]}} aria-hidden="true"/>{category==="Special Meeting"?specialMeetingTitle??category:category}</h2><p className={styles.meetingDate}>{deadline ? dateLabel(deadline.meetingDate, {weekday:"long",month:"long",day:"numeric"}) : "Selected meeting dates"}</p></div><div className={styles.readiness}><strong>{summary.percentage}<small>%</small></strong><span>complete</span></div></div>
+        {category==="Sunday Service"&&<SundayServiceSelector spaced value={service} onChange={selectService} disabled={pending} counts={{morning:serviceTasks.filter(t=>t.sundayService==="morning").length,evening:serviceTasks.filter(t=>(t.sundayService??"evening")==="evening").length}}/>}
         <div className={styles.progress} role="progressbar" aria-label="Tasks completed" aria-valuemin={0} aria-valuemax={100} aria-valuenow={summary.percentage} aria-valuetext={`${summary.completed.length} of ${summary.tasks.length} tasks completed`}><span style={{width:`${summary.percentage}%`}}/></div>
         <div className={styles.progressLabels}><span>{summary.completed.length} of {summary.tasks.length} tasks completed</span><strong>{summary.remaining.length} left to do!</strong></div>
         <div className={styles.stats}>{cards.map(card => <button key={card.filter} className={`${styles.stat} ${card.tone} ${filter === card.filter ? styles.selectedStat : ""}`} disabled={disabled} aria-pressed={filter === card.filter} aria-controls={detailsId} onClick={() => setFilter(card.filter)} aria-label={`View ${card.title.toLowerCase()}: ${card.value}`}><span className={styles.statLabel}><Symbol name={card.icon}/>{card.title}</span><strong>{card.value}</strong><span className={styles.arrow}><Symbol name="arrow"/></span>{filter === card.filter && <span className={styles.selectedLabel}>Selected</span>}</button>)}</div>

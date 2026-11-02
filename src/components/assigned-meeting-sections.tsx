@@ -10,9 +10,9 @@ import SundayServiceSections from "./sunday-service-sections";
 import {SpecialMeetingHeading} from "./special-meeting-title";
 import styles from "./sunday-service.module.css";
 
-export default function AssignedMeetingSections({now,activeSpecial=false,title,hasSpecial,sundayServices=[],sundayStatuses,onSundayStatus,hasOtherRegular=false,pending,error,onRefresh,render}:{
+export default function AssignedMeetingSections({now,activeSpecial=false,title,hasSpecial,sundayServices=[],sundayStatuses,onSundayStatus,counts,hasOtherRegular=false,pending,error,onRefresh,render}:{
  activeSpecial?:boolean;now:Date;title:MeetingTitle|null;hasSpecial:boolean;pending:boolean;error:string;
- sundayServices?:SundayService[];hasOtherRegular?:boolean;
+ sundayServices?:SundayService[];hasOtherRegular?:boolean;counts?:Partial<Record<SundayService,number>>;
  sundayStatuses?:SundayStatuses;onSundayStatus?:(service:SundayService,status:string)=>void;
  onRefresh:()=>void;render:(scope:AssignedTaskScope,status?:string,onStatus?:(value:string)=>void)=>ReactNode;
 }){
@@ -21,7 +21,7 @@ export default function AssignedMeetingSections({now,activeSpecial=false,title,h
  return <div>
   {!activeSpecial&&<section className={styles.section} aria-label="Regular assigned tasks">
    <AssignedMeetingHeading now={now}/>{splitSunday?<>
-    <SundayServiceSections now={now} services={sundayServices} statuses={sundayStatuses} onStatusChange={onSundayStatus} render={(service,status,choose)=>render(service,status,choose)}/>
+    <SundayServiceSections now={now} scope="assigned" showHeading={false} counts={counts} disabled={pending} services={sundayServices} statuses={sundayStatuses} onStatusChange={onSundayStatus} render={(service,status,choose)=>render(service,status,choose)}/>
     {hasOtherRegular&&render("other")}
    </>:render("regular")}
   </section>}

@@ -1,5 +1,8 @@
 "use client";
 import { useState } from "react";
+import {useSundaySelection} from "@/lib/tasks/use-sunday-selection";
+import type {SundayService} from "@/lib/tasks/model";
+import SundayServiceSelector from "../sunday-service-selector";
 import { checkInOpen, contextKey, type CheckInContext } from "@/lib/check-in/model";
 import type { useCheckIn } from "@/lib/check-in/use-check-in";
 import { canManageTasks, type MemberState } from "@/lib/members/model";
@@ -27,10 +30,13 @@ export function CheckIcon({ name, size = 20 }: { name: string; size?: number }) 
 const hours = (c: CheckInContext) => c.service === "morning" ? "7 AM–3:59 PM" : c.category === "Special Meeting" ? "7 AM–11 PM" : "4 PM–11:59 PM";
 const label = (c: CheckInContext, title: string) => c.service === "morning" ? "Morning Service" : c.service === "evening" ? "Evening Service" : c.category === "Special Meeting" ? title : c.category;
 export default function CheckInPanel({ store, members, now, title, details = false, blocked, onList, onBack, onSaved, onContinue, onPending }: Props) {
-  const [selected, setSelected] = useState(""), [search, setSearch] = useState("");
+  const [search, setSearch] = useState("");
   const allowed = canManageTasks(members), data = store.data;
   const contexts = data?.contexts.filter(c => now.getTime() < Date.parse(c.visibleUntil)) ?? [];
-  const chosen = contexts.find(c => contextKey(c) === selected) ?? contexts.find(c => checkInOpen(c, now)) ?? contexts[0];
+  const services=contexts.flatMap(c=>c.category==="Sunday Service"&&c.service?[c.service]:[]) as SundayService[];
+  const {service,selectService}=useSundaySelection(now,details?"checked-in-list":"check-in",services);
+  const chosen = services.length?contexts.find(c=>c.service===service):contexts.find(c => checkInOpen(c, now)) ?? contexts[0];
+  const shownContexts=services.length?contexts.filter(c=>c.service===service):contexts;
   const busy = blocked || store.pending || store.loading;
   async function submit(c: CheckInContext) {
     onPending(true);
@@ -46,12 +52,12 @@ export default function CheckInPanel({ store, members, now, title, details = fal
     {store.error && <div className={styles.error} role="alert"><p>{store.error}</p><button onClick={() => void store.refresh()} disabled={store.loading || store.pending}>Refresh check-in</button></div>}
     {!data ? <div className={styles.empty} role="status"><CheckIcon name="list" size={30} /><h2>{store.loading ? "Loading check-in…" : "Check-in unavailable"}</h2><p>{store.loading ? "Getting your current meeting ready." : "Refresh to load your attendance safely."}</p><button disabled={busy} onClick={() => void store.refresh()}>Refresh</button></div> : !contexts.length ? <><NoMeeting now={now} /><button className={styles.submit} onClick={onContinue} disabled={busy}>Go to Assigned to me</button></> : <>
       <section className={heading.card}><span className={heading.calendar}><CheckIcon name="calendar" size={21} /></span><div className={heading.details}><p>CURRENT MEETING</p><h2>{chosen?.category === "Special Meeting" ? title : chosen?.category}</h2></div><span className={heading.days}>{chosen?.category === "Sunday Service" ? "Sun · Mon" : chosen?.category === "Healing Meeting" ? "Wed · Thu" : chosen?.category === "Revival Meeting" ? "Fri · Sat" : new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", month: "short", day: "numeric" }).format(new Date(`${chosen?.meetingDate}T12:00:00+05:30`))}</span></section>
+      {services.length>0&&<SundayServiceSelector value={service} onChange={selectService} services={services} disabled={busy} counts={details?Object.fromEntries(services.map(value=>[value,data.entries?.filter(e=>e.key===contextKey(contexts.find(c=>c.service===value)!)).length??0])):undefined}/>}
       {details ? <>
-        {contexts.length > 1 && <div className={styles.tabs}>{contexts.map(c => <button key={contextKey(c)} className={chosen === c ? styles.selected : ""} onClick={() => setSelected(contextKey(c))}><CheckIcon name={c.service === "morning" ? "sun" : "evening"} size={17} />{c.service === "morning" ? "Morning" : "Evening"}<span>{data.entries?.filter(e => e.key === contextKey(c)).length ?? 0}</span></button>)}</div>}
         {chosen && <CheckedList context={chosen} data={data} people={members?.members ?? []} title={title} search={search} onSearch={setSearch} />}
         <p className={styles.private}><CheckIcon name="shield" size={15} />Visible only to Owners and Coordinators</p>
       </> : <>
-        <div className={styles.services}>{[...contexts].sort((a, b) => Number(checkInOpen(b, now)) - Number(checkInOpen(a, now)) || Date.parse(a.opensAt) - Date.parse(b.opensAt)).map(c => {
+        <div className={`${styles.services} ${services.length?styles.singleService:""}`}>{[...shownContexts].sort((a, b) => Number(checkInOpen(b, now)) - Number(checkInOpen(a, now)) || Date.parse(a.opensAt) - Date.parse(b.opensAt)).map(c => {
           const checked = data.own.includes(contextKey(c)), open = checkInOpen(c, now), future = now.getTime() < Date.parse(c.opensAt), kind = c.service === "morning" ? "sun" : c.service === "evening" ? "evening" : "calendar";
           if(!open&&!checked)return <article className={`${styles.service} ${styles.nextService}`} key={contextKey(c)}><div className={styles.serviceTop}><span className={`${styles.serviceIcon} ${c.service==="evening"?styles.evening:""}`}><CheckIcon name={kind} size={23}/></span><div><p className={styles.kicker}>{future?"LATER TODAY":"CHECK-IN CLOSED"}</p><h2>{label(c,title)}</h2></div><CheckIcon name="lock" size={18}/></div><div className={styles.compactWindow}><CheckIcon name="clock" size={15}/><span>{hours(c)}</span><small>India time</small></div><div className={styles.nextBottom}><span>Not checked in</span><span>{future?`Opens at ${c.service==="morning"||c.category==="Special Meeting"?"7 AM":"4 PM"}`:"Check-in closed"}</span></div></article>;
           return <article className={`${styles.service} ${open || checked ? styles.openService : styles.nextService}`} key={contextKey(c)}>
