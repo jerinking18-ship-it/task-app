@@ -23,13 +23,13 @@ test('roles grant task management only to Owner/Coordinator; status always requi
 test('viewer-relative assignment labels keep completed attribution separate',()=>{
  const task={...tasks.blankTask(),assignedToId:other};assert.equal(assignments.assignmentLabel(task,id,state.members),'Only Sarah can complete');assert.equal(assignments.assignmentLabel(task,other,state.members),'Assigned to me');assert.equal(assignments.assignmentLabel({...task,completed:true},id,state.members),'Assigned to Sarah');assert.equal(assignments.assignmentLabel({...task,assignedToId:null},id,state.members),'Unassigned');
 });
-test('personal page hides only own expired category work, preserves active future and global lists',()=>{
+test('personal page hides other meeting windows and future work while global lists preserve it',()=>{
  const now=new Date('2026-10-12T18:30:01Z');const clock=tasks.accountClock(now,'Asia/Kolkata');const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
  const task={...tasks.blankTask(),id,title:'Prepare service',category:'Sunday Service',assignedToId:id,createdAt:'2026-10-10T00:00:00Z',date:'2026-10-11',time:'23:50'};
  assert.equal(assignments.matchesAssignedTask(task,id,filters,clock.date,clock.time,now),false);
  assert.equal(tasks.matchesTask(task,{...filters,view:'All tasks'},clock.date,clock.time,now),true);
- assert.equal(assignments.matchesAssignedTask({...task,date:'2026-10-18'},id,filters,clock.date,clock.time,now),true);
- assert.equal(assignments.matchesAssignedTask({...task,date:''},id,filters,clock.date,clock.time,now),true);
+ assert.equal(assignments.matchesAssignedTask({...task,date:'2026-10-18'},id,filters,clock.date,clock.time,now),false);
+ assert.equal(assignments.matchesAssignedTask({...task,date:''},id,filters,clock.date,clock.time,now),false);
  assert.equal(assignments.matchesAssignedTask({...task,date:'2026-10-18'},other,filters,clock.date,clock.time,now),false);
  assert.equal(assignments.matchesAssignedTask(task,undefined,filters,clock.date,clock.time,now),false);
  assert.equal(assignments.matchesAssignedTask({...task,completed:true,completedAt:'2026-10-11T07:25:00Z'},id,filters,clock.date,clock.time,now),false);
@@ -40,6 +40,51 @@ test('workspace payload cannot inject identity/owner/role or bypass confirmation
  assert.ok(model.workspaceAction(invite));assert.ok(model.workspaceAction({action:'accept',token,name:' Sarah  Mary '}));
  for(const action of [{...invite,role:'owner'},{...invite,owner_id:id},{...invite,email:'bad'},{action:'accept',token,name:'Bad\nName'},{action:'accept',token,name:'Sarah',role:'owner'},{action:'role',id,role:'owner',previousRole:'member',confirmed:true},{action:'transfer',id},{action:'transfer',id,confirmed:false},{action:'revoke',id,confirmed:true,userId:other}])assert.equal(model.workspaceAction(action),null);
  assert.equal(model.workspaceRpc({action:'transfer',id,confirmed:true}).name,'task_app_transfer_owner');
+});
+
+test('Assigned to me follows each India meeting window and its dated occurrence across every status',()=>{
+ const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
+ const cases=[
+  ['2026-11-08T00:00:00','Sunday Service','2026-11-08','2026-11-09','2026-11-01','2026-11-15'],
+  ['2026-11-09T23:59:59','Sunday Service','2026-11-08','2026-11-09','2026-11-01','2026-11-15'],
+  ['2026-11-11T00:00:00','Healing Meeting','2026-11-11','2026-11-12','2026-11-04','2026-11-18'],
+  ['2026-11-12T23:59:59','Healing Meeting','2026-11-11','2026-11-12','2026-11-04','2026-11-18'],
+  ['2026-11-13T00:00:00','Revival Meeting','2026-11-13','2026-11-14','2026-11-06','2026-11-20'],
+  ['2026-11-14T23:59:59','Revival Meeting','2026-11-13','2026-11-14','2026-11-06','2026-11-20'],
+ ];
+ for(const[stamp,category,start,end,old,future]of cases){
+  const now=new Date(stamp+'+05:30'),clock=tasks.accountClock(now,'Asia/Kolkata');
+  const base={...tasks.blankTask(),assignedToId:id,category,createdAt:'2026-10-01T00:00:00Z'};
+  const visible=(row,status='All')=>assignments.matchesAssignedTask(row,id,{...filters,status},clock.date,clock.time,now);
+  for(const date of [start,end,''])assert.equal(visible({...base,date}),true,`${stamp}: ${category} ${date}`);
+  for(const date of [old,future])for(const completed of [false,true])assert.equal(visible({...base,date,completed,completedAt:completed?now.toISOString():undefined}),false);
+  for(const otherCategory of ['Sunday Service','Healing Meeting','Revival Meeting'].filter(value=>value!==category))assert.equal(visible({...base,category:otherCategory,date:start}),false);
+  assert.equal(visible({...base,date:start,assignedToId:other}),false);
+  assert.equal(visible({...base,date:start,completed:true,completedAt:now.toISOString()},'Completed'),true);
+  assert.equal(visible({...base,date:future},'Active'),false);
+  assert.equal(visible({...base,date:old},'Overdue'),false);
+ }
+});
+
+test('Tuesday Assigned to me is empty while All tasks still exposes saved regular work',()=>{
+ const now=new Date('2026-11-10T12:00:00+05:30'),clock=tasks.accountClock(now,'Asia/Kolkata');
+ const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
+ for(const category of ['Sunday Service','Healing Meeting','Revival Meeting'])for(const date of ['', '2026-11-11']){
+  const row={...tasks.blankTask(),assignedToId:id,category,date,createdAt:'2026-11-01T00:00:00Z'};
+  assert.equal(assignments.matchesAssignedTask(row,id,filters,clock.date,clock.time,now),false);
+  assert.equal(tasks.matchesTask(row,{...filters,view:'All tasks'},clock.date,clock.time,now),true);
+ }
+});
+
+test('Special assigned tasks require activation and the current daily occurrence',()=>{
+ const now=new Date('2026-11-10T20:00:00+05:30'),clock=tasks.accountClock(now,'Asia/Kolkata');
+ const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
+ const event={id:'meeting',startDate:'2026-11-09',days:3,locked:false,version:'v1',startsAt:'2026-11-09T00:00:00+05:30',endsAt:'2026-11-12T00:00:00+05:30'};
+ const row={...tasks.blankTask(),assignedToId:id,category:'Special Meeting',createdAt:'2026-11-01T00:00:00Z',date:clock.date,specialMeeting:event,specialEnabled:true};
+ const visible=t=>assignments.matchesAssignedTask(t,id,filters,clock.date,clock.time,now,'special');
+ assert.equal(visible(row),true);
+ for(const patch of [{date:'2026-11-09'},{date:'2026-11-11'},{specialEnabled:false},{specialMeeting:{...event,locked:true}},{specialMeeting:{...event,startsAt:'2026-11-11T00:00:00+05:30'}}])assert.equal(visible({...row,...patch}),false);
+ assert.equal(visible({...row,specialMeeting:{...event,days:null},date:event.startDate}),true);
 });
 test('workspace decoder preserves roles/invitation metadata and rejects inconsistent privilege responses',()=>{
  assert.equal(members.decodeMemberResponse(state).current.role,'owner');
@@ -102,16 +147,16 @@ test('Assigned Special Meeting section partitions only the viewer’s retained t
  assert.equal(assignments.matchesAssignedTask({...rows[1],completed:true,completedAt:now.toISOString()},id,{...filters,status:'Completed'},clock.date,clock.time,now,'special'),true);
  assert.equal(assignments.matchesAssignedTask(rows[1],id,{...filters,search:'no match'},clock.date,clock.time,now,'special'),false);
 });
-test('Special assigned sections keep existing midnight expiry and future-task rules',()=>{
+test('Special assigned sections keep midnight expiry and hide future or expired occurrences',()=>{
  const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''},task={...tasks.blankTask(),assignedToId:id,category:'Special Meeting',createdAt:'2026-10-16T04:00:00Z',date:'2026-10-16',time:'23:50'};
  const visible=(row,stamp)=>{const now=new Date(stamp),clock=tasks.accountClock(now,'Asia/Kolkata');return assignments.matchesAssignedTask(row,id,filters,clock.date,clock.time,now,'special');};
  assert.equal(visible(task,'2026-10-17T23:59:59+05:30'),true);assert.equal(visible(task,'2026-10-18T00:00:00+05:30'),false);
  assert.equal(visible({...task,completed:true,completedAt:'2026-10-16T10:00:00Z'},'2026-10-18T00:00:00+05:30'),false);
- assert.equal(visible({...task,date:'2026-10-25'},'2026-10-18T00:00:00+05:30'),true);
- assert.equal(visible({...task,date:''},'2026-10-18T00:00:00+05:30'),true);
+ assert.equal(visible({...task,date:'2026-10-25'},'2026-10-18T00:00:00+05:30'),false);
+ assert.equal(visible({...task,date:''},'2026-10-18T00:00:00+05:30'),false);
 });
 
-test('Assigned Sunday scopes partition only the viewer’s retained work without dropping other meetings',()=>{
+test('Assigned Sunday scopes show this Sunday’s services without other regular meetings',()=>{
  const now=new Date('2026-10-18T10:00:00+05:30'),clock=tasks.accountClock(now,'Asia/Kolkata');
  const filters={view:'Assigned to me',status:'All',priority:'Any',category:'Any',search:''};
  const base={...tasks.blankTask(),assignedToId:id,createdAt:'2026-10-17T04:00:00Z',date:'2026-10-18',time:'20:00',category:'Sunday Service'};
@@ -119,9 +164,9 @@ test('Assigned Sunday scopes partition only the viewer’s retained work without
  const selected=(scope,f=filters)=>rows.filter(row=>assignments.matchesAssignedTask(row,id,f,clock.date,clock.time,now,scope)).map(row=>row.id);
  assert.deepEqual(selected('morning'),['morning']);
  assert.deepEqual(selected('evening'),['evening','legacy-evening']);
- assert.deepEqual(selected('other'),['healing']);
+ assert.deepEqual(selected('other'),[]);
  assert.deepEqual(selected('special'),['special']);
- assert.deepEqual(selected('regular'),['morning','evening','legacy-evening','healing']);
+ assert.deepEqual(selected('regular'),['morning','evening','legacy-evening']);
  assert.deepEqual(selected('morning',{...filters,search:'no matching title'}),[]);
  assert.deepEqual(selected('morning',{...filters,status:'Completed'}),[]);
  // The same category expiry applies to every service and the old unsplit list.
