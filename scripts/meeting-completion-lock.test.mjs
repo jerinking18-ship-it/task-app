@@ -44,3 +44,17 @@ test('backend meeting lock refusals remain a safe conflict and never fall back t
  await assert.rejects(()=>repo.mutate({action:'status',id:'task',version:'2026-10-18T00:00:00Z',status:'completed',cachedProjection:true}),e=>e.status===409&&e.message.includes('locked until its meeting starts'));
  assert.equal(calls,1);
 });
+
+test('missing scoped check-in is a clear permission error without retries or exposing database details',async()=>{
+ const repository=load('../src/lib/tasks/repository.ts',{'./model':model,'./validation':validation});
+ for(const action of [
+  {action:'status',id:'task',version:'2026-11-02T00:00:00Z',status:'completed',cachedProjection:true},
+  {action:'missed',id:'task',version:'2026-11-02T00:00:00Z'},
+  {action:'update',id:'task',version:'2026-11-02T00:00:00Z',fields:{status:'completed'}},
+ ]){
+  let calls=0;
+  const repo=new repository.TaskRepository({rpc:async()=>{calls++;return{data:null,error:{code:'P0043',message:'Private SQL detail must not leak'}};}},'owner');
+  await assert.rejects(()=>repo.mutate(action),e=>e.status===403&&e.message==='Check in for this task’s meeting date and service before completing it.');
+  assert.equal(calls,1,'A rejected completion is never retried');
+ }
+});

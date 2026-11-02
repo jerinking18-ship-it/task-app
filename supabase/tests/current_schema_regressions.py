@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Current037 notification/Missed checks in disposable, network-isolated PostgreSQL.
+"""Current schema notification/Missed checks in disposable, network-isolated PostgreSQL.
 Historical migration tests retain their original Special fine/activation rules.
 """
 from pathlib import Path
@@ -22,6 +22,13 @@ for default in defaults:
  definition=re.sub(r'(?<![\w.])now\(\)', 'public.audit_test_now()',default['definition']).replace('clock_timestamp()','public.audit_test_now()').replace('statement_timestamp()','public.audit_test_now()')
  sql(f"alter table {default['relation']} alter column {default['column']} set default {definition};")
 sql('truncate public.task_notifications;')
+# Existing happy-path cases now require real scoped check-ins. These fixture
+# RPCs run only in the network-isolated container, under its controlled clock.
+# Missing/wrong-actor/service/date cases live in completion_check_in.py.
+rpc('task_app_setup',"'bootstrap',null",owner)
+check_category=sql(f"select id from public.categories where owner_id='{owner}'and name='Healing Meeting';")
+for identity in (owner,coord,member):
+ rpc('task_app_check_in',f"'{check_category}','2026-12-23',null,null,true",identity)
 """
 if suite=='notifications':
  cases=(root/'supabase/tests/notifications_cases.py').read_text()

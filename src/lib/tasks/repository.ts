@@ -9,6 +9,7 @@ export class TaskError extends Error {
 }
 function check(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code === "P0043")throw new TaskError(403,"Check in for this task’s meeting date and service before completing it.");
   if(error.code === "P0039")throw new TaskError(409,"The task selection changed. Reopen the reassignment popup to review the current count. No tasks were reassigned.");
   if(error.code === "P0038")throw new TaskError(409,"This task is locked until its meeting starts. Special Meeting also requires activation. Refresh before completing it.");
   if(error.code === "P0037")throw new TaskError(409,"Another activated Special Meeting overlaps these dates. Lock it before activating this meeting.");

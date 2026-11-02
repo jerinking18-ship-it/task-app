@@ -32,8 +32,15 @@ const Empty=load('../src/components/no-meeting.tsx',{'react/jsx-runtime':require
 const service=load('../src/lib/tasks/sunday-service.ts',{'./model':model});
 const selection=load('../src/lib/tasks/sunday-selection.ts',{'./model':model,'./sunday-service':service});
 const hook=load('../src/lib/tasks/use-sunday-selection.ts',{'react':React,'./sunday-selection':selection});
-const Card=load('../src/components/members/attendance-card.tsx',{'react/jsx-runtime':require('react/jsx-runtime'),'react':React,'@/lib/tasks/use-sunday-selection':hook,'../sunday-service-selector':{default:()=>null},'../no-meeting':{default:Empty},'@/lib/members/model':{},'@/lib/members/absence':absence,'@/lib/members/absence-window':windowModel,'@/lib/tasks/validation':validation,'@/lib/tasks/meeting-overview':overview,'@/lib/workspace/client':{},'./attendance.module.css':{default:{}}}).default;
-function card(time,absent=false){const now=new Date(time),current={id:'member',name:'Jerin'},state={current,members:[current],absences:absent?[{id:'absence',memberId:'member',categoryId:'sunday',category:'Sunday Service',meetingDate:null,createdAt:'2026-10-18T00:00:00+05:30',expiresAt:'2026-10-20T00:00:00+05:30'}]:[]};return renderToStaticMarkup(React.createElement(Card,{state,categories:[{id:'sunday',name:'Sunday Service'}],hasSpecialTasks:false,now,disabled:false,onSaved(){},onPending(){},onRefresh(){}}));}
+const checkInModel=load('../src/lib/check-in/model.ts',{'@/lib/tasks/validation':validation});
+const Card=load('../src/components/members/attendance-card.tsx',{'react/jsx-runtime':require('react/jsx-runtime'),'react':React,'@/lib/check-in/model':checkInModel,'@/lib/tasks/use-sunday-selection':hook,'../sunday-service-selector':{default:()=>null},'../no-meeting':{default:Empty},'@/lib/members/model':{},'@/lib/members/absence':absence,'@/lib/members/absence-window':windowModel,'@/lib/tasks/validation':validation,'@/lib/tasks/meeting-overview':overview,'@/lib/workspace/client':{},'./attendance.module.css':{default:{}}}).default;
+function card(time,absent=false,options={}){
+ const now=new Date(time),current={id:'member',name:'Jerin'},category=options.category??'Sunday Service',categoryId=options.categoryId??'sunday';
+ const state={current,members:[current],absences:absent?[{id:'absence',memberId:'member',categoryId,category,meetingDate:options.meetingDate??null,createdAt:'2026-10-18T00:00:00+05:30',expiresAt:'2026-10-26T00:00:00+05:30',...(options.absence??{})}]:[]};
+ const contexts=options.contexts??['morning','evening'].map(service=>({categoryId,category,meetingDate:'2026-10-18',service,meetingId:null,opensAt:'2026-10-18T07:00:00+05:30',closesAt:'2026-10-19T00:00:00+05:30',visibleUntil:'2026-10-20T00:00:00+05:30'}));
+ const checkIns=options.unavailable?null:{currentId:options.currentId??current.id,contexts,presence:options.presence??[],own:[],serverNow:time};
+ return renderToStaticMarkup(React.createElement(Card,{state,checkIns,categories:[{id:categoryId,name:category}],hasSpecialTasks:category==='Special Meeting',specialMeetings:options.specialMeetings,now,disabled:false,onSaved(){},onPending(){},onRefresh(){}}));
+}
 test('the same window disables both Mark and Unmark while preserving a still-active absence',()=>{
  for(const absent of [false,true]){
   const before=card('2026-10-18T20:59:59+05:30',absent),after=card('2026-10-18T21:00:00+05:30',absent);
@@ -49,4 +56,31 @@ test('Sunday Morning and Evening Mark/Unmark boundaries are independent',()=>{
   assert.equal(absenceChangeWindow('Sunday Service',now,null,'evening').open,evening);
  }
  assert.equal(absenceChangeWindow('Sunday Service',new Date('2026-10-19T09:00:00+05:30'),null,'morning').open,false);
+});
+
+
+test('checked-in profile hides Unmark only for the matching member, service and current meeting date',()=>{
+ const time='2026-10-18T10:00:00+05:30',key='sunday:2026-10-18:morning:';
+ // Presence deliberately remains authoritative even if a later absence excludes own[].
+ const checked=card(time,true,{presence:[{key,memberId:'member'}]});
+ assert.doesNotMatch(checked,/Unmark absent/);assert.match(checked,/You’re marked absent for Morning Service/);
+ assert.match(card(time,true),/Unmark absent/);
+ for(const presence of [[{key,memberId:'other'}],[{key:'sunday:2026-10-18:evening:',memberId:'member'}],[{key:'sunday:2026-10-11:morning:',memberId:'member'}],[{key:'another:2026-10-18:morning:',memberId:'member'}]])
+  assert.match(card(time,true,{presence}),/Unmark absent/);
+ assert.match(card(time,true,{unavailable:true}),/Unmark absent/,'Unavailable check-in data preserves existing absence controls');
+ assert.match(card(time,true,{currentId:'other'}),/Unmark absent/,'Another identity’s response does not hide this member’s control');
+ assert.match(card(time,false,{presence:[{key,memberId:'member'}]}),/Mark myself absent/,'Existing Mark absent behavior is unchanged');
+});
+
+test('checked-in return hiding also scopes Healing and each Special Meeting day/event',()=>{
+ const healing={categoryId:'healing',category:'Healing Meeting',meetingDate:'2026-10-21',service:null,meetingId:null,opensAt:'2026-10-21T16:00:00+05:30',closesAt:'2026-10-22T00:00:00+05:30',visibleUntil:'2026-10-23T00:00:00+05:30'};
+ const props={category:'Healing Meeting',categoryId:'healing',contexts:[healing]};
+ assert.match(card('2026-10-21T18:00:00+05:30',true,props),/Unmark absent/);
+ assert.doesNotMatch(card('2026-10-21T18:00:00+05:30',true,{...props,presence:[{key:checkInModel.contextKey(healing),memberId:'member'}]}),/Unmark absent/);
+ const special={...healing,categoryId:'special',category:'Special Meeting',meetingDate:'2026-10-21',meetingId:'event',visibleUntil:'2026-10-24T00:00:00+05:30'};
+ const event={id:'event',startDate:'2026-10-21',days:3,locked:false,startsAt:'2026-10-21T00:00:00+05:30',endsAt:'2026-10-24T00:00:00+05:30'};
+ const eventProps={category:'Special Meeting',categoryId:'special',meetingDate:'2026-10-21',contexts:[special],specialMeetings:[event]};
+ assert.match(card('2026-10-21T18:00:00+05:30',true,eventProps),/Unmark absent/);
+ assert.doesNotMatch(card('2026-10-21T18:00:00+05:30',true,{...eventProps,presence:[{key:checkInModel.contextKey(special),memberId:'member'}]}),/Unmark absent/);
+ for(const key of ['special:2026-10-21::other-event','special:2026-10-20::event'])assert.match(card('2026-10-21T18:00:00+05:30',true,{...eventProps,presence:[{key,memberId:'member'}]}),/Unmark absent/);
 });
