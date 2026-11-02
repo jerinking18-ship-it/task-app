@@ -31,7 +31,7 @@ function MeetingAttendance({checkIns,state,category,now,disabled,onSaved,onPendi
   &&c.meetingId===fixedMeetingId&&(!special||c.meetingDate===(fixedDate??meetingDate))
   &&Date.parse(c.meetingDate+"T00:00:00+05:30")<=now.getTime()&&now.getTime()<Date.parse(c.visibleUntil)):undefined;
  const checkedIn=!!context&&!!checkIns?.presence.some(p=>p.key===contextKey(context)&&p.memberId===state.current?.id);
- const canUnmark=!checkedIn;
+ const canChangeAbsence=!checkedIn;
  const meetingLabel=sundayService==="morning"?"Morning Service":sundayService==="evening"?"Evening Service":special?specialMeetingTitle:category?.name;
  const ready=state.absences!==undefined&&!!category;
  const returning=!!reviewed?.absenceId;
@@ -40,20 +40,20 @@ function MeetingAttendance({checkIns,state,category,now,disabled,onSaved,onPendi
  useEffect(()=>{
   if(reviewed&&!pending&&!changeWindow.open)setProblem(changeWindow.message);
  },[reviewed,pending,changeWindow.open,changeWindow.message]);
- useEffect(()=>{if(reviewed?.absenceId&&!pending&&!canUnmark){setReviewed(null);setProblem("");}},[reviewed,pending,canUnmark]);
+ useEffect(()=>{if(reviewed&&!pending&&!canChangeAbsence){setReviewed(null);setProblem("");}},[reviewed,pending,canChangeAbsence]);
  useEffect(()=>{
   if(!reviewed)return;const dialog=modal.current;dialog?.showModal();dialog?.querySelector<HTMLButtonElement>("button")?.focus();
   return()=>{dialog?.close();requestAnimationFrame(()=>trigger.current?.isConnected&&trigger.current.focus());};
  },[reviewed]);
  function close(){if(!busy.current){setReviewed(null);setProblem("");}}
  function review(event:FormEvent){
-  event.preventDefault();if(disabled||pending||!ready||!category||absent?.restrictionRole||(absent&&!canUnmark))return;setProblem("");
+  event.preventDefault();if(disabled||pending||!ready||!category||absent?.restrictionRole||!canChangeAbsence)return;setProblem("");
   if(special&&!absent&&!date(fixedDate??meetingDate)){setProblem("Choose a valid meeting date.");return;}
   if(!changeWindow.open){setProblem(changeWindow.message);return;}
   setReviewed({categoryId:category.id,category:category.name,meetingDate:special?fixedDate??absent?.meetingDate??meetingDate:null,absenceId:absent?.id??null,expiresAt:absent?.expiresAt??null,sundayService});
  }
  async function submit(){
-  if(busy.current||disabled||!ready||!state.current||!reviewed||absent?.restrictionRole||(reviewed.absenceId&&!canUnmark))return;
+  if(busy.current||disabled||!ready||!state.current||!reviewed||absent?.restrictionRole||!canChangeAbsence)return;
   const reviewedWindow=absenceChangeWindow(reviewed.category,now,reviewed.meetingDate,reviewed.sundayService);
   if(!reviewedWindow.open){setProblem(reviewedWindow.message);return;}
   if(category?.id!==reviewed.categoryId||reviewed.absenceId!== (absent?.id??null)
@@ -84,7 +84,7 @@ function MeetingAttendance({checkIns,state,category,now,disabled,onSaved,onPendi
   </div>
   {serviceSelector}
   {special&&<label>Meeting date<input type="date" required min="0001-01-01" max="9999-12-30" value={fixedDate??absent?.meetingDate??meetingDate} readOnly={!!fixedDate} disabled={disabled||pending||!!absent} onChange={e=>{setMeetingDate(e.target.value);setProblem("");}}/></label>}
-  {(!absent||canUnmark)&&<button ref={trigger} className={`${styles.absentButton} ${absent?styles.unmarkButton:""}`} disabled={disabled||pending||!ready||!changeWindow.open||!!absent?.restrictionRole}>
+  {canChangeAbsence&&<button ref={trigger} className={`${styles.absentButton} ${absent?styles.unmarkButton:""}`} disabled={disabled||pending||!ready||!changeWindow.open||!!absent?.restrictionRole}>
    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{absent?<><circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/></>:<><circle cx="9" cy="7" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M17 10l5 5m0-5-5 5"/></>}</svg>
    {pending?"Saving…":absent?"Unmark absent":"Mark myself absent"}
   </button>}
