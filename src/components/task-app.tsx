@@ -377,7 +377,7 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
   const filteredEmpty = filtersApplied && !categoryEmpty && !activeEmpty && !overdueEmpty && !periodEmpty;
   const navigationCounts: Partial<Record<View, number>> = {
     "Needs help":needsHelpCount(tasks,now,memberNow,specialMeetings),
-    "Assigned to me":globalTasks.filter(task=>task.assignedToId===members?.current?.id && !task.completed && !inHistory(task,now) && isCategoryTaskVisible(task,now,today,saved?clock.time:"00:00:00")).length,
+    "Assigned to me":globalTasks.filter(task=>matchesAssignedTask(task,members?.current?.id,{view:"Assigned to me",status:"Active",priority:"Any",category:"Any",search:""},today,saved?clock.time:"00:00:00",now)).length,
     "All tasks": currentSpecialTasks(rawTasks,specialMeetings,now,"Any",false,true).filter(task => !inHistory(task, now)).length,
     Overdue: globalTasks.filter(task => isOverdue(task, today, saved ? clock.time : "00:00:00")).length,
   };

@@ -1,7 +1,7 @@
 import {displayMemberName} from "@/lib/members/display-name";
 import type {Member} from "@/lib/members/model";
 import {accountClock,MEETING_CATEGORIES,matchesTask,type Filters,type Task} from "./model";
-import {isCategoryTaskVisible} from "./meeting-period";
+import {isCategoryTaskVisible,isCategoryWindowTaskVisible,regularMeetingWindow} from "./meeting-period";
 export function assignmentLabel(task:Task,currentId:string|undefined,members:Member[]):string {
  if(task.completed&&task.missedCompletionRole)return `Assigned to ${displayMemberName(task.assignedToId,null,members)||"a former member"}`;
  if(task.completed&&task.claimOrigin&&task.claimOrigin.takenById===task.assignedToId)return `Assigned to ${displayMemberName(task.claimOrigin.memberId,task.claimOrigin.memberName,members)}`;
@@ -11,9 +11,21 @@ export function assignmentLabel(task:Task,currentId:string|undefined,members:Mem
  return task.completed?`Assigned to ${name??"a former member"}`:`Only ${name??"the assigned member"} can complete`;
 }
 export type AssignedTaskScope="regular"|"special"|"morning"|"evening"|"other";
+// The personal list follows the current meeting, including only its occurrence.
+// Saved work in All tasks and other pages keeps its existing visibility rules.
+function isCurrentAssignedMeetingTask(task:Task,now:Date,date:string,time:string):boolean {
+ if(task.category==="Special Meeting")return isCategoryWindowTaskVisible(task,now,date,time);
+ const meeting=regularMeetingWindow(now);
+ if(!meeting.category||task.category!==meeting.category)return false;
+ if(task.date){
+  const scheduled=Date.parse(`${task.date}T00:00:00+05:30`);
+  if(!(scheduled>=meeting.startsAt&&scheduled<meeting.endsAt))return false;
+ }
+ return isCategoryTaskVisible(task,now,date,time);
+}
 export function matchesAssignedTask(task:Task,currentId:string|undefined,filters:Filters,date:string,time:string,now:Date,scope?:AssignedTaskScope):boolean {
  const inScope=!scope||(scope==="special"?task.category==="Special Meeting":scope==="morning"||scope==="evening"?task.category==="Sunday Service"&&(task.sundayService??"evening")===scope:scope==="other"?task.category!=="Sunday Service"&&task.category!=="Special Meeting":task.category!=="Special Meeting");
- return !!currentId&&task.assignedToId===currentId&&inScope&&isCategoryTaskVisible(task,now,date,time)&&matchesTask(task,filters,date,time,now);
+ return !!currentId&&task.assignedToId===currentId&&inScope&&isCurrentAssignedMeetingTask(task,now,date,time)&&matchesTask(task,filters,date,time,now);
 }
 
 export function isChangedCompletion(task:Task):boolean {
