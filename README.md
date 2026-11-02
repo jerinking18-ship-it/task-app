@@ -2,6 +2,8 @@
 
 Next.js App Router, React and TypeScript task app with a navy, ivory and gold responsive interface. The root route opens the authenticated workspace. Tasks support notes, meeting categories, dates/times in India time, repeat schedules, completion attribution, search, filters, a recoverable Bin, templates and Member history.
 
+Local audit follow-up (3 November 2026; not yet published): sign-up and password reset both require at least eight characters, without changing existing sign-in passwords. New or changed regular-meeting schedules use Off or Weekly, with dates and weekly days limited to Sunday/Monday, Wednesday/Thursday or Friday/Saturday respectively. Special Meeting daily plans retain their existing rules. Unchanged legacy schedules, queued occurrences and Bin restoration are preserved. Migration044 adds private task/queue guards with no data rewrite or new client privileges; it is local only. Installed001–043 must never be replayed. TypeScript excludes private design/planning fixtures from the normal build without changing runtime source or UI. Checks: `node --test scripts/meeting-schedule.test.mjs scripts/auth-flow.test.mjs`, `python3 supabase/tests/regular_meeting_schedules.py`; read-only postcheck: `supabase/verification/20261103_regular_meeting_schedules.sql`.
+
 ## Current workspace implementation
 
 The approved individual-login workspace and assignment changes are live. Migration015 and protected initial Owner setup were applied once, preserving the existing account and original data. Production deployment and anonymous access checks passed. See the private publication record for verification details.

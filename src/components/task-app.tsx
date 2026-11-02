@@ -755,7 +755,7 @@ function TaskEditor({ task, currentMemberId, members, canManage, canStatus, spec
     if (draft.priority === "None") { setError("Choose a priority before saving."); priorityRef.current?.focus(); return; }
     if (draft.time && !editDraft.date) { setError("Choose a date to go with the time."); return; }
     if(task.specialPlanId&&!meetingStart){setError("Choose a Special Meeting date.");return;}
-    const repeatIssue=repeatError(editDraft); if(repeatIssue){setError(repeatIssue);return;}
+    const repeatIssue=repeatError(editDraft,task.id?task:undefined); if(repeatIssue){setError(repeatIssue);return;}
     if(!draft.assignedToId || !members.some(member=>member.id===draft.assignedToId)){setError("Choose an assigned member before saving.");return;}
     if(!canManage){setError("Your role can view task details but cannot edit them.");return;}
     if(task.completed && draft.assignedToId!==task.assignedToId){setError("The current assignee must reopen this task before it can be reassigned.");return;}

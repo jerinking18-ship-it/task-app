@@ -120,7 +120,7 @@ export default function AuthForm({ mode = "signin", initialMessage = "", initial
             <button type="button" aria-label={visible ? "Hide password" : "Show password"} aria-pressed={visible} disabled={pending} onClick={() => setVisible(!visible)}>{visible ? "Hide" : "Show"}</button>
           </div>
           {fields.password && <p id="password-error" className={styles.fieldError}>{fields.password}</p>}
-          {newPassword && <p id="password-hint" className={styles.hint}>{mode === "signup" ? "At least 8 characters." : "At least 6 characters. Your account may require a stronger password."}</p>}
+          {newPassword && <p id="password-hint" className={styles.hint}>{mode === "signup" ? "At least 8 characters." : "At least 8 characters. Your account may require a stronger password."}</p>}
         </div>}
         {newPassword && <div className={styles.field}>
           <label htmlFor="confirmation">{mode === "signup" ? "Confirm password" : "Confirm new password"}</label>
