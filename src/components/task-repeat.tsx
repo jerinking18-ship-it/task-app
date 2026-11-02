@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { REPEATS, WEEKDAYS, type Repeat, type Task } from "@/lib/tasks/model";
+import { REPEATS, WEEKDAYS, regularMeetingDays, type Repeat, type Task } from "@/lib/tasks/model";
 import TaskDays from "./task-days";
 import styles from "./task-app.module.css";
 
@@ -13,6 +13,7 @@ export default function TaskRepeat({ task, onChange, onDaysChange, label = "Repe
   task: Task; onChange: (value: Repeat) => void; onDaysChange: (days: number[]) => void; label?: string;
 }) {
   const id = useId();
+  const allowedDays=regularMeetingDays(task.category);
   const anchor = task.repeatAnchor && task.date ? task.repeatAnchor : Number(task.date.slice(-2));
   const days = WEEKDAYS.filter((_, day) => task.weekdays.includes(day));
   const schedule = task.repeat === "Weekly"
@@ -28,11 +29,11 @@ export default function TaskRepeat({ task, onChange, onDaysChange, label = "Repe
     <fieldset className={styles.repeatField}>
       <legend><RepeatIcon /><span>{label}</span></legend>
       <div className={styles.repeatChoices}>{REPEATS.map(rule => <label key={rule} className={styles.repeatChoice}>
-        <input className={styles.srOnly} type="radio" name={`${id}-repeat`} value={rule} checked={task.repeat === rule} onChange={() => onChange(rule)} />
+        <input className={styles.srOnly} type="radio" name={`${id}-repeat`} value={rule} checked={task.repeat === rule} disabled={allowedDays.length>0&&rule!=="Off"&&rule!=="Weekly"&&task.repeat!==rule} onChange={() => onChange(rule)} />
         <span className={styles.repeatButton}>{rule}{task.repeat === rule && <span className={styles.repeatCheck} aria-hidden="true">✓</span>}</span>
       </label>)}</div>
     </fieldset>
-    <TaskDays compact required={task.repeat === "Weekly"} value={task.weekdays} onChange={onDaysChange} />
+    <TaskDays compact required={task.repeat === "Weekly"} value={task.weekdays} onChange={onDaysChange} allowedDays={allowedDays.length?allowedDays:undefined} />
     {task.repeat !== "Off" && <div className={styles.repeatSummary}>
       <RepeatIcon />
       <div><strong>{schedule}</strong><p>{start} · {time ? `${time} IST` : "India time"}</p>

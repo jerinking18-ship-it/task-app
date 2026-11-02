@@ -91,8 +91,26 @@ export function taskFields(task: Task, categories: Category[]): TaskFields {
     due_date: task.date || null, due_time: task.time || null,
     priority: task.priority.toLowerCase() as TaskFields["priority"], category_id: category?.id ?? null, weekdays: [...task.weekdays].sort((a,b)=>a-b),repeat_rule:(task.category==="Special Meeting"?"daily":task.repeat.toLowerCase()) as TaskFields["repeat_rule"] };
 }
-export function repeatError(task: Pick<Task,"repeat"|"date"|"weekdays"> & Partial<Pick<Task,"category"|"specialDays">>): string {
+type TaskSchedule = Pick<Task,"repeat"|"date"|"weekdays"> & Partial<Pick<Task,"category"|"specialDays">>;
+export function regularMeetingDays(category: string): number[] {
+  const first=categoryWeekdays(category)[0];
+  return first===undefined?[]:[first,(first+1)%7];
+}
+export function meetingScheduleError(task: TaskSchedule, previous?: TaskSchedule): string {
+  const allowed=regularMeetingDays(task.category??"");
+  if(!allowed.length)return "";
+  // Preserve saved legacy schedules when editing names, notes or assignments.
+  const sameDays=(a:number[],b:number[])=>a.length===b.length&&a.every(day=>b.includes(day));
+  if(previous&&task.category===previous.category&&task.date===previous.date&&(task.repeat===previous.repeat||task.repeat==="Off")&&sameDays(task.weekdays,previous.weekdays))return "";
+  const labels=allowed.map(day=>WEEKDAYS[day]).join(" or ");
+  if(task.date&&!allowed.includes(new Date(`${task.date}T12:00:00Z`).getUTCDay()))return `Choose ${labels} for ${task.category}.`;
+  if(task.repeat!=="Off"&&task.repeat!=="Weekly")return `Use Off or Weekly for ${task.category}, on ${labels}.`;
+  if(task.repeat==="Weekly"&&task.weekdays.some(day=>!allowed.includes(day)))return `Repeat ${task.category} only on ${labels}.`;
+  return "";
+}
+export function repeatError(task: TaskSchedule, previous?: TaskSchedule): string {
   if(task.category==="Special Meeting"&&task.specialDays!=null&&(!Number.isInteger(task.specialDays)||task.specialDays<1||task.specialDays>31))return "Choose a whole number of meeting days from 1 to 31, or leave it blank.";
+  const scheduleIssue=meetingScheduleError(task,previous);if(scheduleIssue)return scheduleIssue;
   if(task.repeat==="Off") return "";
   if(!task.date) return "Choose a starting due date for this repeating task.";
   if(task.repeat==="Weekly" && !task.weekdays.length) return "Select at least one weekday for Weekly repeat.";

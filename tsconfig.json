@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", ".local-ui-fixture"]
+  "exclude": ["node_modules", ".local-ui-fixture", "design", "plans"]
 }

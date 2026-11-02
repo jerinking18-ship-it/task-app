@@ -9,6 +9,7 @@ export class TaskError extends Error {
 }
 function check(error: { code?: string } | null) {
   if (!error) return;
+  if(error.code === "P0044")throw new TaskError(400,"Choose a date within this meeting’s allowed days, and use Off or Weekly with only those days. Existing schedules can be kept unchanged.");
   if(error.code === "P0043")throw new TaskError(403,"Check in for this task’s meeting date and service before completing it.");
   if(error.code === "P0039")throw new TaskError(409,"The task selection changed. Reopen the reassignment popup to review the current count. No tasks were reassigned.");
   if(error.code === "P0038")throw new TaskError(409,"This task is locked until its meeting starts. Special Meeting also requires activation. Refresh before completing it.");

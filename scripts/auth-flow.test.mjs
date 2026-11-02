@@ -327,3 +327,19 @@ test("personal workspace login rejects unverified or missing email identities",a
  for(const user of [{id:identity.userId,email:"person@example.test",email_confirmed_at:null},{id:identity.userId,email_confirmed_at:"2026-10-14T00:00:00Z"}]){
  const f=fixture({getUser:async()=>({data:{user},error:null})});assert.equal(await flow.verifiedIdentity(f.deps.auth),null);}
 });
+
+// New-password rules are identical; existing sign-in passwords are not revalidated.
+test("reset and signup require at least eight characters without changing existing sign-in", () => {
+  for (const action of ["reset", "signup"]) {
+    for (const length of [0, 5, 6, 7, 1025]) {
+      const password = "x".repeat(length);
+      const result = validation.validateAuthInput({ action, email: "member@example.test", password, confirmation: password });
+      assert.equal(result.input, undefined);
+      assert.equal(result.fields.password, "Use at least 8 characters.");
+    }
+    for (const password of ["12345678", " space  "]) {
+      assert.equal(validation.validateAuthInput({ action, email: "member@example.test", password, confirmation: password }).input.password, password);
+    }
+  }
+  assert.ok(validation.validateAuthInput({ action: "password", email: "member@example.test", password: "123456" }).input);
+});

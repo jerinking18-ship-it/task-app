@@ -22,7 +22,7 @@ export function validateAuthInput(value: unknown): { input?: AuthInput; fields: 
     fields.password = "Enter your password.";
   }
   if (action === "reset") {
-    if (password.length < 6 || password.length > 1024) fields.password = "Use at least 6 characters.";
+    if (password.length < 8 || password.length > 1024) fields.password = "Use at least 8 characters.";
     if (password !== confirmation) fields.confirmation = "Your passwords do not match.";
   }
   if (action === "signup") {
