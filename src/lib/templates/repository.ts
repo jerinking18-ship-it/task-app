@@ -7,7 +7,7 @@ function check(error: {code?:string}|null) {
   if(error.code === "P0409") throw new TaskError(409,"This item changed. Refresh and review the current details before trying again.");
   if (["42501","PGRST301","PGRST302"].includes(error.code??"")) throw new TaskError(401,"Your session has ended. Sign in again to continue.");
   if (error.code === "P0013") throw new TaskError(409,"This template changed elsewhere. Your draft is kept. Close and reopen it to review the latest version.");
-  if (["23514","22P02","23502"].includes(error.code??"")) throw new TaskError(400,"Check the template name, titles and notes, then try again.");
+  if (["23514","22P02","23502"].includes(error.code??"")) throw new TaskError(400,"Check the template name, titles, notes and assigned members, then try again.");
   throw new TaskError(503,"We couldn’t confirm this template request. Your draft is kept. Refresh templates before trying again.");
 }
 export class TemplateRepository {
