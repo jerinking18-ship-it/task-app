@@ -1,0 +1,24 @@
+.dialog.dialog { width:380px;overflow:visible;color:#ecedf2; }
+.message { position:relative;padding:35px 16px 25px;text-align:center;border:1px solid #6d6244;border-radius:24px;background:#172334;box-shadow:0 20px 70px #101c2d2e;color:#ecedf2; }
+.message h2 { font-size:25px;line-height:1.18;letter-spacing:-.9px;font-weight:600;margin:0; }
+.dismiss { position:absolute;z-index:3;top:7px;right:7px;display:grid;place-items:center;width:44px;height:44px;border:0;background:transparent;color:#b6bfc9; }
+.dismiss:focus-visible { outline-color:#d2b970;border-radius:10px;outline-offset:-5px; }
+.emblem { position:relative;display:grid;place-items:center;width:136px;height:115px;margin:0 auto 17px;color:#d4b968; }
+.halo { position:absolute;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,#d2b97047,transparent 69%); }
+.disc { position:relative;display:grid;place-items:center;width:76px;height:76px;border-radius:25px;background:linear-gradient(140deg,#f0dfaa,#ccb16a);color:#192539;box-shadow:0 8px 22px #d4b9683b,inset 0 1px 0 #fff6dd;transform:rotate(-8deg); }
+.disc svg { transform:rotate(8deg); }
+.sparkA,.sparkB,.sparkC { position:absolute; }
+.sparkA { left:8px;top:13px;font-size:19px; }
+.sparkB { right:2px;top:37px;font-size:24px; }
+.sparkC { right:22px;bottom:5px;font-size:12px; }
+.meeting { font-size:11px;letter-spacing:2px;line-height:1.5;color:#d4b968;margin:0 0 12px;text-transform:uppercase;overflow-wrap:anywhere; }
+.gratitude { font-size:14px;line-height:1.5;color:#b6bfc9;margin:12px 0 24px; }
+.seal { display:inline-flex;align-items:center;gap:7px;font-size:11px;line-height:1.5;color:#8dc0a3;padding:9px 12px;border-radius:9px;background:#203042; }
+.seal svg { flex-shrink:0; }
+.progress { position:absolute;bottom:0;left:12px;right:12px;height:3px;background:#2b3442;overflow:hidden;border-radius:0 0 3px 3px; }
+.progress span { display:block;width:100%;height:100%;background:#d2b970;transform-origin:left; }
+.confetti { position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:2; }
+.particle { position:absolute;width:6px;height:10px;border-radius:1.5px; }
+@media(max-width:380px) { .message { padding:30px 13px 24px; } .message h2 { font-size:23px; } }
+@media(max-height:450px) { .message { padding:20px 13px; } .emblem { height:65px;margin-bottom:10px; } .halo { width:80px;height:80px; } .disc { width:52px;height:52px;border-radius:18px; } .disc svg { width:30px;height:30px; } .message h2 { font-size:22px; } .gratitude { margin:8px 0 14px; } }
+@media(prefers-reduced-motion:reduce) { .progress { display:none; } }

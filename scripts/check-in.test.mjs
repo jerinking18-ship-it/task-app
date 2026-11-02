@@ -40,19 +40,30 @@ test('Special and regular context schema refuses invalid cross-service scopes',(
  assert.equal(api.decodeCheckIn(data({contexts:[special]})).contexts[0].meetingId,id(3));
  for(const c of [{...special,service:'morning'},{...special,meetingId:null},{...context(),service:null},{...context(),meetingId:id(4)},{...special,closesAt:special.opensAt},{...special,visibleUntil:special.opensAt}])assert.throws(()=>api.decodeCheckIn(data({contexts:[c]})));
 });
+async function renderAccount(result){const shell=await result;return shell.type==='suspense'?shell.props.children.type(shell.props.children.props):shell;}
 test('Fresh account opening uses server attendance and safely falls back without changing auth gates',async()=>{
  let signedIn=true,check=data(),reads=0;const deps={
-  'react/jsx-runtime':{jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})},
+  'react':{Suspense:'suspense'},'@/components/account-opening':{default:'opening-shell'},'react/jsx-runtime':{jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})},
   'next/navigation':{redirect:path=>{throw Error('redirect:'+path)}},'@/components/task-app':{default:'task-app'},
   '@/lib/supabase/server':{createClient:async()=>({auth:{}})},'@/lib/auth/flow':{verifiedIdentity:async()=>signedIn?{email:'fictional@example.test'}:null},
   '@/lib/members/server':{MemberError:class extends Error{},readMembers:async()=>({current:{id:id(2)},workspace:{ownerId:id(3)}})},
   '@/lib/check-in/server':{readCheckIn:async()=>{reads++;if(check===null)throw Error('private failure');return check}},'@/lib/check-in/model':api,
  };
- const page=()=>load('../src/app/account/page.tsx',deps).default({searchParams:Promise.resolve({})});
+ const page=()=>renderAccount(load('../src/app/account/page.tsx',deps).default({searchParams:Promise.resolve({})}));
  assert.equal((await page()).props.initialView,'Check in');
  const key=api.contextKey(context());check=data({own:[key],presence:[{key,memberId:id(2)}]});assert.equal((await page()).props.initialView,'Assigned to me');
  check=null;assert.equal((await page()).props.initialView,'Assigned to me');
  signedIn=false;const before=reads;await assert.rejects(page,/redirect:\/sign-in/);assert.equal(reads,before);
+});
+test('verified startup loads membership and check-in together while keeping membership as the render gate',async()=>{
+ let finishMembers,finishCheck;const events=[];
+ const membership=new Promise(resolve=>finishMembers=resolve),attendance=new Promise(resolve=>finishCheck=resolve);
+ const deps={'react':{Suspense:'suspense'},'@/components/account-opening':{default:'opening-shell'},'react/jsx-runtime':{jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})},'next/navigation':{redirect:path=>{throw Error('redirect:'+path)}},'@/components/task-app':{default:'task-app'},'@/lib/supabase/server':{createClient:async()=>({auth:{}})},'@/lib/auth/flow':{verifiedIdentity:async()=>({email:'fixture@example.test'})},'@/lib/members/server':{MemberError:class extends Error{},readMembers:()=>{events.push('members');return membership;}},'@/lib/check-in/server':{readCheckIn:()=>{events.push('check-in');return attendance;}},'@/lib/check-in/model':api};
+ const page=load('../src/app/account/page.tsx',deps).default;let rendered=false;
+ const result=renderAccount(page({searchParams:Promise.resolve({})})).then(r=>{rendered=true;return r;});await new Promise(setImmediate);
+ assert.ok(events.includes('members'));assert.ok(events.includes('check-in'));assert.equal(rendered,false);
+ finishCheck(data());await new Promise(setImmediate);assert.equal(rendered,false);
+ finishMembers({current:{id:id(2)},workspace:{ownerId:id(3)}});assert.equal((await result).props.initialView,'Check in');
 });
 test('Check-in API authenticates reads and protects mutations against forged identity origin and body size',async()=>{
  class MemberError extends Error{constructor(status,message){super(message);this.status=status;}}

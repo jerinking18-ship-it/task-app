@@ -21,10 +21,14 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   const [needsMember,setNeedsMember]=useState(false);
   const state=useRef({dirty,pending:false,data}); state.current.dirty=dirty; state.current.data=data;
   const read=useRef<AbortController|null>(null); const sequence=useRef(0); const alive=useRef(true);
+  const readQueued=useRef(false);
   const refresh=useCallback(async (background=false) => {
     if(!enabled) return;
     if(state.current.dirty || state.current.pending) { setDeferred(true); return; }
-    read.current?.abort(); const controller=new AbortController(); read.current=controller;
+    // Focus/reconnect/broadcast events must not keep cancelling the first load.
+    // Coalesce them into one follow-up read so missed updates are still caught.
+    if(read.current) { readQueued.current=true; return; }
+    const controller=new AbortController(); read.current=controller;
     const revision=++sequence.current; if(!background)setLoading(true); setError(""); setDeferred(false);
     try {
       const response=await fetch("/api/tasks",{cache:"no-store",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});
@@ -37,16 +41,19 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     } catch(error) {
       if(alive.current && revision===sequence.current && !controller.signal.aborted)
         setError(error instanceof Error ? error.message : "Unable to connect. Try refreshing.");
-    } finally { if(alive.current && revision===sequence.current) {setLoading(false);read.current=null;} }
+    } finally { if(alive.current && revision===sequence.current) {
+      setLoading(false);read.current=null;
+      if(readQueued.current){readQueued.current=false;void refresh(true);}
+    } }
   },[enabled]);
   useEffect(()=>{
     alive.current=true;
     if(enabled) void refresh();
-    return ()=>{alive.current=false; read.current?.abort(); sequence.current++;};
+    return ()=>{alive.current=false;readQueued.current=false;read.current?.abort();read.current=null;sequence.current++;};
   },[enabled,refresh]);
   useEffect(()=>{
     if(dirty && read.current) {
-      read.current.abort(); read.current=null; sequence.current++; setLoading(false); setDeferred(true);
+      read.current.abort(); read.current=null;readQueued.current=false;sequence.current++;setLoading(false);setDeferred(true);
     }
   },[dirty]);
   useEffect(()=>{
@@ -79,7 +86,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
     if(state.current.pending) throw new SaveError("Please wait for the current save.");
     if(expired) throw new SaveError("Sign in again before saving.",401);
     if((input.action==="create" || input.action==="create_many") && uncertain) throw new SaveError("Refresh and review saved tasks before creating more tasks.");
-    read.current?.abort(); sequence.current++; setLoading(false);
+    read.current?.abort();read.current=null;readQueued.current=false;sequence.current++;setLoading(false);
     state.current.pending=true; setPending(true); setError("");
     try {
       const response=await fetch("/api/tasks",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input),signal:AbortSignal.timeout(20000)});
@@ -176,7 +183,7 @@ export function useSavedTasks(enabled:boolean, dirty:boolean) {
   }
   async function completedRequest(snapshot?:CompletedSnapshot) {
     if(state.current.pending || state.current.dirty || expired) throw new SaveError("Finish editing or sign in again before continuing.");
-    read.current?.abort();sequence.current++;setLoading(false);
+    read.current?.abort();read.current=null;readQueued.current=false;sequence.current++;setLoading(false);
     state.current.pending=true;setPending(true);setError("");
     try {
       const response=await fetch("/api/completed",snapshot?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...snapshot,confirmed:true}),signal:AbortSignal.timeout(20000)}:{cache:"no-store",signal:AbortSignal.timeout(15000)});

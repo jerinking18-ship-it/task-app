@@ -5,6 +5,7 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import { getSupabaseConfig } from "../src/lib/supabase/config.ts";
+import { appFetch, createDeadlineFetch } from "../src/lib/supabase/fetch.ts";
 
 const require = createRequire(import.meta.url);
 const { NextRequest, NextResponse } = require("next/server");
@@ -24,6 +25,7 @@ function loadSessionHelper(createServerClient) {
       if (name === "@supabase/ssr") return { createServerClient };
       if (name === "next/server") return { NextResponse };
       if (name === "./config") return { getSupabaseConfig: () => fixtureConfig };
+      if (name === "./fetch") return { appFetch };
       throw new Error(`Unexpected test dependency: ${name}`);
     },
   });
@@ -93,4 +95,27 @@ test("an anonymous preview request passes without creating cookies or redirects"
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("location"), null);
   assert.equal(response.headers.get("set-cookie"), null);
+});
+
+test("provider requests preserve caller options and have a deadline without retrying writes",async()=>{
+  let calls=0;
+  const bounded=createDeadlineFetch(async(input,init)=>{calls++;assert.equal(input,'https://fixture.example/rpc');assert.equal(init.method,'POST');assert.equal(init.body,'{}');assert.equal(init.headers['X-Test'],'retained');assert.equal('cache'in init,false);assert.ok(init.signal instanceof AbortSignal);return new Response('{}');});
+  assert.equal((await bounded('https://fixture.example/rpc',{method:'POST',body:'{}',headers:{'X-Test':'retained'}})).status,200);assert.equal(calls,1);
+});
+test("a hung provider request aborts within its deadline and is not automatically retried",async()=>{
+  let calls=0;const hold=setTimeout(()=>{},200);
+  try{const bounded=createDeadlineFetch((_input,init)=>{calls++;return new Promise((_resolve,reject)=>{init.signal.addEventListener('abort',()=>reject(init.signal.reason),{once:true});});},15);
+    await assert.rejects(bounded('https://fixture.example'),e=>e.name==='TimeoutError');assert.equal(calls,1);
+  }finally{clearTimeout(hold);}
+});
+test("provider deadlines retain explicit caller and Request cancellation",async()=>{
+  const bounded=createDeadlineFetch(async(_input,init)=>{init.signal.throwIfAborted();return new Response('{}');});
+  const caller=new AbortController();caller.abort();
+  await assert.rejects(bounded('https://fixture.example',{signal:caller.signal}),e=>e.name==='AbortError');
+  await assert.rejects(bounded(new Request('https://fixture.example',{signal:caller.signal})),e=>e.name==='AbortError');
+});
+test("a failed proxy refresh passes no identity or authorization and preserves route verification",async()=>{
+  const updateSession=loadSessionHelper((_url,_key,options)=>{assert.equal(typeof options.global.fetch,'function');return{auth:{getClaims:async()=>{throw Error('Fictional provider unavailable');}}};});
+  const r=await updateSession(new NextRequest('https://app.example/account'));
+  assert.equal(r.status,200);assert.equal(r.headers.get('set-cookie'),null);assert.equal(r.headers.get('authorization'),null);assert.equal(r.headers.get('location'),null);
 });

@@ -105,10 +105,13 @@ test("task API requires a selected member before task reads or writes", async ()
 });
 
 test("account and member pages verify authentication, gate unselected sessions and recover member read failures", async () => {
+  async function renderAccount(pending) { const shell=await pending; return shell.type==="suspense" ? shell.props.children.type(shell.props.children.props) : shell; }
   for (const signedIn of [false, true]) for (const current of [null, model.decodeMembers(state).current]) {
     let memberReads = 0;
     const deps = {
       "react/jsx-runtime": { jsx:(type,props)=>({type,props}), jsxs:(type,props)=>({type,props}) },
+      "react": {Suspense:"suspense"},
+      "@/components/account-opening": {default:"opening-shell"},
       "next/navigation": { redirect:path=>{throw Error(`redirect:${path}`);} },
       "@/lib/supabase/server": { createClient:async()=>({auth:{}}) },
       "@/lib/auth/flow": { verifiedIdentity:async()=>signedIn ? {userId:id,sessionId:id} : null },
@@ -120,8 +123,8 @@ test("account and member pages verify authentication, gate unselected sessions a
       "@/components/members/member-form": {default:"member-form"},
     };
     const account=load("../src/app/account/page.tsx",deps).default;
-    if(!signedIn || !current) await assert.rejects(()=>account({searchParams:Promise.resolve({})}),new RegExp(`redirect:${signedIn?"/account/member":"/sign-in"}`));
-    else {const page=await account({searchParams:Promise.resolve({password:"updated"})});assert.equal(page.props.initialMembers.current.name,"Grace");assert.equal(page.props.passwordUpdated,true);}
+    if(!signedIn || !current) await assert.rejects(()=>renderAccount(account({searchParams:Promise.resolve({})})),new RegExp(`redirect:${signedIn?"/account/member":"/sign-in"}`));
+    else {const page=await renderAccount(account({searchParams:Promise.resolve({password:"updated"})}));assert.equal(page.props.initialMembers.current.name,"Grace");assert.equal(page.props.passwordUpdated,true);}
     if(!signedIn) assert.equal(memberReads,0);
     const memberPage=load("../src/app/account/member/page.tsx",deps).default;
     if(!signedIn || current) await assert.rejects(()=>memberPage(),new RegExp(`redirect:${signedIn?"/account":"/sign-in"}`));
@@ -132,7 +135,7 @@ test("account and member pages verify authentication, gate unselected sessions a
       assert.equal(page.props.children.props.initialState,null);
       assert.equal(JSON.stringify(page).includes("private-database-details"),false);
       deps["@/lib/members/server"].readMembers=async()=>{throw new server.MemberError(401,"Profile session ended");};
-      await assert.rejects(()=>load("../src/app/account/page.tsx",deps).default({searchParams:Promise.resolve({})}),/redirect:\/sign-in/);
+      await assert.rejects(()=>renderAccount(load("../src/app/account/page.tsx",deps).default({searchParams:Promise.resolve({})})),/redirect:\/sign-in/);
       await assert.rejects(()=>load("../src/app/account/member/page.tsx",deps).default(),/redirect:\/sign-in/);
     }
   }
