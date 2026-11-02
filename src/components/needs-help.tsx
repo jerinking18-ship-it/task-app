@@ -11,6 +11,9 @@ import { accountClock, WEEKDAYS, type Task } from "@/lib/tasks/model";
 import type { MemberState } from "@/lib/members/model";
 import shared from "./meeting-overview.module.css";
 import styles from "./needs-help.module.css";
+import {useSundaySelection} from "@/lib/tasks/use-sunday-selection";
+import {sundayServiceTasks} from "@/lib/tasks/sunday-selection";
+import SundayServiceSelector from "./sunday-service-selector";
 
 type Props = OverviewProps & { memberState: MemberState | null; search: string; onTake: (task: Task) => void };
 
@@ -32,12 +35,16 @@ export default function NeedsHelp(props: Props) {
 
 function HelpMeeting(props: Props & { category: string; special?: boolean }) {
   const { category, now, coverageNow, currentMemberId, search, special } = props;
-  const rows = needsHelpMeeting(props.tasks, category, currentMemberId, now, coverageNow, search);
+  const {service,selectService}=useSundaySelection(now,"needs-help");
+  const scopedTasks=category==="Sunday Service"?sundayServiceTasks(props.tasks,service):props.tasks;
+  const rows = needsHelpMeeting(scopedTasks, category, currentMemberId, now, coverageNow, search);
+  const releases=category==="Sunday Service"?needsHelpMeeting(props.tasks,category,currentMemberId,now,coverageNow).released:[];
   const clock = accountClock(now, "Asia/Kolkata");
   const event=category==="Special Meeting"?activeSpecialMeeting(props.specialMeetings??[],now):null;
   const deadline = event?{resetAt:Date.parse(event.endsAt)}:overviewDeadline(category, now);
   return <section aria-label={`${category} tasks needing help`}>
     {special ? <div className={shared.specialHeading}><span className={shared.specialMark}><Symbol name="calendar"/></span><div><h2>Special Meeting</h2><p>Shown separately from your weekly meeting.</p></div></div> : <div className={styles.meeting}><div><p className={shared.eyebrow}>THIS WEEK’S MEETING</p><h2>{category==="Special Meeting"?props.specialMeetingTitle??category:category}</h2><p className={shared.meetingDate}>{dateLabel(clock.date,{weekday:"long",month:"long",day:"numeric"})}</p></div></div>}
+    {category==="Sunday Service"&&<SundayServiceSelector value={service} onChange={selectService} disabled={props.pending} counts={{morning:releases.filter(t=>t.sundayService==="morning").length,evening:releases.filter(t=>(t.sundayService??"evening")==="evening").length}}/>}
     {(!special || rows.released.some(task=>task.assignedToId!==currentMemberId)) && <HelpSection {...props} title="Tasks needing help" rows={rows.others} own={false}/>}
     {(!special || rows.released.some(task=>task.assignedToId===currentMemberId)) && <HelpSection {...props} title="My tasks awaiting help" rows={rows.mine} own/>}
     <p className={shared.deadline}><Symbol name="clock"/><span>{deadline ? `Released tasks leave this view ${dateLabel(accountClock(new Date(deadline.resetAt-1),"Asia/Kolkata").date,{weekday:"long",month:"short",day:"numeric"})} at 11:59 PM India time.` : "Each Special Meeting release expires at 11:59 PM India time the day after its selected date."} Taken and completed tasks leave immediately. Saved records remain.</span></p>

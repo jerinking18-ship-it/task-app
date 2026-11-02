@@ -29,12 +29,15 @@ const absence=load('../src/lib/members/absence.ts');
 const period=load('../src/lib/tasks/meeting-period.ts',{'./model':model});
 const overview=load('../src/lib/tasks/meeting-overview.ts',{'./model':model,'./meeting-period':period,'@/lib/members/absence':absence});
 const Empty=load('../src/components/no-meeting.tsx',{'react/jsx-runtime':require('react/jsx-runtime'),'@/lib/tasks/model':model,'@/lib/tasks/meeting-period':period,'./no-meeting.module.css':{default:{}}}).default;
-const Card=load('../src/components/members/attendance-card.tsx',{'react/jsx-runtime':require('react/jsx-runtime'),'react':React,'../no-meeting':{default:Empty},'@/lib/members/model':{},'@/lib/members/absence':absence,'@/lib/members/absence-window':windowModel,'@/lib/tasks/validation':validation,'@/lib/tasks/meeting-overview':overview,'@/lib/workspace/client':{},'./attendance.module.css':{default:{}}}).default;
+const service=load('../src/lib/tasks/sunday-service.ts',{'./model':model});
+const selection=load('../src/lib/tasks/sunday-selection.ts',{'./model':model,'./sunday-service':service});
+const hook=load('../src/lib/tasks/use-sunday-selection.ts',{'react':React,'./sunday-selection':selection});
+const Card=load('../src/components/members/attendance-card.tsx',{'react/jsx-runtime':require('react/jsx-runtime'),'react':React,'@/lib/tasks/use-sunday-selection':hook,'../sunday-service-selector':{default:()=>null},'../no-meeting':{default:Empty},'@/lib/members/model':{},'@/lib/members/absence':absence,'@/lib/members/absence-window':windowModel,'@/lib/tasks/validation':validation,'@/lib/tasks/meeting-overview':overview,'@/lib/workspace/client':{},'./attendance.module.css':{default:{}}}).default;
 function card(time,absent=false){const now=new Date(time),current={id:'member',name:'Jerin'},state={current,members:[current],absences:absent?[{id:'absence',memberId:'member',categoryId:'sunday',category:'Sunday Service',meetingDate:null,createdAt:'2026-10-18T00:00:00+05:30',expiresAt:'2026-10-20T00:00:00+05:30'}]:[]};return renderToStaticMarkup(React.createElement(Card,{state,categories:[{id:'sunday',name:'Sunday Service'}],hasSpecialTasks:false,now,disabled:false,onSaved(){},onPending(){},onRefresh(){}}));}
 test('the same window disables both Mark and Unmark while preserving a still-active absence',()=>{
  for(const absent of [false,true]){
   const before=card('2026-10-18T20:59:59+05:30',absent),after=card('2026-10-18T21:00:00+05:30',absent);
-  const evening=before.match(/<form aria-label="Evening Service attendance"[\s\S]*?<\/form>/)[0];assert.doesNotMatch(evening,/<button[^>]*disabled/);assert.match(before,/<form aria-label="Morning Service attendance"[\s\S]*?<button[^>]*disabled/);assert.equal((after.match(/<button[^>]*disabled/g)||[]).length,2);assert.match(after,/Attendance changes closed at 9:00 PM India time/);
+  const evening=before.match(/<form aria-label="Evening Service attendance"[\s\S]*?<\/form>/)[0];assert.doesNotMatch(evening,/<button[^>]*disabled/);assert.doesNotMatch(before,/<form aria-label="Morning Service attendance"/);assert.match(card("2026-10-18T11:00:00+05:30",absent),/<form aria-label="Morning Service attendance"[\s\S]*?<button[^>]*disabled/);assert.equal((after.match(/<button[^>]*disabled/g)||[]).length,1);assert.match(after,/Attendance changes closed at 9:00 PM India time/);
   if(absent){assert.match(after,/You’re marked absent for/);assert.match(after,/Unmark absent/);assert.match(card('2026-10-19T12:00:00+05:30',true),/You’re marked absent for/);}
  }
 });

@@ -3,6 +3,8 @@ import type {CheckInData} from "@/lib/check-in/model";
 import checkInStyles from "../check-in/check-in.module.css";
 import NoMeeting from "../no-meeting";
 import { automaticOverviewCategory } from "@/lib/tasks/meeting-overview";
+import {useSundaySelection} from "@/lib/tasks/use-sunday-selection";
+import SundayServiceSelector from "../sunday-service-selector";
 
 import type {ReactNode} from "react";
 import RestrictionRemoval from "./restriction-removal";
@@ -31,6 +33,7 @@ type Props = {
 };
 
 export default function AttendancePanel({checkIns,checkInError,onCheckInRefresh,specialMeetings=[],specialMeetingTitle="Special Meeting",onSaved,onPending,state, tasks, tasksReady, tasksError, search, now, loading, error, onRefresh, onBack }: Props) {
+  const {service,selectService}=useSundaySelection(now,"attendance");
   const meetings = (checkIns?.contexts??[]).filter(c=>now.getTime()<Date.parse(c.visibleUntil)).map(c=>({category:c.category,meetingDate:c.category==="Special Meeting"?c.meetingDate:null,sundayService:c.service}));
   const query = search.trim().toLocaleLowerCase();
   const ready = meetingAttendance(state, "", now,null,null,checkIns).ready;
@@ -39,11 +42,12 @@ export default function AttendancePanel({checkIns,checkInError,onCheckInRefresh,
     {(error || tasksError || checkInError) && <div className={styles.problem} role="alert"><p>{error || tasksError || checkInError}</p>{ready && <p>Showing the last loaded attendance. Refresh to check for updates.</p>}<button type="button" disabled={loading} onClick={()=>{onRefresh();onCheckInRefresh();}}>Refresh attendance</button></div>}
     {!ready ? <div className={shared.empty} role="status"><AttendanceIcon/><h3>{loading ? "Loading attendance…" : "Attendance unavailable"}</h3><p>{loading ? "Getting the current meeting’s members ready." : "Refresh to load attendance before checking who is present."}</p>{!loading && <button type="button" className={shared.secondary} onClick={()=>{onRefresh();onCheckInRefresh();}}>Refresh attendance</button>}</div> : <>
       {!automaticOverviewCategory(now,specialMeetings)&&<NoMeeting now={now}/>}
-      {meetings.map(({ category, meetingDate,sundayService }) => {
+      {meetings.filter(meeting=>meeting.category!=="Sunday Service"||meeting.sundayService===service).map(({ category, meetingDate,sundayService }) => {
         const groups = meetingAttendance(state, category, now, meetingDate,sundayService,checkIns);
         const title=sundayService==="morning"?"Morning Service":sundayService==="evening"?"Evening Service":category==="Special Meeting"?specialMeetingTitle:category;
         return <section className={styles.meetingSection} key={`${category}:${sundayService??meetingDate ?? "regular"}`} aria-label={`${title}${meetingDate ? ` ${meetingDate}` : ""} attendance`}>
           <div className={styles.meetingHeading}><span>{sundayService?"Sunday Service":category === "Special Meeting" ? "Special meeting" : "Current meeting"}</span><h2>{title}</h2>{meetingDate && <time dateTime={meetingDate}>{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", weekday: "long", month: "short", day: "numeric" }).format(new Date(`${meetingDate}T12:00:00+05:30`))}</time>}</div>
+          {sundayService&&<SundayServiceSelector spaced value={service} onChange={selectService} disabled={loading}/>}
           <MemberGroup people={groups.absent} currentId={state?.current?.id} category={title} query={query} now={now} disabled={loading} onSaved={onSaved} onPending={onPending} restrictions={canManageTasks(state)?activeAbsences(state,now).filter(a=>!!a.restrictionRole&&a.category===category&&absenceCoversService(a,sundayService,now)&&(category!=="Special Meeting"||a.meetingDate===meetingDate)):[]}/>
           <MemberGroup present people={groups.present} currentId={state?.current?.id} category={title} query={query} now={now} disabled={loading} onSaved={onSaved} onPending={onPending} restrictions={canManageTasks(state)?activeAbsences(state,now).filter(a=>!!a.restrictionRole&&a.category===category&&absenceCoversService(a,sundayService,now)&&(category!=="Special Meeting"||a.meetingDate===meetingDate)):[]}/>
           <MemberGroup notChecked people={groups.notChecked} currentId={state?.current?.id} category={title} query={query} now={now} disabled={loading} onSaved={onSaved} onPending={onPending} restrictions={[]}/>

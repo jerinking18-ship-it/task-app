@@ -11,3 +11,6 @@
 .panel .privateListButton{display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;min-height:48px;padding:0;border:1px solid #101c2d;border-radius:10px;background:#101c2d;color:#fffdf8;box-shadow:0 4px 18px #101c2d16;pointer-events:auto;cursor:pointer}
 .privateListButton:hover:not(:disabled){background:#172d46}
 @media(max-width:760px){.privateDock{left:0;bottom:max(19px,env(safe-area-inset-bottom))}}
+
+/* Only the selected Sunday service is displayed beneath the shared selector. */
+.singleService{grid-template-columns:1fr}
