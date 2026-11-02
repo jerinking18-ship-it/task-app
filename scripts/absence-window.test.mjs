@@ -69,7 +69,8 @@ test('checked-in profile hides Unmark only for the matching member, service and 
   assert.match(card(time,true,{presence}),/Unmark absent/);
  assert.match(card(time,true,{unavailable:true}),/Unmark absent/,'Unavailable check-in data preserves existing absence controls');
  assert.match(card(time,true,{currentId:'other'}),/Unmark absent/,'Another identity’s response does not hide this member’s control');
- assert.match(card(time,false,{presence:[{key,memberId:'member'}]}),/Mark myself absent/,'Existing Mark absent behavior is unchanged');
+ assert.doesNotMatch(card(time,false,{presence:[{key,memberId:'member'}]}),/Mark myself absent/,'Checked-in members cannot open a new absence confirmation');
+ assert.match(card(time,false,{presence:[{key:'sunday:2026-10-18:evening:',memberId:'member'}]}),/Mark myself absent/,'Another service check-in does not hide this service’s absence action');
 });
 
 test('checked-in return hiding also scopes Healing and each Special Meeting day/event',()=>{

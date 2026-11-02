@@ -25,10 +25,11 @@ sql('truncate public.task_notifications;')
 # Existing happy-path cases now require real scoped check-ins. These fixture
 # RPCs run only in the network-isolated container, under its controlled clock.
 # Missing/wrong-actor/service/date cases live in completion_check_in.py.
-rpc('task_app_setup',"'bootstrap',null",owner)
-check_category=sql(f"select id from public.categories where owner_id='{owner}'and name='Healing Meeting';")
-for identity in (owner,coord,member):
- rpc('task_app_check_in',f"'{check_category}','2026-12-23',null,null,true",identity)
+if sql("select to_regprocedure('public.task_app_check_in(uuid,date,text,uuid,boolean)')is not null;")=='t':
+ rpc('task_app_setup',"'bootstrap',null",owner)
+ check_category=sql(f"select id from public.categories where owner_id='{owner}'and name='Healing Meeting';")
+ for identity in (owner,coord,member):
+  rpc('task_app_check_in',f"'{check_category}','2026-12-23',null,null,true",identity)
 """
 if suite=='notifications':
  cases=(root/'supabase/tests/notifications_cases.py').read_text()
