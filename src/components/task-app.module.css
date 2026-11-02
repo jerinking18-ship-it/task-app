@@ -672,9 +672,11 @@
 
 .taskTitle {
   display:block;
-  font-size:14px;
-  font-weight:500;
-  letter-spacing:-.15px;
+  color:#0b2447;
+  font-size:16px;
+  font-weight:600;
+  letter-spacing:-.25px;
+  line-height:1.4;
   overflow-wrap:anywhere
 }
 
@@ -787,7 +789,7 @@
 
 .completed .taskTitle {
   text-decoration:line-through;
-  color:#96968f
+  color:#0b2447
 }
 
 .completed .taskNote {
@@ -1518,8 +1520,8 @@
     padding:1px 14px 0 0
   }
   .taskTitle {
-    font-size:14px;
-    font-weight:500
+    font-size:16px;
+    font-weight:600
   }
   .taskNote {
     font-size:11px;
