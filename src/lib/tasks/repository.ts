@@ -12,11 +12,11 @@ function check(error: { code?: string } | null) {
   if(error.code === "P0044")throw new TaskError(400,"Choose a date within this meeting’s allowed days, and use Off or Weekly with only those days. Existing schedules can be kept unchanged.");
   if(error.code === "P0043")throw new TaskError(403,"Check in for this task’s meeting date and service before completing it.");
   if(error.code === "P0039")throw new TaskError(409,"The task selection changed. Reopen the reassignment popup to review the current count. No tasks were reassigned.");
-  if(error.code === "P0038")throw new TaskError(409,"This task is locked until its meeting starts. Special Meeting also requires activation. Refresh before completing it.");
+  if(error.code === "P0038")throw new TaskError(409,"This task is locked outside its completion window. Sunday Morning Service closes at 6:00 PM on Sunday, India time. Special Meeting also requires activation. Refresh before completing it.");
   if(error.code === "P0037")throw new TaskError(409,"Another activated Special Meeting overlaps these dates. Lock it before activating this meeting.");
   if(error.code === "P0036")throw new TaskError(409,"This meeting is locked or another Special Meeting is active. Refresh to check the current meeting.");
   if(error.code === "P0015") throw new TaskError(403,"This task is restricted after a Missed completion. An Owner or Coordinator can remove the restriction on Attendance.");
-  if(error.code === "P0014") throw new TaskError(409,"Missed completion is outside this task’s meeting window. Sunday Morning: 9:00 AM–4:00 PM. Other services: 7:00 PM–1:00 AM the following day, India time. Refresh before retrying.");
+  if(error.code === "P0014") throw new TaskError(409,"Missed completion is outside this task’s meeting window. Sunday Morning: 9:00 AM–6:00 PM. Other services: 7:00 PM–1:00 AM the following day, India time. Refresh before retrying.");
   if(error.code === "P0403") throw new TaskError(403,"Your current role or assignment does not allow this action. Refresh to see current permissions.");
   if(error.code === "P0409") throw new TaskError(409,"This item changed. Refresh and review the current details before trying again.");
   if (["PGRST301","PGRST302","42501"].includes(error.code ?? "")) throw new TaskError(401,"Your session is unavailable. Sign in again to continue.");

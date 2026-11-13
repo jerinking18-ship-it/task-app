@@ -93,10 +93,10 @@ test('server window rejection is readable and never retried as ordinary completi
  assert.equal(calls.length,1);assert.equal(calls[0],'task_app_complete_missed');
 });
 
-test('Sunday Morning is 9AM–4PM for both managerial roles',()=>{
+test('Sunday Morning is 9AM–6PM for both managerial roles',()=>{
  const task={...base,category:'Sunday Service',sundayService:'morning',date:'2026-10-18'};
- for(const role of ['owner','coordinator'])for(const [stamp,want]of [['2026-10-18T08:59:59+05:30',false],['2026-10-18T09:00:00+05:30',true],['2026-10-18T15:59:59+05:30',true],['2026-10-18T16:00:00+05:30',false],['2026-10-18T19:00:00+05:30',false],['2026-10-19T00:30:00+05:30',false],['2026-10-25T10:00:00+05:30',false]])assert.equal(assignment.canCompleteMissed(task,actor,role,new Date(stamp)),want,stamp);
- assert.match(assignment.missedCompletionTiming(task,new Date('2026-10-18T16:00+05:30')).message,/9:00 AM.*4:00 PM/);
+ for(const role of ['owner','coordinator'])for(const [stamp,want]of [['2026-10-18T08:59:59+05:30',false],['2026-10-18T09:00:00+05:30',true],['2026-10-18T15:59:59+05:30',true],['2026-10-18T16:00:00+05:30',true],['2026-10-18T17:59:59.999+05:30',true],['2026-10-18T18:00:00+05:30',false],['2026-10-18T19:00:00+05:30',false],['2026-10-19T00:30:00+05:30',false],['2026-10-25T10:00:00+05:30',false]])assert.equal(assignment.canCompleteMissed(task,actor,role,new Date(stamp)),want,stamp);
+ assert.match(assignment.missedCompletionTiming(task,new Date('2026-10-18T18:00+05:30')).message,/9:00 AM.*6:00 PM/);
 });
 const absence=load('../src/lib/members/absence.ts');
 const membersModel=load('../src/lib/members/model.ts',{'@/lib/tasks/validation':validation});
