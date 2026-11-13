@@ -158,6 +158,18 @@ function Modal({ children, label, onClose, className = "" }: { children: ReactNo
   }, []);
   return <dialog ref={ref} aria-label={label} className={`${styles.dialog} ${className}`} onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>{children}</dialog>;
 }
+function TaskErrorPopup({ message, loadError, needsMember, expired, onClose, onCheckIn, onChooseMember, onSignIn, onReview }: {
+  message: string; loadError: boolean; needsMember: boolean; expired: boolean; onClose: (restoreFocus?: boolean) => void; onCheckIn: () => void; onChooseMember: () => void; onSignIn: () => void; onReview?: () => void;
+}) {
+  const [dismissed,setDismissed]=useState(false);
+  useEffect(()=>setDismissed(false),[message,needsMember,expired]);
+  const checkInRequired=/^Check in for this task(?:’s|'s)? meeting date and service before completing it\.?$/i.test(message);
+  const title=needsMember?"Choose your member profile":expired?"Sign in required":checkInRequired?"Check-in required":onReview?"Task updated elsewhere":loadError?"Unable to load tasks":"Unable to update task";
+  const close=(restoreFocus=true)=>{setDismissed(true);onClose(restoreFocus);};
+  const action=needsMember?{label:"Choose your name",run:onChooseMember}:expired?{label:"Sign in again",run:onSignIn}:checkInRequired?{label:"Go to Check In",run:onCheckIn}:onReview?{label:"Review saved task",run:onReview}:null;
+  if(dismissed)return null;
+  return <Modal label={title} onClose={()=>close()} className={styles.confirmDialog}><div className={styles.confirmContent}><p className={styles.editorEyebrow}>TASK UPDATE</p><h2>{title}</h2><p>{checkInRequired?"Please check in for this meeting and service before completing this task.":message}</p><div className={styles.editorActions}><button type="button" className={styles.cancelButton} data-autofocus="true" onClick={()=>close()}>Close</button>{action&&<button type="button" className={styles.saveButton} onClick={()=>{close(false);action.run();}}>{action.label}</button>}</div></div></Modal>;
+}
 export default function TaskApp({ freshLaunch = false, initialCheckIn = null, today: initialToday, accountControls, saved = false, passwordUpdated = false, initialMembers = null, initialView = "All tasks", accountEmail = null, accountId }: { freshLaunch?: boolean; initialCheckIn?: CheckInData | null; today: string; accountControls?: ReactNode; saved?: boolean; passwordUpdated?: boolean; initialMembers?: MemberState | null; initialView?: View; accountEmail?: string | null; accountId?: string }) {
   const [dirty,setDirty]=useState(false);
   const [titleEditing,setTitleEditing]=useState<MeetingTitle|null>(null);
@@ -276,6 +288,7 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
   const deleteFocus=useRef<HTMLElement|null>(null);
   const [queuedAction,setQueuedAction]=useState<(()=>void)|null>(null);
   const [writeError,setWriteError]=useState("");
+  const taskErrorFocus=useRef<HTMLElement|null>(null);
   const [statusConflict,setStatusConflict]=useState<Task|null>(null);
   const [takeTask,setTakeTask]=useState<Task|null>(null);
   const [takeError,setTakeError]=useState("");
@@ -564,6 +577,7 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
       setReopenTask(task); return;
     }
     if(saved) {
+      taskErrorFocus.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
       setWriteError(""); setStatusConflict(null);
       try {
         const result=await storage.toggle(task);
@@ -599,6 +613,10 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
   }
   async function setupAccount() {setWriteError(""); try {await storage.setup();} catch(e) {setWriteError(e instanceof Error ? e.message : "Setup failed. Please retry.");}}
   async function retrySetup() {setWriteError(""); try {await storage.initialize();} catch(e) {setWriteError(e instanceof Error ? e.message : "Setup failed. Please retry.");}}
+  function closeTaskError(restoreFocus=true) {
+    setWriteError("");setStatusConflict(null);
+    if(restoreFocus&&writeError)window.requestAnimationFrame(()=>{if(taskErrorFocus.current?.isConnected)taskErrorFocus.current.focus();});
+  }
   function sidebar(mobile = false) {
     return <>
       <div className={styles.brand}><span className={styles.brandMark}><Icon name="check" size={23} /></span><span>BGM Task<span className={styles.brandDot}>.</span></span>{mobile && <button className={styles.menuClose} aria-label="Close navigation" onClick={() => setMenuOpen(false)}><Icon name="close" /></button>}</div>
@@ -686,7 +704,7 @@ export default function TaskApp({ freshLaunch = false, initialCheckIn = null, to
           {saved && <>
             {storage.deferred && <p className={styles.inlineNotice} role="status">Refresh queued. Finish editing or saving to load updates.</p>}
             {storage.loading && !storage.hasData && <div className={styles.empty} role="status"><div className={styles.emptyIcon}><Icon name="clock" size={29}/></div><h2>Loading your space…</h2><p>Getting your saved tasks ready.</p></div>}
-            {(storage.error || writeError) && <div className={styles.inlineError} role="alert"><p>{writeError || storage.error}</p>{storage.needsMember ? <Link href="/account/member" onClick={event=>{if(dirty){event.preventDefault();requestAction(()=>window.location.assign("/account/member"));}}}>Choose your name</Link> : storage.expired ? <Link href="/sign-in" onClick={event=>{if(dirty){event.preventDefault();requestAction(()=>window.location.assign('/sign-in'));}}}>Sign in again</Link> : <button onClick={()=>void storage.refresh()} disabled={busy || storage.loading}>Refresh saved data</button>}{statusConflict && <button onClick={()=>openEditor(statusConflict)}>Review saved task</button>}</div>}
+            {(storage.error || writeError) && <TaskErrorPopup message={writeError || storage.error} loadError={!writeError} needsMember={storage.needsMember} expired={storage.expired} onClose={closeTaskError} onCheckIn={()=>chooseView("Check in")} onChooseMember={()=>requestAction(()=>window.location.assign("/account/member"))} onSignIn={()=>requestAction(()=>window.location.assign("/sign-in"))} onReview={statusConflict?()=>openEditor(statusConflict):undefined}/>}
             {storage.hasData && !storage.timezone && !storage.expired && <div className={styles.empty}><div className={styles.emptyIcon}><Icon name="clock" size={29}/></div><h2>A home for your time</h2><p>Use India time (Mumbai · IST) so deadlines stay consistent on every device. This version supports India time.</p><button className={styles.emptyAction} disabled={busy} onClick={()=>void setupAccount()}>{busy ? "Setting up…" : "Use India time"}</button></div>}
             {!!storage.timezone && !storage.ready && <div className={styles.empty} role="status"><h2>Preparing your categories</h2><p>Your four meeting categories are being prepared. Tasks will appear once setup finishes.</p><button className={styles.emptyAction} disabled={busy} onClick={()=>void retrySetup()}>{busy ? "Preparing…" : "Retry category setup"}</button></div>}
           </>}
