@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import vm from'node:vm';import ts from'typescript';
 function load(file,deps={}){const exports={};const{outputText}=ts.transpileModule(readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});vm.runInNewContext(outputText,{exports,Date,Intl,Set,Map,require:n=>{if(n in deps)return deps[n];throw Error(n);}});return exports;}
 const model=load('../src/lib/tasks/model.ts'),validation=load('../src/lib/tasks/validation.ts',{'./model':model}),period=load('../src/lib/tasks/meeting-period.ts',{'./model':model}),special=load('../src/lib/special-meetings/model.ts',{'@/lib/tasks/model':model,'@/lib/tasks/validation':validation});
-const{meetingCompletionLocked:locked}=load('../src/lib/tasks/completion-lock.ts',{'./model':model,'./meeting-period':period});
+const{meetingCompletionLocked:locked,meetingCompletionLockLabel:lockLabel}=load('../src/lib/tasks/completion-lock.ts',{'./model':model,'./meeting-period':period});
 const row=(fields={})=>({...model.blankTask(),id:'task',title:'Prepare sound',category:'Sunday Service',date:'2026-10-25',createdAt:'2026-10-01T00:00:00Z',...fields});
 test('dated regular tasks unlock on their own India meeting day, with no early unlock in the previous week',()=>{
  for(const[category,day]of[['Sunday Service','2026-10-25'],['Healing Meeting','2026-10-28'],['Revival Meeting','2026-10-30']]){
@@ -41,7 +41,7 @@ test('All tasks can include one prepared Special occurrence while category/Assig
 test('backend meeting lock refusals remain a safe conflict and never fall back to a second mutation',async()=>{
  let calls=0;const repository=load('../src/lib/tasks/repository.ts',{'./model':model,'./validation':validation});
  const repo=new repository.TaskRepository({rpc:async()=>{calls++;return{data:null,error:{code:'P0038'}};}},'owner');
- await assert.rejects(()=>repo.mutate({action:'status',id:'task',version:'2026-10-18T00:00:00Z',status:'completed',cachedProjection:true}),e=>e.status===409&&e.message.includes('locked until its meeting starts'));
+ await assert.rejects(()=>repo.mutate({action:'status',id:'task',version:'2026-10-18T00:00:00Z',status:'completed',cachedProjection:true}),e=>e.status===409&&e.message.includes('locked outside its completion window')&&e.message.includes('6:00 PM'));
  assert.equal(calls,1);
 });
 
@@ -57,4 +57,18 @@ test('missing scoped check-in is a clear permission error without retries or exp
   await assert.rejects(()=>repo.mutate(action),e=>e.status===403&&e.message==='Check in for this task’s meeting date and service before completing it.');
   assert.equal(calls,1,'A rejected completion is never retried');
  }
+});
+
+test('Sunday Morning normal completion closes at 6PM on its own Sunday, without reopening next week',()=>{
+ for(const date of ['2026-10-25','2026-10-26','']){
+  const t=row({sundayService:'morning',date});
+  for(const [stamp,want] of [['2026-10-24T23:59:59.999+05:30',true],['2026-10-25T00:00:00+05:30',false],['2026-10-25T16:00:00+05:30',false],['2026-10-25T17:59:59.999+05:30',false],['2026-10-25T18:00:00+05:30',true],['2026-10-26T10:00:00+05:30',true]])assert.equal(locked(t,new Date(stamp)),want,date+' '+stamp);
+  assert.match(lockLabel(t,new Date('2026-10-25T18:00:00+05:30')),/closed at 6:00 PM/);
+  assert.equal(locked({...t,completed:true},new Date('2026-10-26T10:00:00+05:30')),false,'Reopening stays unchanged');
+ }
+ assert.equal(locked(row({sundayService:'morning'}),new Date('2026-11-01T10:00:00+05:30')),true);
+ assert.equal(locked(row({sundayService:'morning',date:''}),new Date('2026-11-01T10:00:00+05:30')),false,'Undated work uses current Sunday');
+ for(const sundayService of ['evening',null])assert.equal(locked(row({sundayService}),new Date('2026-10-26T10:00:00+05:30')),false);
+ assert.equal(locked(row({sundayService:'morning',availableAt:'2026-10-25T17:00:00+05:30'}),new Date('2026-10-25T16:00:00+05:30')),true);
+ assert.equal(locked(row({sundayService:'morning',date:'2026-10-27'}),new Date('2026-10-27T10:00:00+05:30')),true);
 });
