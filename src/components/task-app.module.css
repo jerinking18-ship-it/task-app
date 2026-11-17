@@ -592,6 +592,11 @@
   cursor:pointer
 }
 
+/* The locked control explains the block; its icon and row layout stay the same. */
+button.taskCheck { padding:0; border:0; background:transparent; }
+button.taskCheck::before { content:""; position:absolute; width:30px; height:38px; }
+button.taskCheck:focus-visible { outline:none; }
+
 .taskCheck input {
   position:absolute;
   opacity:0;
@@ -618,7 +623,8 @@
   color:white
 }
 
-.taskCheck input:focus-visible+span {
+.taskCheck input:focus-visible+span,
+button.taskCheck:focus-visible>span {
   outline:2px solid #94733c;
   outline-offset:4px
 }
