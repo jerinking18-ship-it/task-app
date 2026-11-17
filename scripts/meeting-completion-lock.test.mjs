@@ -72,3 +72,13 @@ test('Sunday Morning normal completion closes at 6PM on its own Sunday, without 
  assert.equal(locked(row({sundayService:'morning',availableAt:'2026-10-25T17:00:00+05:30'}),new Date('2026-10-25T16:00:00+05:30')),true);
  assert.equal(locked(row({sundayService:'morning',date:'2026-10-27'}),new Date('2026-10-27T10:00:00+05:30')),true);
 });
+
+test('lock explanations distinguish future work, Morning cutoff and Special activation or expiry',()=>{
+ const now=new Date('2026-10-25T18:00:00+05:30');
+ assert.match(lockLabel(row({date:'2026-11-01',sundayService:'morning'}),now),/until this task’s meeting starts/);
+ assert.match(lockLabel(row({date:'2026-10-25',sundayService:'morning'}),now),/closed at 6:00 PM/);
+ const special=row({category:'Special Meeting',specialEnabled:true,specialMeeting:{startDate:'2026-10-25',startsAt:'2026-10-25T00:00:00+05:30',endsAt:'2026-10-26T00:00:00+05:30',locked:true}});
+ assert.match(lockLabel(special,now),/must activate/);
+ assert.match(lockLabel({...special,specialMeeting:{...special.specialMeeting,locked:false}},new Date('2026-10-26T00:00:00+05:30')),/has ended/);
+ assert.match(lockLabel({...special,specialMeeting:null},now),/meeting is activated/);
+});

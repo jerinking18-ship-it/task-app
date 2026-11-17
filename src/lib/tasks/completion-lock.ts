@@ -16,6 +16,12 @@ function sundayMorningCompletionEnd(task: Task, now: Date): number | null {
 }
 
 export function meetingCompletionLockLabel(task: Task, now: Date): string {
+  if (task.category === "Special Meeting") {
+    const event = task.specialMeeting;
+    if (event && (event.locked || !task.specialEnabled)) return "This Special Meeting is locked. An Owner or Coordinator must activate it before tasks can be completed.";
+    if (event && now.getTime() >= Date.parse(event.endsAt)) return "This Special Meeting has ended. Task completion is closed.";
+    return "This task can be completed after its Special Meeting day starts and the meeting is activated.";
+  }
   const end = sundayMorningCompletionEnd(task, now);
   return end !== null && now.getTime() >= end
     ? "Morning Service completion closed at 6:00 PM on Sunday, India time."
